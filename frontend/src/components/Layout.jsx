@@ -56,7 +56,7 @@ const groups = [
       { to: "/ordenes-venta", label: "Órdenes/Cotizaciones", icon: ShoppingBag, soon: true },
       { to: "/garantias", label: "Garantías/Devoluciones", icon: RotateCcw, soon: true },
       { to: "/ordenes-compra", label: "Órdenes de Compra", icon: ShoppingBag, soon: true },
-      { to: "/creditos", label: "Créditos (Fiado)", icon: HandCoins, soon: true },
+      { to: "/creditos", label: "Créditos (Fiado)", icon: HandCoins, tid: "nav-creditos", badge: "Nuevo" },
       { to: "/servicios", label: "Servicios", icon: Wrench, soon: true },
       { to: "/recogidas", label: "Recogidas Caja", icon: PiggyBank, soon: true },
       { to: "/comisiones", label: "Comisiones", icon: BadgeDollarSign, soon: true },

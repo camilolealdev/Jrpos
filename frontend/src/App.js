@@ -9,6 +9,7 @@ import InvoiceScanner from "@/pages/InvoiceScanner";
 import Customers from "@/pages/Customers";
 import Suppliers from "@/pages/Suppliers";
 import Reports from "@/pages/Reports";
+import Credits from "@/pages/Credits";
 import Placeholder from "@/pages/Placeholder";
 
 const soonModules = [
@@ -26,7 +27,6 @@ const soonModules = [
   { path: "ordenes-compra", title: "Órdenes de Compra", desc: "Solicitudes a proveedores." },
   { path: "notas", title: "Notas Crédito y Débito", desc: "Ajustes documentales electrónicos." },
   { path: "cuentas-cobro", title: "Cuentas de Cobro", desc: "Documentos equivalentes." },
-  { path: "creditos", title: "Créditos (Fiado)", desc: "Ventas y compras a crédito." },
   { path: "servicios", title: "Prestación de Servicios", desc: "Ventas de servicios facturables." },
   { path: "recogidas", title: "Recogidas de Dinero", desc: "Retiros y arqueos de caja." },
   { path: "comisiones", title: "Comisiones por Productos", desc: "Reglas de comisión por vendedor." },
@@ -51,6 +51,7 @@ function App() {
             <Route path="clientes" element={<Customers />} />
             <Route path="proveedores" element={<Suppliers />} />
             <Route path="reportes" element={<Reports />} />
+            <Route path="creditos" element={<Credits />} />
             {soonModules.map((m) => (
               <Route
                 key={m.path}

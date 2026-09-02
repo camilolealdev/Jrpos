@@ -31,8 +31,14 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ Escaneo de facturas: dropzone/cámara móvil, selección de modelo Gemini, edición previa, importar al inventario
 - ✅ Clientes y Proveedores CRUD compartido
 - ✅ Reportes: historial de ventas
-- ✅ Sidebar navigation con 22 módulos, 5 activos y 17 con placeholder "pronto"
+- ✅ Sidebar navigation con 22 módulos
 - ✅ Responsive con drawer móvil, PWA manifest, colores emerald/terracotta anti-slop
+
+## Implemented (Feb 2026 - v1.1: Fiado)
+- ✅ Sale: campos is_credit, balance_due, credit_status
+- ✅ POS: método "crédito" con selector obligatorio de cliente
+- ✅ Endpoints: /api/credits/summary, /api/credits/customer/{id}, /api/credits/payment, /api/credits/pending-sales
+- ✅ Página /creditos: cartera total, lista de deudores, estado de cuenta, registro de abonos (efectivo/nequi/daviplata/transferencia/tarjeta)
 
 ## P0 Backlog (siguiente fase)
 - Facturación Electrónica DIAN (integración con proveedor tecnológico: Facture/Alegra API)

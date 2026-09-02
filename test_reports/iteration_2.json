@@ -1,0 +1,19 @@
+{
+  "summary": "Verified Fiado/Créditos UI + backend integration end-to-end via public URL. Backend endpoints /api/credits/summary and /api/credits/pending-sales return correct data. UI: sidebar link 'Créditos (Fiado)' with 'Nuevo' badge navigates to /creditos, credits-page shows total-cartera $7.000, clicking customer opens statement (balance $7.000, cards, sales table, payments table), Abonar dialog registers payment ($1.000) with toast 'Abono de $ 1.000 registrado' and balance updates to $6.000 with status Parcial. POS loads and renders products correctly. No console errors observed.",
+  "tested_scope": ["frontend", "backend", "integration"],
+  "passed": [
+    "GET /api/credits/summary returns customers[] with total_due=7000",
+    "GET /api/credits/pending-sales returns pending credit sale",
+    "Sidebar nav-creditos shows 'Créditos (Fiado)' + 'Nuevo' badge and navigates to /creditos",
+    "credits-page renders total-cartera and customer list",
+    "credit-customer row opens credit-statement-page with statement-balance, resumen cards, ventas and abonos tables",
+    "pay-btn opens payment-abono-dialog; confirm-abono-btn triggers POST /api/credits/payment and updates balance (7000 -> 6000, status Parcial)",
+    "POS page loads with product grid (regresión ok)"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "POS credit dropdown UI (credit-customer-select) and 400-block for missing customer were not exercised via UI in this pass; backend behavior confirmed by main agent via curl. No test_credentials.md needed (no auth in flows)."
+}

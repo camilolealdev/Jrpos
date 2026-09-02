@@ -112,7 +112,30 @@ class Sale(BaseModel):
     customer_name: Optional[str] = None
     cashier: Optional[str] = "Cajero"
     notes: Optional[str] = None
+    is_credit: bool = False
+    balance_due: float = 0.0
+    credit_status: str = "paid"  # paid | pending | partial
     created_at: str = Field(default_factory=now_iso)
+
+
+class Payment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    sale_id: str
+    sale_number: Optional[str] = None
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
+    amount: float
+    method: str = "efectivo"
+    notes: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+
+
+class PaymentCreate(BaseModel):
+    sale_id: str
+    amount: float
+    method: str = "efectivo"
+    notes: Optional[str] = None
 
 
 class SaleCreate(BaseModel):
@@ -284,6 +307,9 @@ async def create_sale(payload: SaleCreate):
     discount = payload.discount or 0.0
     total = round(subtotal - discount, 2)
     number = await next_sale_number()
+    is_credit = payload.payment_method == "credito"
+    if is_credit and not payload.customer_id:
+        raise HTTPException(status_code=400, detail="Debes seleccionar un cliente para venta a crédito (fiado)")
     sale = Sale(
         number=number,
         items=items,
@@ -295,6 +321,9 @@ async def create_sale(payload: SaleCreate):
         customer_id=payload.customer_id,
         customer_name=payload.customer_name,
         notes=payload.notes,
+        is_credit=is_credit,
+        balance_due=total if is_credit else 0.0,
+        credit_status="pending" if is_credit else "paid",
     )
     await db.sales.insert_one(sale.model_dump())
 
@@ -316,6 +345,94 @@ async def get_sale(sale_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     return Sale(**doc)
+
+
+# ----------------- Credits / Fiado -----------------
+@api_router.post("/credits/payment", response_model=Payment)
+async def register_payment(payload: PaymentCreate):
+    sale_doc = await db.sales.find_one({"id": payload.sale_id}, {"_id": 0})
+    if not sale_doc:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if not sale_doc.get("is_credit"):
+        raise HTTPException(status_code=400, detail="Esta venta no es a crédito")
+    current_balance = float(sale_doc.get("balance_due", 0))
+    amount = float(payload.amount or 0)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="El abono debe ser mayor a 0")
+    if amount > current_balance + 0.01:
+        raise HTTPException(status_code=400, detail=f"El abono supera el saldo pendiente ({current_balance})")
+
+    new_balance = round(current_balance - amount, 2)
+    status = "paid" if new_balance <= 0.009 else "partial"
+    await db.sales.update_one(
+        {"id": payload.sale_id},
+        {"$set": {"balance_due": new_balance, "credit_status": status}}
+    )
+
+    pay = Payment(
+        sale_id=payload.sale_id,
+        sale_number=sale_doc.get("number"),
+        customer_id=sale_doc.get("customer_id"),
+        customer_name=sale_doc.get("customer_name"),
+        amount=round(amount, 2),
+        method=payload.method,
+        notes=payload.notes,
+    )
+    await db.payments.insert_one(pay.model_dump())
+    return pay
+
+
+@api_router.get("/credits/summary")
+async def credits_summary():
+    """List customers with pending balance and totals."""
+    sales = await db.sales.find(
+        {"is_credit": True, "credit_status": {"$in": ["pending", "partial"]}},
+        {"_id": 0},
+    ).to_list(5000)
+    by_customer = {}
+    for s in sales:
+        key = s.get("customer_id") or "sin_id"
+        entry = by_customer.setdefault(key, {
+            "customer_id": s.get("customer_id"),
+            "customer_name": s.get("customer_name") or "Sin cliente",
+            "total_due": 0.0,
+            "sales_count": 0,
+            "oldest_date": s.get("created_at"),
+        })
+        entry["total_due"] += float(s.get("balance_due", 0))
+        entry["sales_count"] += 1
+        if s.get("created_at") and s.get("created_at") < entry["oldest_date"]:
+            entry["oldest_date"] = s.get("created_at")
+    result = sorted(by_customer.values(), key=lambda x: x["total_due"], reverse=True)
+    total = sum(x["total_due"] for x in result)
+    return {"customers": result, "total_due": round(total, 2)}
+
+
+@api_router.get("/credits/customer/{customer_id}")
+async def credit_statement(customer_id: str):
+    contact = await db.contacts.find_one({"id": customer_id}, {"_id": 0})
+    sales = await db.sales.find({"customer_id": customer_id, "is_credit": True}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    payments = await db.payments.find({"customer_id": customer_id}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    total_credit = sum(float(s.get("total", 0)) for s in sales)
+    total_paid = sum(float(p.get("amount", 0)) for p in payments)
+    balance = round(total_credit - total_paid, 2)
+    return {
+        "customer": contact,
+        "sales": sales,
+        "payments": payments,
+        "total_credit": round(total_credit, 2),
+        "total_paid": round(total_paid, 2),
+        "balance": balance,
+    }
+
+
+@api_router.get("/credits/pending-sales")
+async def pending_credit_sales(customer_id: Optional[str] = None):
+    q: dict = {"is_credit": True, "credit_status": {"$in": ["pending", "partial"]}}
+    if customer_id:
+        q["customer_id"] = customer_id
+    sales = await db.sales.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return sales
 
 
 # ----------------- Contacts (customers/suppliers) -----------------

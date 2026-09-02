@@ -17,6 +17,8 @@ export default function POS() {
   const [cart, setCart] = useState([]);
   const [category, setCategory] = useState("all");
   const [categories, setCategories] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [customerId, setCustomerId] = useState("");
   const [payOpen, setPayOpen] = useState(false);
   const [payment, setPayment] = useState("efectivo");
   const [received, setReceived] = useState("");
@@ -31,8 +33,12 @@ export default function POS() {
     const { data } = await api.get("/categories");
     setCategories(data);
   };
+  const loadCustomers = async () => {
+    const { data } = await api.get("/contacts", { params: { kind: "customer" } });
+    setCustomers(data);
+  };
   useEffect(() => { load(); }, [q, category]);
-  useEffect(() => { loadCats(); }, []);
+  useEffect(() => { loadCats(); loadCustomers(); }, []);
 
   const addToCart = (p) => {
     setCart((prev) => {
@@ -68,17 +74,25 @@ export default function POS() {
 
   const checkout = async () => {
     if (cart.length === 0) return;
+    if (payment === "credito" && !customerId) return toast.error("Selecciona un cliente para venta a crédito");
     try {
       const items = cart.map((c) => ({ ...c, subtotal: c.qty * c.price }));
-      const { data } = await api.post("/sales", { items, payment_method: payment });
+      const customer = customers.find((x) => x.id === customerId);
+      const { data } = await api.post("/sales", {
+        items,
+        payment_method: payment,
+        customer_id: customerId || undefined,
+        customer_name: customer?.name || undefined,
+      });
       setReceiptSale(data);
       setPayOpen(false);
       setCart([]);
       setReceived("");
-      toast.success(`Venta ${data.number} registrada`);
+      setCustomerId("");
+      toast.success(`Venta ${data.number} registrada${data.is_credit ? " a crédito" : ""}`);
       load();
     } catch (e) {
-      toast.error("Error registrando venta");
+      toast.error(e?.response?.data?.detail || "Error registrando venta");
     }
   };
 
@@ -241,6 +255,20 @@ export default function POS() {
                 ))}
               </div>
             </div>
+            {payment === "credito" && (
+              <div>
+                <label className="text-xs uppercase font-semibold tracking-wider text-slate-500">Cliente (fiado)</label>
+                <Select value={customerId} onValueChange={setCustomerId}>
+                  <SelectTrigger className="h-11" data-testid="credit-customer-select"><SelectValue placeholder="Selecciona cliente" /></SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}{c.document ? ` · ${c.document}` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-amber-700 mt-1">💡 La venta quedará con saldo pendiente y aparecerá en Créditos.</div>
+              </div>
+            )}
             {payment === "efectivo" && (
               <div>
                 <label className="text-xs uppercase font-semibold tracking-wider text-slate-500">Recibido</label>
