@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,13 +24,21 @@ export function applyAccent(accent) {
 
 export default function Settings() {
   const [form, setForm] = useState({ store_name: "JRPOS", ticket_footer: "¡Gracias por su compra!", iva_default: 19, printer_width: 58, accent: "emerald", support_phone: "" });
+  const dirty = useRef(false);
 
   useEffect(() => {
+    // Carga inicial: precarga localStorage para evitar race con la respuesta HTTP
+    const cached = localStorage.getItem("jrpos_settings");
+    if (cached) {
+      try { setForm((prev) => ({ ...prev, ...JSON.parse(cached) })); } catch { /* noop */ }
+    }
     api.get("/settings/general").then((r) => {
-      setForm(r.data);
+      if (!dirty.current) setForm(r.data);
       applyAccent(r.data.accent);
     });
   }, []);
+
+  const update = (changes) => { dirty.current = true; setForm((prev) => ({ ...prev, ...changes })); };
 
   const save = async () => {
     try {
@@ -53,13 +61,13 @@ export default function Settings() {
         <CardHeader><CardTitle className="text-lg">Tienda y recibo</CardTitle></CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-3">
           <div><label className="text-xs font-semibold">Nombre de la tienda</label>
-            <Input value={form.store_name} onChange={(e) => setForm({ ...form, store_name: e.target.value })} data-testid="s-store-name" /></div>
+            <Input value={form.store_name} onChange={(e) => update({ store_name: e.target.value })} data-testid="s-store-name" /></div>
           <div><label className="text-xs font-semibold">Pie del recibo</label>
-            <Input value={form.ticket_footer} onChange={(e) => setForm({ ...form, ticket_footer: e.target.value })} data-testid="s-footer" /></div>
+            <Input value={form.ticket_footer} onChange={(e) => update({ ticket_footer: e.target.value })} data-testid="s-footer" /></div>
           <div><label className="text-xs font-semibold">IVA por defecto (%)</label>
-            <Input type="number" value={form.iva_default} onChange={(e) => setForm({ ...form, iva_default: e.target.value })} data-testid="s-iva" /></div>
+            <Input type="number" value={form.iva_default} onChange={(e) => update({ iva_default: e.target.value })} data-testid="s-iva" /></div>
           <div><label className="text-xs font-semibold">WhatsApp de soporte</label>
-            <Input value={form.support_phone} onChange={(e) => setForm({ ...form, support_phone: e.target.value })} placeholder="3001234567" data-testid="s-support" /></div>
+            <Input value={form.support_phone} onChange={(e) => update({ support_phone: e.target.value })} placeholder="3001234567" data-testid="s-support" /></div>
         </CardContent>
       </Card>
 
@@ -67,7 +75,7 @@ export default function Settings() {
         <CardHeader><CardTitle className="text-lg">Impresión térmica</CardTitle></CardHeader>
         <CardContent>
           <label className="text-xs font-semibold">Ancho del papel</label>
-          <Select value={String(form.printer_width)} onValueChange={(v) => setForm({ ...form, printer_width: Number(v) })}>
+          <Select value={String(form.printer_width)} onValueChange={(v) => update({ printer_width: Number(v) })}>
             <SelectTrigger className="w-48" data-testid="s-printer"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="58">58 mm (32 caracteres)</SelectItem>
@@ -84,7 +92,7 @@ export default function Settings() {
             {Object.entries(ACCENTS).map(([key, a]) => (
               <button
                 key={key}
-                onClick={() => setForm({ ...form, accent: key })}
+                onClick={() => update({ accent: key })}
                 className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition ${form.accent === key ? "border-slate-900" : "border-transparent hover:border-slate-300"}`}
                 data-testid={`accent-${key}`}
               >

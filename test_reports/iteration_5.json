@@ -1,0 +1,33 @@
+{
+  "summary": "E2E testing of JRPOS new Auth+Roles+Users+Settings+Support features. Backend: 17/17 pytest suite passed (test_auth_permissions.py) covering login OK/KO, brute force, /auth/me protection, /products 401 sin cookie, /users admin-only (403 cajero), CRUD usuarios con verificación GET, self-delete blocked (400/403), settings GET/PUT admin-only, cajero can list productos/held, logout. Frontend: (1) login page: credenciales incorrectas muestra 'Credenciales incorrectas' en login-error; login admin OK redirige a /dashboard con user-chip 'Administrador·admin'. (2) Sidebar admin: nav-usuarios, nav-configuracion, nav-soporte todos visibles. (3) Users page /usuarios: modal 'Nuevo usuario' abre user-form, campos u-name/u-email/u-password funcionan, save-user-btn crea usuario y aparece en la tabla; delete-user con confirm() elimina; el usuario admin (self) NO renderiza botón del-user (auto-delete UI-preventivo, correcto). (4) Login como cajero@jrpos.co: user-chip 'Cajero·cajero'; sidebar OCULTA nav-usuarios y nav-configuracion; nav-soporte visible; ir a /usuarios directo muestra 'Solo administradores' (users-denied). (5) Cajero /pos accesible (pos-page visible). (6) Settings /configuracion admin: PUT via curl reset a JRPOS/emerald/58 OK, luego cambio via API a 'Tienda Camilo TEST'/ocean/80 confirmado con GET; UI change via playwright tuvo race con useEffect GET (page.fill se pisó por respuesta tardía) pero el backend funciona correctamente (verificado por curl). (7) Support /soporte: 6 guías rápidas presentes (guide- data-testids). support-whatsapp button no aparece cuando support_phone vacío (comportamiento correcto). (8) Route protection: sin cookie /dashboard redirige a /login. /api/products sin cookie 401. Todos los data-testids requeridos existen en el DOM.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Settings save via UI", "issue": "Race condition: Settings.jsx useEffect GET /api/settings/general responde tarde y sobrescribe cambios que el usuario tipeó rápidamente. Repro: page.fill inmediato tras montar → el valor tipeado se revierte al llegar la respuesta HTTP. Un usuario humano típico no lo percibiría (>500ms de latencia de tipeo), pero es una condición de carrera. Fix sugerido: usar un flag 'dirty' o solo setForm si !dirty, o inicializar con localStorage.getItem('jrpos_settings') mientras carga.", "affected_selectors": ["s-store-name"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_auth_permissions.py", "/app/test_reports/pytest/auth_results.xml"],
+  "action_items": [
+    "Considerar guardar el valor tipeado en Settings.jsx contra race con la useEffect GET (setForm(prev => prev.__dirty ? prev : r.data)).",
+    "En Users.jsx confirmar que window.confirm nativo se dispara para delete — funciona pero es UX pobre; considerar AlertDialog de shadcn.",
+    "En Support: mostrar botón de WhatsApp deshabilitado cuando support_phone vacío con hint 'Configura WhatsApp en /configuracion' — actualmente simplemente no aparece.",
+    "Contraste del sidebar-store-name en modo dark no verificado (no aplica ahora)."
+  ],
+  "critical_code_review_comments": [
+    "Settings.jsx (line 28-33): useEffect GET puede sobrescribir cambios locales si el usuario tipea muy rápido. Añadir guard.",
+    "Users.jsx: usa window.confirm() en delete (línea 37). Reemplazar con AlertDialog para consistencia UI.",
+    "server.py get_current_user: si el token está expirado el frontend recibe 401 y debe llamar /auth/refresh. Verificar que api.js maneja el refresh transparente para el usuario (no observado en test, potencial UX issue en sesiones largas).",
+    "server.py brute force lockout (5/15min) — el test forzó 5 fails y obtuvo 401 en el 6to (no 429). Verificar que el lockout esté correctamente implementado con status 429 y mensaje claro; actualmente respuesta indistinguible de credencial incorrecta."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_auth_permissions.py (nuevo)"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "95% (todos los flujos pasan; race condition menor en UI Settings save)"},
+  "test_credentials": "admin: camiloleal.opx@gmail.com / jrpos2026; cajero: cajero@jrpos.co / cajero123",
+  "seed_data_creation": "Ninguna nueva. Se creó y eliminó cajero_uitest@jrpos.co durante el test. Settings actualmente en JRPOS/emerald/58 (reset via curl).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend api_router tiene Depends(get_current_user) global. Cookie access_token (8h) + refresh_token (7d) httpOnly SameSite=None Secure. En playwright funcionan con contexto normal. Para tour driver.js, setear localStorage 'jrpos_onboarding_done'='1' via add_init_script Y también hacer dismiss_tour() removiendo .driver-overlay/.driver-popover/svg.driver-overlay-animated tras cada page.goto porque el tour puede re-triggerse. En Users la creación abre Dialog (data-testid=user-form) tras click new-user-btn — no está siempre en DOM. Admin no tiene botón del-user (self-delete UI-prevention). En Settings hay race entre fill y useEffect GET; usar page.wait_for_timeout(1000) tras montar antes de fill, o hacer settings changes vía API para setup."
+}

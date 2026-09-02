@@ -45,6 +45,15 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ /api/categories devuelve pinned primero (ordenados) y luego por conteo desc
 - ✅ POS: chips fijados con emoji custom, botón "Iconos y categorías" desde Inventario abre CategoryManager
 - ✅ Impresión térmica ESC/POS vía Web Bluetooth (58mm) para recibos POS y abonos de fiado
+## Implemented (Sep 2026 - v2.0: Auth + Usuarios + Configuración + Soporte)
+- ✅ Auth JWT completa: cookies httpOnly (access 8h + refresh 7d), bcrypt, bloqueo brute-force (5 intentos/15min), protección global de /api/* (401 sin sesión), CORS restringido a FRONTEND_URL
+- ✅ Admin sembrado: camiloleal.opx@gmail.com / jrpos2026; cajero demo: cajero@jrpos.co / cajero123 (ver memory/test_credentials.md)
+- ✅ Roles: admin (todo) y cajero (POS, clientes, créditos, reportes); sidebar filtra módulos adminOnly; /api/users y PUT /settings/general requieren admin (403)
+- ✅ Módulo Permisos de Usuarios: crear/listar/eliminar usuarios con rol
+- ✅ Módulo Soporte y Capacitación: 6 guías rápidas + WhatsApp soporte
+- ✅ Configuración General: nombre tienda (aparece en sidebar), pie de recibo, IVA default, ancho impresora 58/80mm, 5 colores de acento con swatches, WhatsApp soporte
+- ✅ README.md actualizado para GitHub (stack, módulos, env, despliegue)
+
 ## Implemented (Sep 2026 - v1.6: WhatsApp + Responsive 100%)
 - ✅ Recordatorio WhatsApp de fiado: botón en lista de deudores y en estado de cuenta; mensaje con nombre, saldo, facturas y fecha más antigua; normaliza celular CO (10 dígitos → +57); toast si no hay teléfono válido
 - ✅ Testing iteration_4: 100% frontend (wa.me URL verificada, stopPropagation, toast sin teléfono, regresión abonos/POS)
