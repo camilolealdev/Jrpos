@@ -1,0 +1,9 @@
+{
+  "short_name": "AbarrotesPOS",
+  "name": "AbarrotesPOS Colombia",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#15803D",
+  "background_color": "#FAF9F6",
+  "icons": []
+}

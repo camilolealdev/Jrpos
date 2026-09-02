@@ -1,0 +1,32 @@
+{
+  "summary": "Smoke testing of AbarrotesPOS (POS + Inventario + Facturas OCR + Contactos + Reportes). Backend endpoints (seed, products, barcode, sales, contacts, reports/summary) all respond 200. Frontend: full POS happy path works end-to-end (barcode add, product-card click, qty controls, checkout efectivo, receipt POS-000003). Navigation across all main modules (Panel, POS, Inventario, Facturas, Reportes, Clientes, Proveedores) works. Placeholder 'pronto' pages render. Mobile hamburger opens sidebar correctly. Inventario CRUD create tested successfully.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "POST /api/seed -> 200; /api/products returns 12 seeded items",
+    "GET /api/products/barcode/7702001010011 returns Arroz Diana 500g",
+    "POST /api/sales creates sale POS-000002 (fields qty & subtotal required)",
+    "GET /api/reports/summary returns daily_sales, top_products, low_stock",
+    "POST /api/contacts creates cliente OK; GET /api/contacts?kind=cliente lists it",
+    "Dashboard renders Ventas hoy $7.000, Productos 12, Bajo stock 1, chart 'Ventas últimos días', top vendidos",
+    "POS: search filter, barcode-add (Arroz), click product card adds to cart, cart total in COP recalculates ($2.500 -> $5.000)",
+    "POS checkout: efectivo + received $50.000 confirmed, receipt POS-000003 shown with format POS-XXXXXX",
+    "Inventario: new-product-btn opens form, created 'Producto Test QA' visible in list",
+    "Nav to Facturas: dropzone and model-select visible",
+    "Reportes: page shows POS- sale numbers",
+    "Clientes and Proveedores pages load",
+    "Placeholder /facturacion-electronica renders 'pronto' text",
+    "Mobile 390x844: open-sidebar hamburger visible; mobile-sidebar opens with nav items"
+  ],
+  "failed": [
+    {"area": "Dashboard copy", "issue": "Section titled 'Ventas últimos días' instead of expected 'Ventas diarias' (spec wording mismatch)", "evidence": "innerText check for 'Ventas diarias' = False; screenshot shows 'Ventas últimos días'", "priority": "LOW"},
+    {"area": "Accessibility warnings", "issue": "Radix DialogContent missing Description/aria-describedby (payment dialog, receipt dialog)", "evidence": "Console warnings printed 4x: 'Warning: Missing Description or aria-describedby={undefined} for {DialogContent}'", "priority": "LOW"}
+  ],
+  "action_items": [
+    "Optional: rename dashboard section title to 'Ventas diarias' if strict wording is required.",
+    "Optional: add DialogDescription (or aria-describedby) to Payment/Receipt dialogs to silence a11y warnings.",
+    "Not tested in this smoke pass: real OCR call to /api/invoices/ocr with Gemini (UI verified only); /api/invoices/import; full Inventario edit/delete; Clientes/Proveedores CRUD via UI. Recommend full-agent regression."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

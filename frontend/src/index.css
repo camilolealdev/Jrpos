@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@500;600;700;800&display=swap");
+
+@layer base {
+  :root {
+    --background: 44 33% 97%;      /* #FAF9F6 */
+    --foreground: 222 47% 11%;     /* #0F172A */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 142 72% 29%;        /* #15803D */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 24 90% 40%;          /* #C2410C */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 142 72% 29%;
+    --radius: 0.5rem;
+    --chart-1: 142 72% 29%;
+    --chart-2: 24 90% 40%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 200 90% 40%;
+    --chart-5: 340 75% 55%;
+  }
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 210 40% 98%;
+    --card: 217 33% 12%;
+    --card-foreground: 210 40% 98%;
+    --popover: 217 33% 12%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 142 66% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 24 90% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 142 66% 42%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4 { font-family: "Outfit", ui-sans-serif, system-ui, sans-serif; letter-spacing: -0.01em; }
+  .font-mono, code, kbd { font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace; }
+}
+
+/* Subtle grain overlay for tactile look */
+.grain-bg {
+  background-image:
+    radial-gradient(circle at 20% 10%, rgba(21,128,61,0.05), transparent 50%),
+    radial-gradient(circle at 80% 90%, rgba(194,65,12,0.04), transparent 55%);
+}
+
+/* Utility for POS touch buttons */
+.touch-btn { min-height: 48px; min-width: 48px; }
+
+/* Receipt style */
+.receipt {
+  font-family: "JetBrains Mono", monospace;
+  background: #fffbeb;
+  border: 1px dashed #f59e0b66;
+}
+
+/* Scrollbars subtle */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.15); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(15,23,42,0.28); }
+
+@layer base {
+  [data-debug-wrapper="true"] { display: contents !important; }
+}

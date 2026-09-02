@@ -1,0 +1,132 @@
+{
+  "project_name": "AbarrotesPOS Colombia - Tienda & POS Inteligente",
+  "app_type": "hybrid_fullstack",
+  "archetype": "ORGANIC & TACTILE COMMERCE (Archetype 1 + Tactical High Density)",
+  "instructions_to_main_agent": "Implement a high-efficiency POS and inventory management system designed for a Colombian grocery store ('tienda de abarrotes'). The design must feel grounded, tactile, warm, and highly functional with zero purple AI-slop. Provide dual light/dark capability or default warm high-contrast light mode with slate accents. Optimize the POS layout for touch screens (large numpad, big action buttons, instant search, camera barcode scanner dialog, receipt drawer). Integrate invoice photo upload OCR scanning simulation (drag/drop or mobile camera upload, image extraction preview with bounding boxes/detected items, instant import to inventory). Ensure touch target sizes are minimum 44x44px for POS operations. Include data-testid attributes on all interactive elements.",
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Avoid AI slop purple gradients (#7351B7 is strictly forbidden). Use warm grocery-fresh emerald green (#15803D / #0F5132) and burnt terracotta (#C2410C) highlights.",
+    "Do NOT center align body text or main application containers. Preserve natural reading visual flow.",
+    "Do NOT use Space Grotesk font.",
+    "Do NOT use Inter font for Headings. Use Outfit or Plus Jakarta Sans for main headers, JetBrains Mono for prices/currency/barcodes, and DM Sans for readable body content.",
+    "Never use generic flat full-screen dark gradients. Use subtle tactile textures, crisp 1px borders (border-slate-200 / border-slate-800), and layered subtle ambient shadows.",
+    "POS screen must have 3 primary touch zones: Left/Top Navigation & Fast Categories, Center Grid/List with Search & Barcode Quick-add, Right Collapsible Cart/Totals/Numpad panel.",
+    "All interactive buttons and input fields MUST include data-testid attributes (e.g. data-testid='pos-checkout-btn', data-testid='barcode-scan-input').",
+    "Include responsive PWA/mobile navigation drawer or tab bar for small screen mobile operation."
+  ],
+  "typography": {
+    "font_family_headings": "Outfit, sans-serif",
+    "font_family_body": "DM Sans, sans-serif",
+    "font_family_mono": "JetBrains Mono, monospace",
+    "google_fonts_url": "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@500;600;700;800&display=swap",
+    "scale": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-none",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-lg sm:text-xl font-semibold tracking-tight",
+      "h4": "text-base sm:text-lg font-medium",
+      "body": "text-sm sm:text-base leading-relaxed",
+      "small_label": "text-xs font-semibold uppercase tracking-widest text-slate-500",
+      "price_large": "font-mono text-2xl sm:text-3xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400"
+    }
+  },
+  "colors": {
+    "theme_mode": "light_default_with_dark_toggle",
+    "forbidden_colors": ["#7351B7", "#1B93A4"],
+    "palette": {
+      "primary": {
+        "DEFAULT": "#15803D",
+        "hover": "#166534",
+        "foreground": "#FFFFFF",
+        "light_bg": "#F0FDF4"
+      },
+      "secondary": {
+        "DEFAULT": "#C2410C",
+        "hover": "#9A3412",
+        "foreground": "#FFFFFF",
+        "light_bg": "#FFEDD5"
+      },
+      "accent": {
+        "DEFAULT": "#D97706",
+        "foreground": "#FFFFFF"
+      },
+      "background": {
+        "light": "#FAF9F6",
+        "dark": "#0F172A"
+      },
+      "surface": {
+        "light": "#FFFFFF",
+        "dark": "#1E293B",
+        "card_border_light": "#E2E8F0",
+        "card_border_dark": "#334155"
+      },
+      "text": {
+        "primary_light": "#0F172A",
+        "secondary_light": "#475569",
+        "primary_dark": "#F8FAFC",
+        "secondary_dark": "#94A3B8"
+      },
+      "status": {
+        "success": "#16A34A",
+        "warning": "#EAB308",
+        "error": "#DC2626",
+        "info": "#0284C7"
+      }
+    }
+  },
+  "layout_and_grids": {
+    "pos_mode": {
+      "layout": "3-column fluid grid for Desktop/Tablet, tabbed responsive view for Mobile",
+      "left_sidebar": "w-20 lg:w-64 compact module switcher & quick metrics",
+      "main_grid": "flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 overflow-y-auto p-4",
+      "right_cart": "w-full lg:w-96 bg-surface border-l flex flex-col h-full shadow-lg"
+    },
+    "dashboard_mode": {
+      "layout": "Sidebar + Header + Bento density analytics cards",
+      "grid": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4 lg:p-6"
+    }
+  },
+  "visual_enhancers": {
+    "border_radius": "rounded-lg (8px max for crisp operational look)",
+    "shadows": "shadow-sm hover:shadow-md transition-shadow duration-200",
+    "glassmorphic_headers": "backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-800/80",
+    "badge_styles": "rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+    "receipt_style": "font-mono bg-amber-50/50 border border-amber-200/60 p-4 shadow-sm rounded-sm text-slate-800"
+  },
+  "components": {
+    "pos_cart": "Interactive list with quantity increment/decrement touch controls, discount applier, price calculation, payment dialog (Cash, Nequi, Daviplata, Card, Credit/Fiado).",
+    "ocr_invoice_uploader": "Dropzone with camera capture tab, instant OCR processing status modal, table preview showing extracted items (Product name, Barcode, Qty, Unit Cost, Selling Price, Tax) with instant 'Confirm & Sync Inventory' action.",
+    "barcode_scanner": "Webcam stream modal / input listener for standard Play Store scanner app hardware or camera reader.",
+    "sidebar_navigation": "Categorized navigation list featuring standard active modules (POS, Inventory, Invoice Upload, Clients/Suppliers, Reports) and disabled badges for extended DIAN electronic invoicing modules."
+  },
+  "image_urls": [
+    {
+      "category": "grocery_produce_display",
+      "url": "https://images.unsplash.com/photo-1729622493745-03ca9590c64a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwxfHxncm9jZXJ5JTIwc3RvcmUlMjBmcmVzaCUyMHByb2R1Y2UlMjBtYXJrZXQlMjBpdGVtcyUyMGNvbG9tYmlhJTIwcmV0YWlsJTIwcG9zfGVufDB8fHx8MTc4ODM1OTQ4NXww&ixlib=rb-4.1.0&q=85",
+      "description": "Vibrant fresh produce display for grocery product categories"
+    },
+    {
+      "category": "colombian_bananas_pricing",
+      "url": "https://images.unsplash.com/photo-1560960378-8435837546b7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwyfHxncm9jZXJ5JTIwc3RvcmUlMjBmcmVzaCUyMHByb2R1Y2UlMjBtYXJrZXQlMjBpdGVtcyUyMGNvbG9tYmlhJTIwcmV0YWlsJTIwcG9zfGVufDB8fHx8MTc4ODM1OTQ4NXww&ixlib=rb-4.1.0&q=85",
+      "description": "Fresh bananas with retail price tag for fruit category"
+    },
+    {
+      "category": "colombian_market_vendor",
+      "url": "https://images.unsplash.com/photo-1652897995621-60d07fb6806b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwzfHxncm9jZXJ5JTIwc3RvcmUlMjBmcmVzaCUyMHByb2R1Y2UlMjBtYXJrZXQlMjBpdGVtcyUyMGNvbG9tYmlhJTIwcmV0YWlsJTIwcG9zfGVufDB8fHx8MTc4ODM1OTQ4NXww&ixlib=rb-4.1.0&q=85",
+      "description": "Local Colombian neighborhood shop exterior for store profile & onboarding banner"
+    },
+    {
+      "category": "fresh_tomatoes_market",
+      "url": "https://images.unsplash.com/photo-1485637701894-09ad422f6de6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHw0fHxmcmVzaCUyMGZydWl0cyUyMHZlZ2V0YWJsZXMlMjBtYXJrZXQlMjBkaXNwbGF5JTIwcmV0YWlsfGVufDB8fHx8MTc4ODM1OTQ5NHww&ixlib=rb-4.1.0&q=85",
+      "description": "Red fresh tomatoes for vegetables inventory item"
+    },
+    {
+      "category": "invoice_receipt_paper",
+      "url": "https://images.unsplash.com/photo-1731686602391-7484df33a03c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwxfHxpbnZvaWNlJTIwcGFwZXIlMjByZWNlaXB0JTIwc2hvcHBpbmclMjBzdG9yZXxlbnwwfHx8fDE3ODgzNTk0OTR8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Physical receipt sample for OCR invoice scanning & printing preview"
+    }
+  ],
+  "accessibility": {
+    "contrast_ratio": "WCAG AA minimum 4.5:1 for standard text, 3:1 for large numeric prices",
+    "touch_targets": "Minimum 44px by 44px on mobile POS buttons, product cards, and numpad keys",
+    "keyboard_navigation": "Full support for Enter key for quick search/barcode entry and Escape key to close modals"
+  }
+}
