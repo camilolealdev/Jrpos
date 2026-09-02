@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
+import { categoryIcon } from "@/lib/categoryIcons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -15,7 +16,7 @@ export default function POS() {
   const [products, setProducts] = useState([]);
   const [q, setQ] = useState("");
   const [cart, setCart] = useState([]);
-  const [category, setCategory] = useState("all");
+  const [selectedCats, setSelectedCats] = useState([]); // multi-select; [] = todas
   const [categories, setCategories] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [customerId, setCustomerId] = useState("");
@@ -26,7 +27,9 @@ export default function POS() {
   const barcodeRef = useRef(null);
 
   const load = async () => {
-    const { data } = await api.get("/products", { params: { q: q || undefined, category } });
+    const params = { q: q || undefined };
+    if (selectedCats.length > 0) params.categories = selectedCats.join(",");
+    const { data } = await api.get("/products", { params });
     setProducts(data);
   };
   const loadCats = async () => {
@@ -37,8 +40,12 @@ export default function POS() {
     const { data } = await api.get("/contacts", { params: { kind: "customer" } });
     setCustomers(data);
   };
-  useEffect(() => { load(); }, [q, category]);
+  useEffect(() => { load(); }, [q, selectedCats]);
   useEffect(() => { loadCats(); loadCustomers(); }, []);
+
+  const toggleCat = (name) => {
+    setSelectedCats((prev) => prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]);
+  };
 
   const addToCart = (p) => {
     setCart((prev) => {
@@ -125,26 +132,40 @@ export default function POS() {
           </form>
         </div>
 
-        {/* Category chips - dinámicas desde inventario */}
-        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1" data-testid="pos-category-chips">
+        {/* Category chips - dinámicas desde inventario con multi-select e iconos */}
+        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1 items-center" data-testid="pos-category-chips">
           <button
-            onClick={() => setCategory("all")}
-            className={`shrink-0 h-9 px-3 rounded-full text-xs font-semibold border transition ${category === "all" ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-700 border-slate-200 hover:border-emerald-400"}`}
+            onClick={() => setSelectedCats([])}
+            className={`shrink-0 h-9 px-3 rounded-full text-xs font-semibold border transition ${selectedCats.length === 0 ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-700 border-slate-200 hover:border-emerald-400"}`}
             data-testid="pos-cat-all"
           >
-            Todas · {categories.reduce((s, c) => s + (c.count || 0), 0)}
+            🛍️ Todas · {categories.reduce((s, c) => s + (c.count || 0), 0)}
           </button>
-          {categories.map((c) => (
+          {categories.map((c) => {
+            const on = selectedCats.includes(c.name);
+            return (
+              <button
+                key={c.name}
+                onClick={() => toggleCat(c.name)}
+                className={`shrink-0 h-9 px-3 rounded-full text-xs font-semibold border transition inline-flex items-center gap-1.5 ${on ? "bg-emerald-700 text-white border-emerald-700 ring-2 ring-emerald-300" : "bg-white text-slate-700 border-slate-200 hover:border-emerald-400"}`}
+                data-testid={`pos-cat-${c.name}`}
+                aria-pressed={on}
+              >
+                <span className="text-base leading-none">{categoryIcon(c.name)}</span>
+                <span>{c.name}</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${on ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>{c.count}</span>
+              </button>
+            );
+          })}
+          {selectedCats.length > 0 && (
             <button
-              key={c.name}
-              onClick={() => setCategory(c.name)}
-              className={`shrink-0 h-9 px-3 rounded-full text-xs font-semibold border transition inline-flex items-center gap-1.5 ${category === c.name ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-700 border-slate-200 hover:border-emerald-400"}`}
-              data-testid={`pos-cat-${c.name}`}
+              onClick={() => setSelectedCats([])}
+              className="shrink-0 h-9 px-3 rounded-full text-xs font-semibold border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 transition"
+              data-testid="pos-cat-clear"
             >
-              <span>{c.name}</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${category === c.name ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>{c.count}</span>
+              ✕ Limpiar ({selectedCats.length})
             </button>
-          ))}
+          )}
         </div>
 
         <ScrollArea className="flex-1">
@@ -162,7 +183,10 @@ export default function POS() {
                   className="text-left group border border-slate-200 rounded-lg bg-white hover:border-emerald-500 hover:shadow-md transition-all p-3 touch-btn"
                   data-testid={`pos-product-${p.id}`}
                 >
-                  <div className="text-[11px] uppercase font-semibold tracking-wider text-emerald-700">{p.category}</div>
+                  <div className="text-[11px] uppercase font-semibold tracking-wider text-emerald-700 flex items-center gap-1">
+                    <span>{categoryIcon(p.category)}</span>
+                    <span className="truncate">{p.category}</span>
+                  </div>
                   <div className="text-sm font-semibold leading-tight mt-1 line-clamp-2 h-10">{p.name}</div>
                   <div className="flex items-end justify-between mt-2">
                     <div className="font-mono font-bold text-lg text-slate-900">{formatCOP(p.price)}</div>

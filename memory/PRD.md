@@ -39,6 +39,8 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ POS: método "crédito" con selector obligatorio de cliente
 - ✅ Endpoints: /api/credits/summary, /api/credits/customer/{id}, /api/credits/payment, /api/credits/pending-sales
 - ✅ POS: categorías dinámicas como chips con conteo desde inventario (/api/categories devuelve name+count+stock)
+- ✅ POS: iconos/emojis por categoría (via keyword-matching en /app/frontend/src/lib/categoryIcons.js) en chips y tarjetas de producto
+- ✅ POS: filtro multi-categoría con toggle en chips; endpoint /api/products acepta `categories=Granos,Aceites`; botón "Limpiar" cuando hay selección
 
 ## P0 Backlog (siguiente fase)
 - Facturación Electrónica DIAN (integración con proveedor tecnológico: Facture/Alegra API)

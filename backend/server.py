@@ -224,12 +224,17 @@ async def create_product(payload: ProductCreate):
 
 
 @api_router.get("/products", response_model=List[Product])
-async def list_products(q: Optional[str] = None, category: Optional[str] = None, limit: int = 500):
+async def list_products(q: Optional[str] = None, category: Optional[str] = None, categories: Optional[str] = None, limit: int = 500):
     query: dict = {}
     if q:
         regex = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"name": regex}, {"barcode": regex}, {"sku": regex}]
-    if category and category != "all":
+    cat_list = []
+    if categories:
+        cat_list = [c.strip() for c in categories.split(",") if c.strip() and c.strip() != "all"]
+    if cat_list:
+        query["category"] = {"$in": cat_list}
+    elif category and category != "all":
         query["category"] = category
     docs = await db.products.find(query, {"_id": 0}).limit(limit).to_list(limit)
     return [Product(**d) for d in docs]
