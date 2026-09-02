@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Form, Request, Response, Depends
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -8,11 +8,14 @@ import hashlib
 import json
 import logging
 import re
+import secrets
+import bcrypt
+import jwt
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Any
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 
@@ -26,8 +29,155 @@ db = client[os.environ['DB_NAME']]
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
-app = FastAPI(title="AbarrotesPOS API")
-api_router = APIRouter(prefix="/api")
+app = FastAPI(title="JRPOS API")
+
+
+# ----------------- Auth (JWT) -----------------
+JWT_ALGORITHM = "HS256"
+
+
+def get_jwt_secret() -> str:
+    return os.environ["JWT_SECRET"]
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+
+def create_access_token(user_id: str, email: str, role: str) -> str:
+    payload = {"sub": user_id, "email": email, "role": role,
+               "exp": datetime.now(timezone.utc) + timedelta(hours=8), "type": "access"}
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+
+def create_refresh_token(user_id: str) -> str:
+    payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=7), "type": "refresh"}
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+
+async def get_current_user(request: Request) -> dict:
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+    if not token:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Tipo de token inválido")
+        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="Usuario no encontrado")
+        user.pop("password_hash", None)
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Sesión expirada")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administradores")
+    return user
+
+
+def set_auth_cookies(response: Response, user: dict):
+    access = create_access_token(user["id"], user["email"], user.get("role", "cajero"))
+    refresh = create_refresh_token(user["id"])
+    response.set_cookie("access_token", access, httponly=True, secure=True, samesite="none", max_age=8 * 3600, path="/")
+    response.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="none", max_age=7 * 86400, path="/")
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+auth_router = APIRouter(prefix="/api/auth")
+
+
+@auth_router.post("/login")
+async def login(payload: LoginRequest, request: Request, response: Response):
+    email = payload.email.strip().lower()
+    identifier = f"{request.client.host if request.client else 'unknown'}:{email}"
+    attempts = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0})
+    if attempts and attempts.get("count", 0) >= 5:
+        locked_until = attempts.get("locked_until")
+        if locked_until and locked_until > now_iso():
+            raise HTTPException(status_code=429, detail="Demasiados intentos. Espera 15 minutos.")
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not verify_password(payload.password, user.get("password_hash", "")):
+        await db.login_attempts.update_one(
+            {"identifier": identifier},
+            {"$inc": {"count": 1},
+             "$set": {"locked_until": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()}},
+            upsert=True,
+        )
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    await db.login_attempts.delete_one({"identifier": identifier})
+    set_auth_cookies(response, user)
+    user.pop("password_hash", None)
+    return user
+
+
+@auth_router.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    return {"ok": True}
+
+
+@auth_router.get("/me")
+async def me(user: dict = Depends(get_current_user)):
+    return user
+
+
+@auth_router.post("/refresh")
+async def refresh(request: Request, response: Response):
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Sin refresh token")
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Token inválido")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+    user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
+    access = create_access_token(user["id"], user["email"], user.get("role", "cajero"))
+    response.set_cookie("access_token", access, httponly=True, secure=True, samesite="none", max_age=8 * 3600, path="/")
+    return {"ok": True}
+
+
+@app.on_event("startup")
+async def startup_auth():
+    await db.users.create_index("email", unique=True)
+    await db.login_attempts.create_index("identifier")
+    admin_email = os.environ.get("ADMIN_EMAIL", "").lower()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "")
+    if admin_email and admin_password:
+        existing = await db.users.find_one({"email": admin_email})
+        if not existing:
+            await db.users.insert_one({
+                "id": str(uuid.uuid4()), "email": admin_email,
+                "password_hash": hash_password(admin_password),
+                "name": "Administrador", "role": "admin",
+                "created_at": now_iso(),
+            })
+        elif not verify_password(admin_password, existing["password_hash"]):
+            await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+
+
+api_router = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
 
 
 # ----------------- Helpers -----------------
@@ -946,6 +1096,75 @@ async def electronic_invoice(sale_id: str):
     return {"number": number, "cufe": cufe, "xml": xml, "status": "simulada"}
 
 
+# ----------------- Users & Roles (admin) -----------------
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    password: str
+    role: str = "cajero"  # admin | cajero
+
+
+@api_router.get("/users")
+async def list_users(admin: dict = Depends(require_admin)):
+    return await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(500)
+
+
+@api_router.post("/users")
+async def create_user(payload: UserCreate, admin: dict = Depends(require_admin)):
+    email = payload.email.strip().lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="El correo ya está registrado")
+    user = {
+        "id": str(uuid.uuid4()), "email": email,
+        "password_hash": hash_password(payload.password),
+        "name": payload.name, "role": payload.role if payload.role in ("admin", "cajero") else "cajero",
+        "created_at": now_iso(),
+    }
+    await db.users.insert_one(user)
+    return {k: v for k, v in user.items() if k != "password_hash" and k != "_id"}
+
+
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, admin: dict = Depends(require_admin)):
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="No puedes eliminarte a ti mismo")
+    res = await db.users.delete_one({"id": user_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {"ok": True}
+
+
+# ----------------- General settings (personalización) -----------------
+class GeneralSettings(BaseModel):
+    store_name: str = "JRPOS"
+    ticket_footer: str = "¡Gracias por su compra!"
+    iva_default: float = 19
+    printer_width: int = 58  # 58 | 80 mm
+    accent: str = "emerald"  # emerald | ocean | terracotta | berry | slate
+    support_phone: str = ""
+
+
+@api_router.get("/settings/general")
+async def get_general_settings():
+    doc = await db.settings.find_one({"key": "general"}, {"_id": 0})
+    base = GeneralSettings().model_dump()
+    if doc:
+        base.update(doc.get("value") or {})
+    return base
+
+
+@api_router.put("/settings/general")
+async def save_general_settings(payload: GeneralSettings, admin: dict = Depends(require_admin)):
+    if payload.printer_width not in (58, 80):
+        raise HTTPException(status_code=400, detail="Ancho de impresora debe ser 58 u 80")
+    await db.settings.update_one(
+        {"key": "general"},
+        {"$set": {"key": "general", "value": payload.model_dump()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
 # ----------------- Seed sample data -----------------
 @api_router.post("/seed")
 async def seed_data():
@@ -985,12 +1204,13 @@ async def root():
     return {"message": "JRPOS API", "status": "ok"}
 
 
+app.include_router(auth_router)
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,7 +1,9 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import Layout from "@/components/Layout";
+import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import POS from "@/pages/POS";
 import Inventory from "@/pages/Inventory";
@@ -14,6 +16,9 @@ import BulkLoad from "@/pages/BulkLoad";
 import BulkUpdate from "@/pages/BulkUpdate";
 import Expenses from "@/pages/Expenses";
 import ElectronicPOS from "@/pages/ElectronicPOS";
+import Users from "@/pages/Users";
+import Settings from "@/pages/Settings";
+import Support from "@/pages/Support";
 import Placeholder from "@/pages/Placeholder";
 
 const soonModules = [
@@ -28,44 +33,59 @@ const soonModules = [
   { path: "ordenes-compra", title: "Órdenes de Compra", desc: "Solicitudes a proveedores." },
   { path: "notas", title: "Notas Crédito y Débito", desc: "Ajustes documentales electrónicos." },
   { path: "cuentas-cobro", title: "Cuentas de Cobro", desc: "Documentos equivalentes." },
-  { path: "creditos", title: "Créditos (Fiado)", desc: "Ventas y compras a crédito." },
   { path: "servicios", title: "Prestación de Servicios", desc: "Ventas de servicios facturables." },
   { path: "recogidas", title: "Recogidas de Dinero", desc: "Retiros y arqueos de caja." },
   { path: "comisiones", title: "Comisiones por Productos", desc: "Reglas de comisión por vendedor." },
-  { path: "usuarios", title: "Permisos de Usuarios", desc: "Roles, cajas y accesos." },
   { path: "certificado-digital", title: "Certificado Digital", desc: "Instalación .p12 para DIAN." },
-  { path: "soporte", title: "Soporte y Capacitación", desc: "Guías y ayuda en vivo." },
 ];
+
+function ProtectedApp() {
+  const { user } = useAuth();
+  const loc = useLocation();
+  if (user === undefined) {
+    return <div className="min-h-screen grid place-items-center text-slate-500" data-testid="auth-loading">Cargando sesión...</div>;
+  }
+  if (user === null) {
+    return <Navigate to="/login" state={{ from: loc.pathname }} replace />;
+  }
+  return (
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="pos" element={<POS />} />
+        <Route path="inventario" element={<Inventory />} />
+        <Route path="facturas" element={<InvoiceScanner />} />
+        <Route path="clientes" element={<Customers />} />
+        <Route path="proveedores" element={<Suppliers />} />
+        <Route path="reportes" element={<Reports />} />
+        <Route path="creditos" element={<Credits />} />
+        <Route path="carga-masiva" element={<BulkLoad />} />
+        <Route path="actualizacion-masiva" element={<BulkUpdate />} />
+        <Route path="gastos" element={<Expenses />} />
+        <Route path="facturacion-pos-electronica" element={<ElectronicPOS />} />
+        <Route path="usuarios" element={<Users />} />
+        <Route path="configuracion" element={<Settings />} />
+        <Route path="soporte" element={<Support />} />
+        {soonModules.map((m) => (
+          <Route key={m.path} path={m.path} element={<Placeholder title={m.title} description={m.desc} />} />
+        ))}
+      </Route>
+    </Routes>
+  );
+}
 
 function App() {
   return (
     <div className="App">
       <BrowserRouter>
         <Toaster position="top-right" richColors />
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="pos" element={<POS />} />
-            <Route path="inventario" element={<Inventory />} />
-            <Route path="facturas" element={<InvoiceScanner />} />
-            <Route path="clientes" element={<Customers />} />
-            <Route path="proveedores" element={<Suppliers />} />
-            <Route path="reportes" element={<Reports />} />
-            <Route path="creditos" element={<Credits />} />
-            <Route path="carga-masiva" element={<BulkLoad />} />
-            <Route path="actualizacion-masiva" element={<BulkUpdate />} />
-            <Route path="gastos" element={<Expenses />} />
-            <Route path="facturacion-pos-electronica" element={<ElectronicPOS />} />
-            {soonModules.map((m) => (
-              <Route
-                key={m.path}
-                path={m.path}
-                element={<Placeholder title={m.title} description={m.desc} />}
-              />
-            ))}
-          </Route>
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/*" element={<ProtectedApp />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </div>
   );

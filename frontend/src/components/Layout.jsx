@@ -1,11 +1,14 @@
-import { Outlet, NavLink, useLocation } from "react-router-dom";
+import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { startOnboarding, ONBOARDING_KEY } from "@/lib/onboarding";
+import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
+import { applyAccent } from "@/pages/Settings";
 import {
   LayoutDashboard, ShoppingCart, Package, Camera, Users, Truck, LineChart,
   FileText, Receipt, ClipboardList, Percent, ShoppingBag, RotateCcw,
   BadgeDollarSign, Wallet, HandCoins, PiggyBank, ShieldCheck, KeyRound,
-  BookOpen, Award, FileSignature, Menu, X, Store, Wrench, Boxes, RefreshCw, HelpCircle,
+  BookOpen, Award, FileSignature, Menu, X, Store, Wrench, Boxes, RefreshCw, HelpCircle, LogOut, Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -67,13 +70,17 @@ const groups = [
   {
     label: "Sistema",
     items: [
-      { to: "/usuarios", label: "Permisos Usuarios", icon: KeyRound, soon: true },
-      { to: "/soporte", label: "Soporte", icon: BookOpen, soon: true },
+      { to: "/usuarios", label: "Permisos Usuarios", icon: KeyRound, tid: "nav-usuarios", adminOnly: true },
+      { to: "/configuracion", label: "Configuración", icon: Settings2, tid: "nav-configuracion", adminOnly: true },
+      { to: "/soporte", label: "Soporte", icon: BookOpen, tid: "nav-soporte" },
     ],
   },
 ];
 
-function SidebarContent({ onNavigate }) {
+function SidebarContent({ onNavigate, storeName = "JRPOS", role = "admin" }) {
+  const visibleGroups = groups
+    .map((g) => ({ ...g, items: g.items.filter((it) => !it.adminOnly || role === "admin") }))
+    .filter((g) => g.items.length > 0);
   return (
     <ScrollArea className="h-full">
       <div className="px-4 py-5 border-b border-slate-200">
@@ -82,13 +89,13 @@ function SidebarContent({ onNavigate }) {
             <Store className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-base font-bold tracking-tight">JRPOS</div>
+            <div className="text-base font-bold tracking-tight" data-testid="sidebar-store-name">{storeName}</div>
             <div className="text-[11px] text-slate-500 uppercase tracking-widest">Tienda Colombia</div>
           </div>
         </div>
       </div>
       <nav className="p-3 space-y-5 pb-16">
-        {groups.map((g) => (
+        {visibleGroups.map((g) => (
           <div key={g.label}>
             <div className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{g.label}</div>
             <div className="space-y-0.5">
@@ -131,8 +138,27 @@ function SidebarContent({ onNavigate }) {
 
 export default function Layout() {
   const [open, setOpen] = useState(false);
+  const [storeName, setStoreName] = useState("JRPOS");
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const loc = useLocation();
   const pageTitle = loc.pathname.replace("/", "") || "dashboard";
+
+  // Personalización: nombre de tienda + color de acento
+  useEffect(() => {
+    const cached = localStorage.getItem("jrpos_accent");
+    if (cached) applyAccent(cached);
+    api.get("/settings/general").then((r) => {
+      setStoreName(r.data.store_name || "JRPOS");
+      applyAccent(r.data.accent);
+      localStorage.setItem("jrpos_settings", JSON.stringify(r.data));
+    }).catch(() => {});
+  }, []);
+
+  const doLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
 
   // Auto-onboarding en la primera visita (solo escritorio: el tour apunta al sidebar)
   useEffect(() => {
@@ -149,7 +175,7 @@ export default function Layout() {
     <div className="min-h-screen bg-background grain-bg flex text-slate-800">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-64 border-r border-slate-200 bg-white/70 backdrop-blur-md sticky top-0 h-screen">
-        <SidebarContent />
+        <SidebarContent storeName={storeName} role={user?.role} />
       </aside>
 
       {/* Mobile drawer */}
@@ -161,7 +187,7 @@ export default function Layout() {
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            <SidebarContent onNavigate={() => setOpen(false)} />
+            <SidebarContent onNavigate={() => setOpen(false)} storeName={storeName} role={user?.role} />
           </div>
           <div className="flex-1 bg-slate-900/40" onClick={() => setOpen(false)} />
         </div>
@@ -183,7 +209,7 @@ export default function Layout() {
               <div className="w-8 h-8 rounded-md bg-emerald-700 text-white grid place-items-center">
                 <Store className="w-4 h-4" />
               </div>
-              <span className="font-bold">JRPOS</span>
+              <span className="font-bold" data-testid="mobile-store-name">{storeName}</span>
             </div>
             <div className="hidden lg:block">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Módulo</div>
@@ -191,6 +217,13 @@ export default function Layout() {
             </div>
             <div className="ml-auto flex items-center gap-2">
               <span className="hidden sm:inline text-xs text-slate-500">🇨🇴 COP · IVA 19%</span>
+              {user && (
+                <div className="hidden sm:flex items-center gap-1.5 text-xs border rounded-full px-2.5 py-1 bg-slate-50" data-testid="user-chip">
+                  <span className="font-semibold">{user.name}</span>
+                  <span className="text-slate-400">·</span>
+                  <span className="capitalize text-emerald-700 font-semibold">{user.role}</span>
+                </div>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -199,6 +232,9 @@ export default function Layout() {
                 title="Ver guía de módulos"
               >
                 <HelpCircle className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Guía</span>
+              </Button>
+              <Button variant="ghost" size="icon" onClick={doLogout} data-testid="logout-btn" title="Cerrar sesión">
+                <LogOut className="w-4 h-4" />
               </Button>
             </div>
           </div>
