@@ -272,8 +272,17 @@ async def delete_product(product_id: str):
 
 @api_router.get("/categories")
 async def list_categories():
-    cats = await db.products.distinct("category")
-    return [c for c in cats if c]
+    """Return categories with product counts, based on current inventory."""
+    pipeline = [
+        {"$group": {"_id": "$category", "count": {"$sum": 1}, "stock": {"$sum": "$stock"}}},
+        {"$sort": {"count": -1}},
+    ]
+    docs = await db.products.aggregate(pipeline).to_list(500)
+    return [
+        {"name": d["_id"] or "General", "count": d["count"], "stock": float(d.get("stock") or 0)}
+        for d in docs
+        if d["_id"]
+    ]
 
 
 # ----------------- Sales / POS -----------------

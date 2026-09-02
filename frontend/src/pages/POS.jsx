@@ -102,7 +102,7 @@ export default function POS() {
     <div className="h-full grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-0" data-testid="pos-page">
       {/* Left: product grid */}
       <div className="p-3 lg:p-5 flex flex-col min-h-0">
-        <div className="flex flex-col sm:flex-row gap-2 mb-3">
+        <div className="flex flex-col sm:flex-row gap-2 mb-2">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input
@@ -123,13 +123,28 @@ export default function POS() {
               autoFocus
             />
           </form>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="w-full sm:w-40 h-11" data-testid="pos-category-select"><SelectValue placeholder="Categoría" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
+        </div>
+
+        {/* Category chips - dinámicas desde inventario */}
+        <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1" data-testid="pos-category-chips">
+          <button
+            onClick={() => setCategory("all")}
+            className={`shrink-0 h-9 px-3 rounded-full text-xs font-semibold border transition ${category === "all" ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-700 border-slate-200 hover:border-emerald-400"}`}
+            data-testid="pos-cat-all"
+          >
+            Todas · {categories.reduce((s, c) => s + (c.count || 0), 0)}
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c.name}
+              onClick={() => setCategory(c.name)}
+              className={`shrink-0 h-9 px-3 rounded-full text-xs font-semibold border transition inline-flex items-center gap-1.5 ${category === c.name ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-700 border-slate-200 hover:border-emerald-400"}`}
+              data-testid={`pos-cat-${c.name}`}
+            >
+              <span>{c.name}</span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${category === c.name ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>{c.count}</span>
+            </button>
+          ))}
         </div>
 
         <ScrollArea className="flex-1">
