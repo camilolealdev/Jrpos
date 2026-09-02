@@ -45,6 +45,11 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ /api/categories devuelve pinned primero (ordenados) y luego por conteo desc
 - ✅ POS: chips fijados con emoji custom, botón "Iconos y categorías" desde Inventario abre CategoryManager
 - ✅ Impresión térmica ESC/POS vía Web Bluetooth (58mm) para recibos POS y abonos de fiado
+## Implemented (Sep 2026 - v1.6: WhatsApp + Responsive 100%)
+- ✅ Recordatorio WhatsApp de fiado: botón en lista de deudores y en estado de cuenta; mensaje con nombre, saldo, facturas y fecha más antigua; normaliza celular CO (10 dígitos → +57); toast si no hay teléfono válido
+- ✅ Testing iteration_4: 100% frontend (wa.me URL verificada, stopPropagation, toast sin teléfono, regresión abonos/POS)
+- ✅ Auditoría responsive móvil 375px: 7/7 páginas sin overflow horizontal (fix: tarjetas de totales apiladas en Gastos y Créditos)
+
 ## Implemented (Sep 2026 - v1.5: Documentación + Onboarding)
 - ✅ `/app/docs/MODULOS_PENDIENTES.md`: MD interno con los 18 módulos no construidos, características necesarias, modelos sugeridos y dependencias (DIAN, auth, etc.)
 - ✅ Onboarding con driver.js: tour guiado de 14 pasos por todos los módulos activos; auto-inicia en primera visita (desktop) y botón ❓ "Guía" en el header para repetirlo
