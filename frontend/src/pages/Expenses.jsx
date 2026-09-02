@@ -44,7 +44,7 @@ export default function Expenses() {
         <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={() => setOpen(true)} data-testid="new-expense-btn"><Plus className="w-4 h-4 mr-1" /> Nuevo gasto</Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Hoy</div><div className="font-mono font-bold text-lg" data-testid="exp-today">{formatCOP(data.today)}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Este mes</div><div className="font-mono font-bold text-lg" data-testid="exp-month">{formatCOP(data.month)}</div></CardContent></Card>
         <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Total</div><div className="font-mono font-bold text-lg text-orange-700" data-testid="exp-total">{formatCOP(data.total)}</div></CardContent></Card>

@@ -8,8 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { HandCoins, User, Wallet, ChevronRight, ArrowLeft, Printer } from "lucide-react";
+import { HandCoins, User, Wallet, ChevronRight, ArrowLeft, Printer, MessageCircle } from "lucide-react";
 import { printThermal } from "@/lib/thermalPrint";
+
+// Normaliza teléfono colombiano a formato wa.me (solo dígitos, código país 57)
+export function whatsappUrl(phone, text) {
+  let digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length === 10 && digits.startsWith("3")) digits = "57" + digits;
+  if (digits.length < 12) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
 
 export default function Credits() {
   const [summary, setSummary] = useState({ customers: [], total_due: 0 });
@@ -29,6 +37,13 @@ export default function Credits() {
     if (!customerId) return toast.error("Cliente sin identificar");
     const { data } = await api.get(`/credits/customer/${customerId}`);
     setStatement(data);
+  };
+
+  const sendReminder = (customer, balance, salesCount, oldestDate) => {
+    const msg = `Hola ${customer?.name || ""}, te saluda JRPOS 🏪. Tienes un saldo pendiente de ${formatCOP(balance)} por ${salesCount} factura(s) a crédito. La más antigua es del ${formatDate(oldestDate)}. ¡Gracias por ponerte al día! 🙏`;
+    const url = whatsappUrl(customer?.phone, msg);
+    if (!url) return toast.error("Este cliente no tiene un celular válido registrado (10 dígitos). Edítalo en Clientes.");
+    window.open(url, "_blank");
   };
 
   const submitPayment = async () => {
@@ -78,10 +93,24 @@ export default function Credits() {
           <div className="text-right">
             <div className="text-xs uppercase tracking-widest text-slate-500">Saldo pendiente</div>
             <div className="text-3xl font-bold font-mono text-orange-700" data-testid="statement-balance">{formatCOP(statement.balance)}</div>
+            {statement.balance > 0 && (
+              <Button
+                size="sm"
+                className="mt-2 bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => {
+                  const oldest = statement.sales.filter((s) => s.credit_status !== "paid").map((s) => s.created_at).sort()[0];
+                  const pendingCount = statement.sales.filter((s) => s.credit_status !== "paid").length;
+                  sendReminder(statement.customer, statement.balance, pendingCount, oldest);
+                }}
+                data-testid="whatsapp-reminder-btn"
+              >
+                <MessageCircle className="w-4 h-4 mr-1" /> Recordar por WhatsApp
+              </Button>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Total fiado</div><div className="font-mono font-bold text-lg">{formatCOP(statement.total_credit)}</div></CardContent></Card>
           <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Total abonado</div><div className="font-mono font-bold text-lg text-emerald-700">{formatCOP(statement.total_paid)}</div></CardContent></Card>
           <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Facturas</div><div className="font-mono font-bold text-lg">{statement.sales.length}</div></CardContent></Card>
@@ -247,6 +276,23 @@ export default function Credits() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                      title="Enviar recordatorio por WhatsApp"
+                      data-testid={`wa-remind-${c.customer_id}`}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        // Buscar teléfono completo del cliente
+                        try {
+                          const { data: full } = await api.get(`/credits/customer/${c.customer_id}`);
+                          sendReminder(full.customer, c.total_due, c.sales_count, c.oldest_date);
+                        } catch { toast.error("No se pudo cargar el cliente"); }
+                      }}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </Button>
                     <div className="text-right">
                       <div className="text-[10px] uppercase text-slate-500">Debe</div>
                       <div className="font-mono font-bold text-orange-700">{formatCOP(c.total_due)}</div>

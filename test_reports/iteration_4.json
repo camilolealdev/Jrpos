@@ -1,0 +1,20 @@
+{
+  "summary": "E2E testing of nueva feature 'Recordatorio WhatsApp' en módulo Créditos + regresión. Seeded venta a crédito para María López (id 8eff99b4, phone 3113334455, sale POS-000006, saldo $5.000). Todos los escenarios pasaron: (1) botón verde wa-remind-{id} visible en lista con clases text-green-600 hover:text-green-700 hover:bg-green-50; (2) click abre wa.me/573113334455 con mensaje que incluye 'María López', 'saldo pendiente', '$ 5.000', '1 factura(s)', 'más antigua es del 2/09/2026', 'JRPOS 🏪' y no navega al estado de cuenta (stopPropagation OK, credits-page sigue visible, credit-statement-page no); (3) para cliente 'Test' sin phone, click NO abre wa.me y muestra toast: 'Este cliente no tiene un celular válido registrado (10 dígitos). Edítalo en Clientes.'; (4) en el estado de cuenta el botón whatsapp-reminder-btn aparece junto al saldo y abre el mismo wa.me con el mensaje correcto (María, saldo pendiente, factura, más antigua); (5) regresión abono OK: payment-abono-dialog abre, abono-amount y confirm-abono-btn visibles; (6) regresión POS: pos-page, checkout-btn, hold-sale-btn, pos-barcode-input, pos-search-input, cart-total, pos-category-chips presentes; nav sidebar completa (nav-dashboard, nav-pos, nav-creditos, nav-facturas, nav-inventario, nav-reportes, nav-clientes, etc.). Sin errores de consola.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Credits.jsx whatsappUrl(): mensaje de error habla de '10 dígitos' pero la validación real es 'digits.length < 12' (después de normalizar CO añade 57). Usuarios con 11 dígitos (ej. teléfono fijo con indicativo) verán mensaje confuso. Sugerir mensaje: 'celular colombiano válido (10 dígitos empezando por 3)'.",
+    "Credits.jsx sendReminder(): formatDate probablemente devuelve string con hora ('2/09/2026, 6:23 p. m.') porque la fecha es ISO con tiempo — al ser 'la más antigua' bastaría con la fecha; considerar formatDate(oldestDate, {onlyDate:true}) para un mensaje más limpio.",
+    "Credits.jsx wa-remind onClick en lista: hace GET /credits/customer/{id} solo para obtener el phone. El endpoint /credits/summary podría incluir phone del cliente para evitar roundtrip extra (N clientes = N requests si se recorre lista).",
+    "Credits.jsx: window.open sin comprobar el retorno; en algunos navegadores puede ser bloqueado por popup blocker (aunque nace de user gesture es raro). Considerar toast informativo si null.",
+    "sendReminder no depende del método de pago; si en el futuro se filtra credit_status !== 'paid', la lista podría estar vacía y salesCount=0 daría un mensaje raro ('0 factura(s)'). Añadir guard."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only run)", "frontend": "100%"},
+  "seed_data_creation": "Venta a crédito POS-000006 para María López (customer_id 8eff99b4-...) por $5.000 vía POST /api/sales para poder probar el flujo con teléfono válido. Puede dejarse o abonarse con /api/credits/payment.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Los popovers de driver.js (welcome tour) pueden interceptar clicks tras la primera interacción. En playwright: llamar dismiss_tour() (remover .driver-overlay, .driver-popover y svg.driver-overlay-animated vía JS) antes de cada click, o setear localStorage.setItem('jrpos_tour_done','1') en init script. Para interceptar wa.me usar page.add_init_script y override window.open que empuje a window.__openedUrls."
+}
