@@ -335,7 +335,7 @@ export default function POS() {
           {receiptSale && (
             <div className="receipt p-4 rounded text-sm">
               <div className="text-center mb-2">
-                <div className="font-bold">AbarrotesPOS · Tienda</div>
+                <div className="font-bold">JRPOS · Tienda</div>
                 <div className="text-xs">{new Date(receiptSale.created_at).toLocaleString("es-CO")}</div>
                 <div className="text-xs">Factura POS: {receiptSale.number}</div>
               </div>
@@ -362,7 +362,7 @@ export default function POS() {
               onClick={async () => {
                 try {
                   await printThermal({
-                    title: "AbarrotesPOS",
+                    title: "JRPOS",
                     subtitle: "Tienda",
                     meta: [
                       `Factura: ${receiptSale.number}`,

@@ -81,7 +81,7 @@ function SidebarContent({ onNavigate }) {
             <Store className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-base font-bold tracking-tight">AbarrotesPOS</div>
+            <div className="text-base font-bold tracking-tight">JRPOS</div>
             <div className="text-[11px] text-slate-500 uppercase tracking-widest">Tienda Colombia</div>
           </div>
         </div>
@@ -171,7 +171,7 @@ export default function Layout() {
               <div className="w-8 h-8 rounded-md bg-emerald-700 text-white grid place-items-center">
                 <Store className="w-4 h-4" />
               </div>
-              <span className="font-bold">AbarrotesPOS</span>
+              <span className="font-bold">JRPOS</span>
             </div>
             <div className="hidden lg:block">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Módulo</div>

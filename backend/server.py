@@ -769,7 +769,7 @@ async def seed_data():
 
 @api_router.get("/")
 async def root():
-    return {"message": "AbarrotesPOS API", "status": "ok"}
+    return {"message": "JRPOS API", "status": "ok"}
 
 
 app.include_router(api_router)

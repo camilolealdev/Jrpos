@@ -14,7 +14,7 @@ export default function Placeholder({ title, description }) {
           <h1 className="text-2xl sm:text-3xl font-bold">{title}</h1>
           <p className="text-slate-600">{description}</p>
           <p className="text-sm text-slate-500">
-            Este módulo forma parte del plan completo del sistema AbarrotesPOS. Ya tienes disponibles: POS, Inventario, Escaneo de Facturas con IA, Clientes/Proveedores y Reportes.
+            Este módulo forma parte del plan completo del sistema JRPOS. Ya tienes disponibles: POS, Inventario, Escaneo de Facturas con IA, Clientes/Proveedores y Reportes.
             <br />Este módulo se habilitará en las siguientes fases.
           </p>
           <div className="flex gap-2">

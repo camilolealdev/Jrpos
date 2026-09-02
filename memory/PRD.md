@@ -45,6 +45,8 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ /api/categories devuelve pinned primero (ordenados) y luego por conteo desc
 - ✅ POS: chips fijados con emoji custom, botón "Iconos y categorías" desde Inventario abre CategoryManager
 - ✅ Impresión térmica ESC/POS vía Web Bluetooth (58mm) para recibos POS y abonos de fiado
+- ✅ Reportes: botón "Reimprimir" por venta que reenvía cualquier factura pasada a la impresora térmica
+- ✅ App renombrada a **JRPOS** (sidebar, recibos, manifest PWA, API root)
 
 ## P0 Backlog (siguiente fase)
 - Facturación Electrónica DIAN (integración con proveedor tecnológico: Facture/Alegra API)
