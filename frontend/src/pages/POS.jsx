@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, X, Package as PackageIcon } from "lucide-react";
+import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, X, Package as PackageIcon, Pause, Play, Users } from "lucide-react";
 
 export default function POS() {
   const [products, setProducts] = useState([]);
@@ -25,7 +25,13 @@ export default function POS() {
   const [payment, setPayment] = useState("efectivo");
   const [received, setReceived] = useState("");
   const [receiptSale, setReceiptSale] = useState(null);
+  const [held, setHeld] = useState([]);
   const barcodeRef = useRef(null);
+
+  const loadHeld = async () => {
+    const { data } = await api.get("/held");
+    setHeld(data);
+  };
 
   const load = async () => {
     const params = { q: q || undefined };
@@ -42,7 +48,44 @@ export default function POS() {
     setCustomers(data);
   };
   useEffect(() => { load(); }, [q, selectedCats]);
-  useEffect(() => { loadCats(); loadCustomers(); }, []);
+  useEffect(() => { loadCats(); loadCustomers(); loadHeld(); }, []);
+
+  const holdCurrent = async () => {
+    if (cart.length === 0) return toast.error("El carrito está vacío");
+    const label = window.prompt("Nombre de la cuenta (ej: Mesa 1, Juan):", `Cuenta ${held.length + 1}`);
+    if (label === null) return;
+    try {
+      await api.post("/held", {
+        label: label || `Cuenta ${held.length + 1}`,
+        items: cart,
+        customer_id: customerId || undefined,
+        customer_name: customers.find((x) => x.id === customerId)?.name,
+      });
+      setCart([]); setCustomerId("");
+      loadHeld();
+      toast.success("Cuenta retenida. Puedes atender a otro cliente.");
+    } catch { toast.error("Error reteniendo cuenta"); }
+  };
+
+  const resumeHeld = async (h) => {
+    // Si hay carrito actual, retenerlo primero para no mezclar cuentas
+    if (cart.length > 0) {
+      const label = window.prompt("La cuenta actual se retendrá. Nombre:", `Cuenta ${held.length + 1}`);
+      if (label === null) return;
+      try {
+        await api.post("/held", { label: label || `Cuenta ${held.length + 1}`, items: cart, customer_id: customerId || undefined });
+      } catch {
+        return toast.error("No se pudo retener la cuenta actual. No se recuperó la otra para evitar mezclas.");
+      }
+    }
+    try {
+      await api.delete(`/held/${h.id}`);
+      setCart(h.items);
+      setCustomerId(h.customer_id || "");
+      loadHeld();
+      toast.success(`Cuenta "${h.label}" recuperada`);
+    } catch { toast.error("Error recuperando la cuenta"); }
+  };
 
   const toggleCat = (name) => {
     setSelectedCats((prev) => prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]);
@@ -204,16 +247,39 @@ export default function POS() {
 
       {/* Right: cart */}
       <aside className="border-l border-slate-200 bg-white flex flex-col h-full min-h-[60vh] lg:min-h-0 lg:h-screen lg:sticky lg:top-0">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-emerald-700" />
-            <h3 className="font-bold">Carrito</h3>
-            <Badge variant="secondary">{cart.length}</Badge>
+        <div className="px-4 py-3 border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-emerald-700" />
+              <h3 className="font-bold">Carrito</h3>
+              <Badge variant="secondary">{cart.length}</Badge>
+            </div>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" onClick={holdCurrent} disabled={cart.length === 0} data-testid="hold-sale-btn" title="Retener cuenta y atender otro cliente">
+                <Pause className="w-4 h-4 mr-1" /> Retener
+              </Button>
+              {cart.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearCart} data-testid="clear-cart-btn">
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </div>
-          {cart.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={clearCart} data-testid="clear-cart-btn">
-              <Trash2 className="w-4 h-4" />
-            </Button>
+          {held.length > 0 && (
+            <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1" data-testid="held-accounts-bar">
+              <div className="flex items-center gap-1 text-[10px] uppercase font-semibold text-slate-400 shrink-0"><Users className="w-3 h-3" /> Abiertas:</div>
+              {held.map((h) => (
+                <button
+                  key={h.id}
+                  onClick={() => resumeHeld(h)}
+                  className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 text-xs font-semibold hover:bg-amber-200 transition"
+                  data-testid={`held-${h.id}`}
+                  title="Recuperar esta cuenta"
+                >
+                  <Play className="w-3 h-3" /> {h.label} · {formatCOP(h.total)}
+                </button>
+              ))}
+            </div>
           )}
         </div>
         <ScrollArea className="flex-1">

@@ -32,7 +32,7 @@ const groups = [
     label: "Facturación DIAN",
     items: [
       { to: "/facturacion-electronica", label: "Facturación Electrónica", icon: FileText, soon: true },
-      { to: "/facturacion-pos-electronica", label: "POS Electrónica", icon: Receipt, soon: true },
+      { to: "/facturacion-pos-electronica", label: "POS Electrónica", icon: Receipt, tid: "nav-pos-electronica", badge: "Sim" },
       { to: "/remisiones", label: "Remisiones", icon: ClipboardList, soon: true },
       { to: "/nomina-electronica", label: "Nómina Electrónica", icon: FileSignature, soon: true },
       { to: "/documento-soporte", label: "Doc. Soporte", icon: FileText, soon: true },
@@ -45,8 +45,8 @@ const groups = [
   {
     label: "Inventario avanzado",
     items: [
-      { to: "/carga-masiva", label: "Carga Masiva", icon: Boxes, soon: true },
-      { to: "/actualizacion-masiva", label: "Actualización Masiva", icon: RefreshCw, soon: true },
+      { to: "/carga-masiva", label: "Carga Masiva", icon: Boxes, tid: "nav-carga-masiva" },
+      { to: "/actualizacion-masiva", label: "Actualización Masiva", icon: RefreshCw, tid: "nav-act-masiva" },
       { to: "/promociones", label: "Promociones/Ofertas", icon: Percent, soon: true },
     ],
   },
@@ -60,7 +60,7 @@ const groups = [
       { to: "/servicios", label: "Servicios", icon: Wrench, soon: true },
       { to: "/recogidas", label: "Recogidas Caja", icon: PiggyBank, soon: true },
       { to: "/comisiones", label: "Comisiones", icon: BadgeDollarSign, soon: true },
-      { to: "/gastos", label: "Gastos/Pagos", icon: Wallet, soon: true },
+      { to: "/gastos", label: "Gastos/Pagos", icon: Wallet, tid: "nav-gastos" },
     ],
   },
   {

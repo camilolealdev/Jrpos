@@ -45,8 +45,15 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ /api/categories devuelve pinned primero (ordenados) y luego por conteo desc
 - ✅ POS: chips fijados con emoji custom, botón "Iconos y categorías" desde Inventario abre CategoryManager
 - ✅ Impresión térmica ESC/POS vía Web Bluetooth (58mm) para recibos POS y abonos de fiado
-- ✅ Reportes: botón "Reimprimir" por venta que reenvía cualquier factura pasada a la impresora térmica
-- ✅ App renombrada a **JRPOS** (sidebar, recibos, manifest PWA, API root)
+## Implemented (Sep 2026 - v1.3: Módulos operativos + POS multi-cuenta)
+- ✅ Carga Masiva: /api/products/bulk (upsert por barcode/nombre) + UI /carga-masiva con plantilla CSV descargable y vista previa
+- ✅ Actualización Masiva: /api/products/bulk-update (% precio/costo, fijar IVA, sumar stock por categoría) + UI /actualizacion-masiva con conteo de afectados
+- ✅ POS Electrónica SIMULADA: /api/electronic/settings + /api/electronic/invoice/{sale_id} (CUFE sha256 + XML UBL con marca SIMULACIÓN) + UI con datos del emisor
+- ✅ Gastos: /api/expenses CRUD con totales hoy/mes/general + UI /gastos
+- ✅ POS multi-cliente: cuentas retenidas /api/held (Retener/Recuperar con protección anti-mezcla de carritos); barra "Abiertas" con chips por cuenta
+- ✅ Métodos de pago soportados en checkout y abonos: efectivo, nequi, daviplata, tarjeta, transferencia, crédito (fiado)
+- ✅ Base de datos: MongoDB (MONGO_URL gestionada por el entorno de la plataforma)
+- ✅ Testing iteration_3: 9/9 backend pytest + UI e2e 100%
 
 ## P0 Backlog (siguiente fase)
 - Facturación Electrónica DIAN (integración con proveedor tecnológico: Facture/Alegra API)

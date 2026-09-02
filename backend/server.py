@@ -4,6 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import base64
+import hashlib
 import json
 import logging
 import re
@@ -731,6 +732,218 @@ async def report_summary():
         "daily_sales": [{"date": d, "total": round(v, 2)} for d, v in daily_sorted],
         "low_stock": low_stock[:10],
     }
+
+
+# ----------------- Bulk inventory -----------------
+@api_router.post("/products/bulk")
+async def bulk_create_products(rows: List[ProductCreate]):
+    created = 0
+    updated = 0
+    for r in rows:
+        existing = None
+        if r.barcode:
+            existing = await db.products.find_one({"barcode": r.barcode}, {"_id": 0})
+        if not existing:
+            existing = await db.products.find_one({"name": r.name}, {"_id": 0})
+        if existing:
+            await db.products.update_one(
+                {"id": existing["id"]},
+                {"$set": {"price": r.price, "cost": r.cost, "category": r.category or existing.get("category"), "updated_at": now_iso()},
+                 "$inc": {"stock": r.stock}},
+            )
+            updated += 1
+        else:
+            await db.products.insert_one(Product(**r.model_dump()).model_dump())
+            created += 1
+    return {"ok": True, "created": created, "updated": updated, "total": len(rows)}
+
+
+class BulkUpdateRequest(BaseModel):
+    category: Optional[str] = None
+    percent_price: Optional[float] = None   # +10 sube 10%, -5 baja 5%
+    percent_cost: Optional[float] = None
+    set_tax: Optional[float] = None
+    add_stock: Optional[float] = None
+
+
+@api_router.post("/products/bulk-update")
+async def bulk_update_products(payload: BulkUpdateRequest):
+    query: dict = {}
+    if payload.category and payload.category != "all":
+        query["category"] = payload.category
+    docs = await db.products.find(query, {"_id": 0}).to_list(5000)
+    changed = 0
+    for p in docs:
+        updates: dict = {"updated_at": now_iso()}
+        if payload.percent_price is not None:
+            updates["price"] = round(float(p.get("price", 0)) * (1 + payload.percent_price / 100.0), 2)
+        if payload.percent_cost is not None:
+            updates["cost"] = round(float(p.get("cost", 0)) * (1 + payload.percent_cost / 100.0), 2)
+        if payload.set_tax is not None:
+            updates["tax_rate"] = payload.set_tax
+        if payload.add_stock is not None:
+            updates["stock"] = round(float(p.get("stock", 0)) + payload.add_stock, 2)
+        await db.products.update_one({"id": p["id"]}, {"$set": updates})
+        changed += 1
+    return {"ok": True, "updated": changed}
+
+
+# ----------------- Expenses (Gastos) -----------------
+class Expense(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    concept: str
+    category: str = "General"
+    amount: float
+    method: str = "efectivo"
+    supplier_id: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+
+
+class ExpenseCreate(BaseModel):
+    concept: str
+    category: str = "General"
+    amount: float
+    method: str = "efectivo"
+    supplier_id: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@api_router.post("/expenses", response_model=Expense)
+async def create_expense(payload: ExpenseCreate):
+    e = Expense(**payload.model_dump())
+    await db.expenses.insert_one(e.model_dump())
+    return e
+
+
+@api_router.get("/expenses")
+async def list_expenses(limit: int = 300):
+    docs = await db.expenses.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    total = sum(float(d.get("amount", 0)) for d in docs)
+    today = datetime.now(timezone.utc).date().isoformat()
+    today_total = sum(float(d.get("amount", 0)) for d in docs if str(d.get("created_at", "")).startswith(today))
+    month_total = sum(float(d.get("amount", 0)) for d in docs if str(d.get("created_at", "")).startswith(today[:7]))
+    return {"expenses": docs, "total": round(total, 2), "today": round(today_total, 2), "month": round(month_total, 2)}
+
+
+@api_router.delete("/expenses/{expense_id}")
+async def delete_expense(expense_id: str):
+    res = await db.expenses.delete_one({"id": expense_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    return {"ok": True}
+
+
+# ----------------- Held accounts (POS multi-cliente) -----------------
+class HeldSale(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str
+    items: List[dict]
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
+    total: float = 0.0
+    created_at: str = Field(default_factory=now_iso)
+
+
+class HeldSaleCreate(BaseModel):
+    label: str
+    items: List[dict]
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
+
+
+@api_router.post("/held", response_model=HeldSale)
+async def hold_sale(payload: HeldSaleCreate):
+    total = sum(float(it.get("qty", 0)) * float(it.get("price", 0)) for it in payload.items)
+    h = HeldSale(**payload.model_dump(), total=round(total, 2))
+    await db.held_sales.insert_one(h.model_dump())
+    return h
+
+
+@api_router.get("/held", response_model=List[HeldSale])
+async def list_held():
+    docs = await db.held_sales.find({}, {"_id": 0}).sort("created_at", 1).to_list(100)
+    return [HeldSale(**d) for d in docs]
+
+
+@api_router.delete("/held/{held_id}")
+async def delete_held(held_id: str):
+    res = await db.held_sales.delete_one({"id": held_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada")
+    return {"ok": True}
+
+
+# ----------------- POS Electrónica (SIMULADA DIAN) -----------------
+class ElectronicSettings(BaseModel):
+    nit: str = ""
+    razon_social: str = ""
+    resolucion: str = ""
+    prefijo: str = "FE"
+    rango_desde: int = 1
+    rango_hasta: int = 999999
+    fecha_resolucion: str = ""
+
+
+@api_router.get("/electronic/settings")
+async def get_electronic_settings():
+    doc = await db.settings.find_one({"key": "electronic"}, {"_id": 0})
+    if not doc:
+        return ElectronicSettings().model_dump()
+    return doc["value"]
+
+
+@api_router.put("/electronic/settings")
+async def save_electronic_settings(payload: ElectronicSettings):
+    await db.settings.update_one(
+        {"key": "electronic"},
+        {"$set": {"key": "electronic", "value": payload.model_dump()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api_router.get("/electronic/invoice/{sale_id}")
+async def electronic_invoice(sale_id: str):
+    """Genera CUFE y XML UBL SIMULADOS para la venta. No válido ante la DIAN real."""
+    sale = await db.sales.find_one({"id": sale_id}, {"_id": 0})
+    if not sale:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    settings_doc = await db.settings.find_one({"key": "electronic"}, {"_id": 0})
+    st = (settings_doc or {}).get("value") or ElectronicSettings().model_dump()
+
+    number = f"{st.get('prefijo', 'FE')}{sale.get('number', '')}"
+    date = str(sale.get("created_at", ""))
+    total = float(sale.get("total", 0))
+    cufe = hashlib.sha256(f"{number}{date}{total}{st.get('nit')}{st.get('resolucion')}".encode()).hexdigest()
+
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!-- SIMULACIÓN - Documento NO válido ante la DIAN -->
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
+  <UBLVersionID>UBL 2.1</UBLVersionID>
+  <ID>{number}</ID>
+  <IssueDate>{date[:10]}</IssueDate>
+  <InvoiceTypeCode>01</InvoiceTypeCode>
+  <DocumentCurrencyCode>COP</DocumentCurrencyCode>
+  <AccountingSupplierParty>
+    <Party><PartyName><Name>{st.get('razon_social')}</Name></PartyName>
+    <PartyTaxScheme><CompanyID>{st.get('nit')}</CompanyID></PartyTaxScheme></Party>
+  </AccountingSupplierParty>
+  <LegalMonetaryTotal>
+    <LineExtensionAmount currencyID="COP">{sale.get('subtotal')}</LineExtensionAmount>
+    <TaxInclusiveAmount currencyID="COP">{total}</TaxInclusiveAmount>
+    <PayableAmount currencyID="COP">{total}</PayableAmount>
+  </LegalMonetaryTotal>
+  <CUFE>{cufe}</CUFE>
+</Invoice>"""
+
+    await db.sales.update_one(
+        {"id": sale_id},
+        {"$set": {"cufe": cufe, "electronic_number": number, "electronic_status": "simulada"}},
+    )
+    return {"number": number, "cufe": cufe, "xml": xml, "status": "simulada"}
 
 
 # ----------------- Seed sample data -----------------
