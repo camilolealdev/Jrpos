@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { printThermal } from "@/lib/thermalPrint";
+import CameraScanner from "@/components/CameraScanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -26,6 +27,7 @@ export default function POS() {
   const [received, setReceived] = useState("");
   const [receiptSale, setReceiptSale] = useState(null);
   const [held, setHeld] = useState([]);
+  const [camOpen, setCamOpen] = useState(false);
   const barcodeRef = useRef(null);
 
   const loadHeld = async () => {
@@ -110,17 +112,23 @@ export default function POS() {
     return { subtotal, tax, total: subtotal };
   }, [cart]);
 
-  const onBarcodeSubmit = async (e) => {
-    e.preventDefault();
-    const code = barcodeRef.current?.value?.trim();
+  const lookupBarcode = async (code) => {
     if (!code) return;
     try {
       const { data } = await api.get(`/products/barcode/${encodeURIComponent(code)}`);
       addToCart(data);
-      barcodeRef.current.value = "";
+      toast.success(`+ ${data.name}`);
     } catch {
-      toast.error("Producto no encontrado por código");
+      toast.error(`Producto no encontrado: ${code}`);
     }
+  };
+
+  const onBarcodeSubmit = async (e) => {
+    e.preventDefault();
+    const code = barcodeRef.current?.value?.trim();
+    if (!code) return;
+    await lookupBarcode(code);
+    barcodeRef.current.value = "";
   };
 
   const checkout = async () => {
@@ -174,7 +182,18 @@ export default function POS() {
               autoFocus
             />
           </form>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 shrink-0"
+            onClick={() => setCamOpen(true)}
+            data-testid="open-camera-scan-btn"
+            title="Escanear con cámara"
+          >
+            📷 <span className="hidden sm:inline ml-1">Cámara</span>
+          </Button>
         </div>
+        <CameraScanner open={camOpen} onOpenChange={setCamOpen} onScan={(code) => lookupBarcode(code)} />
 
         {/* Category chips - dinámicas desde inventario con multi-select e iconos */}
         <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1 items-center" data-testid="pos-category-chips">
