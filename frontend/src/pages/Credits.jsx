@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { HandCoins, User, Wallet, ChevronRight, ArrowLeft } from "lucide-react";
+import { HandCoins, User, Wallet, ChevronRight, ArrowLeft, Printer } from "lucide-react";
+import { printThermal } from "@/lib/thermalPrint";
 
 export default function Credits() {
   const [summary, setSummary] = useState({ customers: [], total_due: 0 });
@@ -34,8 +35,26 @@ export default function Credits() {
     const amt = Number(amount || 0);
     if (amt <= 0) return toast.error("Ingresa un monto válido");
     try {
-      await api.post("/credits/payment", { sale_id: payFor.id, amount: amt, method, notes });
+      const { data: pay } = await api.post("/credits/payment", { sale_id: payFor.id, amount: amt, method, notes });
       toast.success(`Abono de ${formatCOP(amt)} registrado`);
+      const newBalance = Math.max(0, (payFor.balance_due || 0) - amt);
+      // Try thermal print (opt-in via confirm)
+      if (window.confirm("¿Imprimir recibo del abono en impresora térmica?")) {
+        try {
+          await printThermal({
+            title: "ABONO",
+            subtitle: pay.customer_name || "",
+            meta: [
+              `Factura: ${pay.sale_number}`,
+              new Date(pay.created_at).toLocaleString("es-CO"),
+              `Método: ${pay.method}`,
+            ],
+            items: [],
+            totals: [["Abono", formatCOP(pay.amount)], ["Saldo", formatCOP(newBalance)]],
+            footer: "¡Gracias por su pago!",
+          });
+        } catch (e) { toast.error(e.message || "Error de impresión"); }
+      }
       setPayFor(null); setAmount(""); setNotes("");
       loadSummary();
       if (statement?.customer?.id) openStatement(statement.customer.id);

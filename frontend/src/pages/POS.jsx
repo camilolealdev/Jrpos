@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { categoryIcon } from "@/lib/categoryIcons";
+import { printThermal } from "@/lib/thermalPrint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -151,7 +152,7 @@ export default function POS() {
                 data-testid={`pos-cat-${c.name}`}
                 aria-pressed={on}
               >
-                <span className="text-base leading-none">{categoryIcon(c.name)}</span>
+                <span className="text-base leading-none">{c.emoji || categoryIcon(c.name)}</span>
                 <span>{c.name}</span>
                 <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${on ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>{c.count}</span>
               </button>
@@ -184,7 +185,7 @@ export default function POS() {
                   data-testid={`pos-product-${p.id}`}
                 >
                   <div className="text-[11px] uppercase font-semibold tracking-wider text-emerald-700 flex items-center gap-1">
-                    <span>{categoryIcon(p.category)}</span>
+                    <span>{(categories.find((c) => c.name === p.category)?.emoji) || categoryIcon(p.category)}</span>
                     <span className="truncate">{p.category}</span>
                   </div>
                   <div className="text-sm font-semibold leading-tight mt-1 line-clamp-2 h-10">{p.name}</div>
@@ -355,7 +356,30 @@ export default function POS() {
             </div>
           )}
           <DialogFooter>
-            <Button onClick={() => setReceiptSale(null)}>Cerrar</Button>
+            <Button variant="outline" onClick={() => setReceiptSale(null)}>Cerrar</Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await printThermal({
+                    title: "AbarrotesPOS",
+                    subtitle: "Tienda",
+                    meta: [
+                      `Factura: ${receiptSale.number}`,
+                      new Date(receiptSale.created_at).toLocaleString("es-CO"),
+                      `Pago: ${receiptSale.payment_method}`,
+                    ],
+                    items: receiptSale.items.map((it) => ({
+                      name: it.name, qty: it.qty, price: formatCOP(it.price), total: formatCOP(it.subtotal),
+                    })),
+                    totals: [["TOTAL", formatCOP(receiptSale.total)]],
+                    footer: "¡Gracias por su compra!",
+                  });
+                  toast.success("Enviado a la impresora");
+                } catch (e) { toast.error(e.message || "Error de impresión"); }
+              }}
+              data-testid="print-receipt-btn"
+            >🖨 Imprimir 58mm</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

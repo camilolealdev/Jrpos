@@ -277,17 +277,46 @@ async def delete_product(product_id: str):
 
 @api_router.get("/categories")
 async def list_categories():
-    """Return categories with product counts, based on current inventory."""
+    """Return categories with product counts and meta (emoji + pin + order)."""
     pipeline = [
         {"$group": {"_id": "$category", "count": {"$sum": 1}, "stock": {"$sum": "$stock"}}},
-        {"$sort": {"count": -1}},
     ]
     docs = await db.products.aggregate(pipeline).to_list(500)
-    return [
-        {"name": d["_id"] or "General", "count": d["count"], "stock": float(d.get("stock") or 0)}
-        for d in docs
-        if d["_id"]
-    ]
+    metas = await db.category_meta.find({}, {"_id": 0}).to_list(500)
+    meta_by_name = {m["name"]: m for m in metas}
+    result = []
+    for d in docs:
+        if not d["_id"]:
+            continue
+        m = meta_by_name.get(d["_id"], {})
+        result.append({
+            "name": d["_id"],
+            "count": d["count"],
+            "stock": float(d.get("stock") or 0),
+            "emoji": m.get("emoji"),
+            "pinned": bool(m.get("pinned", False)),
+            "order": int(m.get("order", 999)),
+        })
+    # Sort: pinned first (by order), then by count desc
+    result.sort(key=lambda x: (not x["pinned"], x["order"] if x["pinned"] else 0, -x["count"]))
+    return result
+
+
+class CategoryMetaUpsert(BaseModel):
+    name: str
+    emoji: Optional[str] = None
+    pinned: Optional[bool] = None
+    order: Optional[int] = None
+
+
+@api_router.put("/categories/meta")
+async def upsert_category_meta(payload: CategoryMetaUpsert):
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None and k != "name"}
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nada para actualizar")
+    await db.category_meta.update_one({"name": payload.name}, {"$set": {"name": payload.name, **updates}}, upsert=True)
+    doc = await db.category_meta.find_one({"name": payload.name}, {"_id": 0})
+    return doc
 
 
 # ----------------- Sales / POS -----------------

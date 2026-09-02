@@ -7,12 +7,14 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Search, Package } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Package, Tags } from "lucide-react";
+import CategoryManager from "@/components/CategoryManager";
 
 const empty = { name: "", barcode: "", category: "General", price: 0, cost: 0, stock: 0, unit: "und", tax_rate: 19 };
 
 export default function Inventory() {
   const [items, setItems] = useState([]);
+  const [catMgrOpen, setCatMgrOpen] = useState(false);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
@@ -54,6 +56,9 @@ export default function Inventory() {
         </div>
         <Button onClick={() => { setForm(empty); setEditingId(null); setOpen(true); }} className="bg-emerald-700 hover:bg-emerald-800" data-testid="new-product-btn">
           <Plus className="w-4 h-4 mr-1" /> Nuevo producto
+        </Button>
+        <Button variant="outline" onClick={() => setCatMgrOpen(true)} data-testid="open-cat-manager-btn">
+          <Tags className="w-4 h-4 mr-1" /> Iconos y categorías
         </Button>
       </div>
 
@@ -146,6 +151,7 @@ export default function Inventory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CategoryManager open={catMgrOpen} onOpenChange={setCatMgrOpen} />
     </div>
   );
 }

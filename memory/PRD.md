@@ -40,7 +40,11 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ Endpoints: /api/credits/summary, /api/credits/customer/{id}, /api/credits/payment, /api/credits/pending-sales
 - ✅ POS: categorías dinámicas como chips con conteo desde inventario (/api/categories devuelve name+count+stock)
 - ✅ POS: iconos/emojis por categoría (via keyword-matching en /app/frontend/src/lib/categoryIcons.js) en chips y tarjetas de producto
-- ✅ POS: filtro multi-categoría con toggle en chips; endpoint /api/products acepta `categories=Granos,Aceites`; botón "Limpiar" cuando hay selección
+## Implemented (Feb 2026 - v1.2: Categorías avanzadas + Impresión térmica)
+- ✅ Backend: colección `category_meta` con emoji custom, pinned y order; endpoints GET/PUT /api/categories/meta
+- ✅ /api/categories devuelve pinned primero (ordenados) y luego por conteo desc
+- ✅ POS: chips fijados con emoji custom, botón "Iconos y categorías" desde Inventario abre CategoryManager
+- ✅ Impresión térmica ESC/POS vía Web Bluetooth (58mm) para recibos POS y abonos de fiado
 
 ## P0 Backlog (siguiente fase)
 - Facturación Electrónica DIAN (integración con proveedor tecnológico: Facture/Alegra API)
