@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -28,6 +28,8 @@ export default function POS() {
   const [receiptSale, setReceiptSale] = useState(null);
   const [held, setHeld] = useState([]);
   const [camOpen, setCamOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newProd, setNewProd] = useState({ barcode: "", name: "", price: 0, cost: 0, stock: 1, category: "General" });
   const barcodeRef = useRef(null);
 
   const loadHeld = async () => {
@@ -119,8 +121,30 @@ export default function POS() {
       addToCart(data);
       toast.success(`+ ${data.name}`);
     } catch {
-      toast.error(`Producto no encontrado: ${code}`);
+      // No existe: ofrecer crear el producto con este código
+      setNewProd({ barcode: code, name: "", price: 0, cost: 0, stock: 1, category: "General" });
+      setCreateOpen(true);
     }
+  };
+
+  const createScannedProduct = async () => {
+    if (!newProd.name) return toast.error("Ingresa el nombre del producto");
+    try {
+      const { data } = await api.post("/products", {
+        name: newProd.name,
+        barcode: newProd.barcode,
+        category: newProd.category || "General",
+        price: Number(newProd.price) || 0,
+        cost: Number(newProd.cost) || 0,
+        stock: Number(newProd.stock) || 0,
+        tax_rate: 19,
+      });
+      addToCart(data);
+      setCreateOpen(false);
+      toast.success(`Producto "${data.name}" creado y agregado`);
+      load();
+      loadCats();
+    } catch { toast.error("Error creando producto"); }
   };
 
   const onBarcodeSubmit = async (e) => {
@@ -194,6 +218,48 @@ export default function POS() {
           </Button>
         </div>
         <CameraScanner open={camOpen} onOpenChange={setCamOpen} onScan={(code) => lookupBarcode(code)} />
+
+        {/* Crear producto al escanear código desconocido */}
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent data-testid="create-scanned-dialog">
+            <DialogHeader>
+              <DialogTitle>Código no registrado</DialogTitle>
+              <DialogDescription>Crea el producto y se agregará al carrito de una vez.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold">Código de barras</label>
+                <Input value={newProd.barcode} readOnly className="font-mono bg-slate-50" data-testid="np-barcode" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold">Nombre del producto</label>
+                <Input value={newProd.name} onChange={(e) => setNewProd({ ...newProd, name: e.target.value })} autoFocus data-testid="np-name" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-semibold">Precio venta</label>
+                  <Input type="number" value={newProd.price} onChange={(e) => setNewProd({ ...newProd, price: e.target.value })} className="font-mono" data-testid="np-price" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold">Costo</label>
+                  <Input type="number" value={newProd.cost} onChange={(e) => setNewProd({ ...newProd, cost: e.target.value })} className="font-mono" data-testid="np-cost" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold">Stock inicial</label>
+                  <Input type="number" value={newProd.stock} onChange={(e) => setNewProd({ ...newProd, stock: e.target.value })} className="font-mono" data-testid="np-stock" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold">Categoría</label>
+                  <Input value={newProd.category} onChange={(e) => setNewProd({ ...newProd, category: e.target.value })} data-testid="np-category" />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+              <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={createScannedProduct} data-testid="create-scanned-btn">Crear y agregar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Category chips - dinámicas desde inventario con multi-select e iconos */}
         <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1 items-center" data-testid="pos-category-chips">

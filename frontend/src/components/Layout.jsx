@@ -1,10 +1,11 @@
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { startOnboarding, ONBOARDING_KEY } from "@/lib/onboarding";
 import {
   LayoutDashboard, ShoppingCart, Package, Camera, Users, Truck, LineChart,
   FileText, Receipt, ClipboardList, Percent, ShoppingBag, RotateCcw,
   BadgeDollarSign, Wallet, HandCoins, PiggyBank, ShieldCheck, KeyRound,
-  BookOpen, Award, FileSignature, Menu, X, Store, Wrench, Boxes, RefreshCw,
+  BookOpen, Award, FileSignature, Menu, X, Store, Wrench, Boxes, RefreshCw, HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -133,6 +134,17 @@ export default function Layout() {
   const loc = useLocation();
   const pageTitle = loc.pathname.replace("/", "") || "dashboard";
 
+  // Auto-onboarding en la primera visita (solo escritorio: el tour apunta al sidebar)
+  useEffect(() => {
+    if (!localStorage.getItem(ONBOARDING_KEY) && window.innerWidth >= 1024) {
+      const t = setTimeout(() => {
+        startOnboarding();
+        localStorage.setItem(ONBOARDING_KEY, "1");
+      }, 800);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-background grain-bg flex text-slate-800">
       {/* Desktop sidebar */}
@@ -179,6 +191,15 @@ export default function Layout() {
             </div>
             <div className="ml-auto flex items-center gap-2">
               <span className="hidden sm:inline text-xs text-slate-500">🇨🇴 COP · IVA 19%</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={startOnboarding}
+                data-testid="start-onboarding-btn"
+                title="Ver guía de módulos"
+              >
+                <HelpCircle className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Guía</span>
+              </Button>
             </div>
           </div>
         </header>

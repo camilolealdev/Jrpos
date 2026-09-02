@@ -45,6 +45,11 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ /api/categories devuelve pinned primero (ordenados) y luego por conteo desc
 - ✅ POS: chips fijados con emoji custom, botón "Iconos y categorías" desde Inventario abre CategoryManager
 - ✅ Impresión térmica ESC/POS vía Web Bluetooth (58mm) para recibos POS y abonos de fiado
+## Implemented (Sep 2026 - v1.5: Documentación + Onboarding)
+- ✅ `/app/docs/MODULOS_PENDIENTES.md`: MD interno con los 18 módulos no construidos, características necesarias, modelos sugeridos y dependencias (DIAN, auth, etc.)
+- ✅ Onboarding con driver.js: tour guiado de 14 pasos por todos los módulos activos; auto-inicia en primera visita (desktop) y botón ❓ "Guía" en el header para repetirlo
+- ✅ Commit local `20dbeee`; push bloqueado: no hay remote `origin` configurado (conectar GitHub desde Emergent UI)
+
 ## Implemented (Sep 2026 - v1.4: Escáner por cámara)
 - ✅ Componente CameraScanner (html5-qrcode): lee EAN-13/Code128/QR con cámara trasera del celular
 - ✅ Botón "📷 Cámara" en POS junto al input de código; al leer un código válido busca el producto y lo agrega al carrito con toast
