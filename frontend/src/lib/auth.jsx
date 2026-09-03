@@ -8,9 +8,16 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(undefined); // undefined=cargando, null=no auth, obj=auth
 
   useEffect(() => {
+    // Verifica sesión; si expiró el access token, intenta refresh transparente
     axios.get(`${API}/auth/me`, { withCredentials: true })
       .then((r) => setUser(r.data))
-      .catch(() => setUser(null));
+      .catch(async () => {
+        try {
+          await axios.post(`${API}/auth/refresh`, {}, { withCredentials: true });
+          const r = await axios.get(`${API}/auth/me`, { withCredentials: true });
+          setUser(r.data);
+        } catch { setUser(null); }
+      });
   }, []);
 
   const login = async (email, password) => {

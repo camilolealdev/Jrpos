@@ -167,12 +167,20 @@ async def startup_auth():
     if admin_email and admin_password:
         existing = await db.users.find_one({"email": admin_email})
         if not existing:
-            await db.users.insert_one({
-                "id": str(uuid.uuid4()), "email": admin_email,
-                "password_hash": hash_password(admin_password),
-                "name": "Administrador", "role": "admin",
-                "created_at": now_iso(),
-            })
+            # Migración: si ya hay un admin con otro correo, actualizarlo al nuevo
+            old_admin = await db.users.find_one({"role": "admin"})
+            if old_admin:
+                await db.users.update_one(
+                    {"id": old_admin["id"]},
+                    {"$set": {"email": admin_email, "password_hash": hash_password(admin_password)}},
+                )
+            else:
+                await db.users.insert_one({
+                    "id": str(uuid.uuid4()), "email": admin_email,
+                    "password_hash": hash_password(admin_password),
+                    "name": "Administrador", "role": "admin",
+                    "created_at": now_iso(),
+                })
         elif not verify_password(admin_password, existing["password_hash"]):
             await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
 

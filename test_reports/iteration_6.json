@@ -1,0 +1,36 @@
+{
+  "summary": "E2E test JRPOS refresh transparente + admin email migration + separación de roles. Backend pytest: 32/32 PASS (test_refresh_and_roles.py NEW 15/15 + test_auth_permissions.py 17/17). Frontend playwright: TODOS los escenarios criticos PASS. (1) Login admin@jrpos.com/jrpos2026 OK → redirige a /dashboard. (2) Login viejo camiloleal.opx@gmail.com FALLA con 'Credenciales incorrectas' en [data-testid=login-error]. (3) Refresh transparente: borrado SOLO cookie access_token (via context.clear_cookies + re-add sin access_token), navegación a /inventario → sesión recuperada sin ir a /login, nueva cookie access_token reemitida por interceptor axios (verificado en context.cookies() post-nav). (4) Ambas cookies borradas → /dashboard redirige a /login. (5) Cajero login: sidebar OCULTA nav-usuarios y nav-configuracion; nav-pos visible. Direct GET /usuarios muestra users-denied 'Solo administradores pueden gestionar usuarios.'. (6) /api/users con cajero = 403; /api/settings PUT con cajero = 403; sin cookie 401 en users/settings admin-only (validado backend). (7) Cajero SI puede /pos (pos-page), /creditos (credits-page), /reportes (reports-page), /clientes (page carga, sin testid clients-page pero UI 'Clientes 2 registros' renderiza correctamente). (8) Brute force con email único brute_test_* devuelve 401/429 correctamente. Admin migration confirmada: nuevo email funciona, viejo devuelve 401.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/clientes", "issues": ["Falta data-testid='clients-page' en el wrapper de la página Clientes (los demás módulos sí lo tienen). No es bloqueante pero rompe convención de testabilidad."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_refresh_and_roles.py",
+    "/app/backend/tests/test_auth_permissions.py",
+    "/app/test_reports/pytest/results.xml"
+  ],
+  "action_items": [
+    "Añadir data-testid='clients-page' al contenedor principal de src/pages/Clientes.jsx para consistencia con otros módulos.",
+    "(Opcional) El brute force endpoint sigue devolviendo 401 tras N fallos en vez de 429 con mensaje 'Cuenta bloqueada temporalmente'. El backend acepta 401 en el test pero mejor UX sería 429 con Retry-After. Ya reportado en iter 5, no crítico."
+  ],
+  "critical_code_review_comments": [
+    "api.js interceptor 401: correcto — flag _retried previene loop, dedup con variable refreshing, redirige a /login si refresh falla. Bien.",
+    "auth.jsx AuthProvider: hace fallback a /auth/refresh al montar si /me falla — perfecto para recuperar sesión tras F5 con access_token expirado.",
+    "Servidor emite nueva cookie access_token en /auth/refresh (verificado: cookie aparece tras navegación post-borrado).",
+    "Separación de roles limpia en front (Layout filtra nav) Y back (require_admin en /users y PUT /settings)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_auth_permissions.py (email admin actualizado a admin@jrpos.com)",
+    "/app/backend/tests/test_refresh_and_roles.py (NEW: 15 tests refresh + roles + migration + brute force)"
+  ],
+  "success_rate": {"backend": "100% (32/32)", "frontend": "100% flujos críticos"},
+  "test_credentials": "admin: admin@jrpos.com / jrpos2026; cajero: cajero@jrpos.co / cajero123",
+  "seed_data_creation": "Ninguna. Test brute force usa email único no-existente para no bloquear credenciales reales.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin email migrado: usar admin@jrpos.com. Refresh transparente funciona en axios (interceptor api.js) y en AuthProvider al montar. Ejecutar pytest: `REACT_APP_BACKEND_URL=<url> pytest backend/tests/ -v` (pytest.ini fuerza -n 2 --dist loadscope). Para test de refresh en playwright: capturar cookies con context.cookies(), filtrar access_token, clear_cookies + add_cookies(remaining). El brute force lockout debe correrse AL FINAL con email único (ej bruteforce_zzz_<ts>@jrpos.co) para no bloquear admin/cajero real (lockout 5/15min por par ip:email)."
+}

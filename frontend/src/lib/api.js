@@ -9,11 +9,29 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+let refreshing = null;
+
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err?.response?.status === 401 && !window.location.pathname.startsWith("/login")) {
-      window.location.href = "/login";
+  async (err) => {
+    const original = err.config || {};
+    // Refresh transparente: ante 401 intenta renovar la sesión una sola vez
+    if (
+      err?.response?.status === 401 &&
+      !original._retried &&
+      !original.url?.includes("/auth/refresh") &&
+      !window.location.pathname.startsWith("/login")
+    ) {
+      original._retried = true;
+      try {
+        refreshing = refreshing || axios
+          .post(`${API}/auth/refresh`, {}, { withCredentials: true })
+          .finally(() => { refreshing = null; });
+        await refreshing;
+        return api(original); // reintenta la petición original con la cookie renovada
+      } catch {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(err);
   }

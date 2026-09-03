@@ -6,7 +6,8 @@ import requests
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
 API = f"{BASE_URL}/api"
 
-ADMIN = {"email": "camiloleal.opx@gmail.com", "password": "jrpos2026"}
+ADMIN = {"email": "admin@jrpos.com", "password": "jrpos2026"}
+OLD_ADMIN_EMAIL = "camiloleal.opx@gmail.com"
 CAJERO = {"email": "cajero@jrpos.co", "password": "cajero123"}
 
 
