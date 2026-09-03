@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,14 @@ export default function Expenses() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
 
-  const load = async () => setData((await api.get("/expenses")).data);
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get("/expenses");
+      setData(res.data);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!form.concept || Number(form.amount) <= 0) return toast.error("Concepto y monto válido requeridos");

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -23,17 +23,19 @@ export default function Timeclock() {
     return () => clearInterval(t);
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [m, s] = await Promise.all([api.get("/timeclock/today"), api.get("/timeclock/schedule")]);
     setMarks(m.data); setSched(s.data);
-  };
-  const loadRecords = async () => {
+  }, []);
+
+  const loadRecords = useCallback(async () => {
     if (user?.role !== "admin") return;
     const { data } = await api.get("/timeclock/records", { params: { date: recDate } });
     setRecords(data);
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
-  useEffect(() => { loadRecords(); /* eslint-disable-next-line */ }, [recDate, user]);
+  }, [recDate, user]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadRecords(); }, [loadRecords]);
 
   const lastType = marks.length ? marks[marks.length - 1].type : "out";
 

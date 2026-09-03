@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +15,14 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
   const [form, setForm] = useState({ ...empty, kind });
   const [editingId, setEditingId] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await api.get("/contacts", { params: { kind } });
     setItems(data);
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [kind]);
+  }, [kind]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const save = async () => {
     if (!form.name) return toast.error("El nombre es obligatorio");

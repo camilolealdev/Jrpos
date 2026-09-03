@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -20,11 +20,14 @@ export default function Inventory() {
   const [form, setForm] = useState(empty);
   const [editingId, setEditingId] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await api.get("/products", { params: { q: q || undefined } });
     setItems(data);
-  };
-  useEffect(() => { load(); }, [q]);
+  }, [q]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const save = async () => {
     if (!form.name) return toast.error("El nombre es obligatorio");

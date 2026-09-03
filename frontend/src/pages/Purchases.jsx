@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -22,11 +22,11 @@ export default function Purchases({ defaultTab = "oc" }) {
   const [name, setName] = useState(""); const [qty, setQty] = useState(1); const [cost, setCost] = useState("");
 
   useEffect(() => { api.get("/contacts", { params: { kind: "supplier" } }).then((r) => setSuppliers(r.data)); }, []);
-  const load = async () => {
+  const load = useCallback(async () => {
     if (tab === "oc") setOrders((await api.get("/purchase-orders")).data);
     else setDocs((await api.get("/support-docs")).data);
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab]);
+  }, [tab]);
+  useEffect(() => { load(); }, [load]);
 
   const addItem = () => {
     if (!name || !qty) return;

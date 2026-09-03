@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -20,12 +20,15 @@ export default function Dian({ defaultTab = "fe" }) {
   const [form, setForm] = useState({ employee_name: "", period: new Date().toISOString().slice(0, 7), salary: "", bonuses: 0 });
   const fileRef = useRef(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (tab === "radian") setRadian((await api.get("/radian/invoices")).data);
     if (tab === "nomina") setPayroll((await api.get("/payroll")).data);
     if (tab === "cert") setCert((await api.get("/electronic/certificate")).data);
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab]);
+  }, [tab]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const savePayslip = async () => {
     if (!form.employee_name || !form.salary) return toast.error("Empleado y salario requeridos");

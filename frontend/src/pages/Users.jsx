@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,14 @@ export default function Users() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
 
-  const load = async () => setItems((await api.get("/users")).data);
-  useEffect(() => { load().catch(() => {}); }, []);
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get("/users");
+      setItems(res.data);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   if (user && user.role !== "admin") {
     return <div className="p-8 text-center text-slate-500" data-testid="users-denied">Solo administradores pueden gestionar usuarios.</div>;

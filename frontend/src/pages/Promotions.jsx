@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +17,14 @@ export default function Promotions() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
 
-  const load = async () => {
-    const [p, c] = await Promise.all([api.get("/promotions"), api.get("/categories")]);
-    setItems(p.data); setCats(c.data);
-  };
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => {
+    try {
+      const [p, c] = await Promise.all([api.get("/promotions"), api.get("/categories")]);
+      setItems(p.data); setCats(c.data);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!form.name || !form.value) return toast.error("Nombre y valor requeridos");

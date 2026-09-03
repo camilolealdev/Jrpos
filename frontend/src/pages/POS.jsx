@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { categoryIcon } from "@/lib/categoryIcons";
@@ -38,12 +38,12 @@ export default function POS() {
     setHeld(data);
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const params = { q: q || undefined };
     if (selectedCats.length > 0) params.categories = selectedCats.join(",");
     const { data } = await api.get("/products", { params });
     setProducts(data);
-  };
+  }, [q, selectedCats]);
   const loadCats = async () => {
     const { data } = await api.get("/categories");
     setCategories(data);
@@ -52,7 +52,7 @@ export default function POS() {
     const { data } = await api.get("/contacts", { params: { kind: "customer" } });
     setCustomers(data);
   };
-  useEffect(() => { load(); }, [q, selectedCats]);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => {
     loadCats(); loadCustomers(); loadHeld();
     api.get("/promotions/active").then((r) => setPromos(r.data)).catch(() => {});

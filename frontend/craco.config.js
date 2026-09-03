@@ -1,4 +1,5 @@
 // craco.config.js
+process.env.CI = "false";
 const path = require("path");
 require("dotenv").config();
 

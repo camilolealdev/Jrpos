@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,14 @@ export default function Commissions() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ user_name: "", percent: "" });
 
-  const load = async () => {
-    const [r, rep] = await Promise.all([api.get("/commissions/rules"), api.get("/commissions/report")]);
-    setRules(r.data); setReport(rep.data);
-  };
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => {
+    try {
+      const [r, rep] = await Promise.all([api.get("/commissions/rules"), api.get("/commissions/report")]);
+      setRules(r.data); setReport(rep.data);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!form.user_name || !form.percent) return toast.error("Completa vendedor y %");

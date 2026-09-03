@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -27,11 +27,14 @@ export default function Credits() {
   const [method, setMethod] = useState("efectivo");
   const [notes, setNotes] = useState("");
 
-  const loadSummary = async () => {
-    const { data } = await api.get("/credits/summary");
-    setSummary(data);
-  };
-  useEffect(() => { loadSummary(); }, []);
+  const loadSummary = useCallback(async () => {
+    try {
+      const { data } = await api.get("/credits/summary");
+      setSummary(data);
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadSummary(); }, [loadSummary]);
 
   const openStatement = async (customerId) => {
     if (!customerId) return toast.error("Cliente sin identificar");

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -70,13 +70,13 @@ export default function SalesDocs({ defaultTab = "cotizaciones" }) {
     api.get("/sales").then((r) => setSales(r.data));
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const cfg = CFG[tab];
     if (cfg.kind) setDocs((await api.get(`/docs/${cfg.kind}`)).data);
     if (tab === "notas") setNotes((await api.get("/credit-notes")).data);
     if (tab === "garantias") setWarranties((await api.get("/warranties")).data);
-  };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tab]);
+  }, [tab]);
+  useEffect(() => { load(); }, [load]);
 
   const cfg = CFG[tab];
 

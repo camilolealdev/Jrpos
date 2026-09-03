@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,14 @@ export default function CashPickup() {
   const [counted, setCounted] = useState("");
   const [closeResult, setCloseResult] = useState(null);
 
-  const load = async () => {
-    const [c, h] = await Promise.all([api.get("/cash/current"), api.get("/cash/history")]);
-    setCurrent(c.data); setHistory(h.data);
-  };
-  useEffect(() => { load(); }, []);
+  const load = useCallback(async () => {
+    try {
+      const [c, h] = await Promise.all([api.get("/cash/current"), api.get("/cash/history")]);
+      setCurrent(c.data); setHistory(h.data);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const open = async () => {
     try {
