@@ -40,7 +40,7 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
   };
 
   return (
-    <div className="p-4 lg:p-6" data-testid={`${kind}-page`}>
+    <div className="p-4 lg:p-6" data-testid={kind === "customer" ? "clients-page" : "suppliers-page"}>
       <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">{title}</h1>
