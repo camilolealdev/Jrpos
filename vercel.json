@@ -4,6 +4,6 @@
   "outputDirectory": "frontend/build",
   "framework": null,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/frontend/build/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -74,18 +74,18 @@ class CategoryInfo(BaseModel):
     order: int = 0
 
 
-class CategoryMetaIn(BaseModel):
+class CategoryMetaUpsert(BaseModel):
     name: str
     emoji: Optional[str] = None
-    pinned: bool = False
-    order: int = 0
+    pinned: Optional[bool] = None
+    order: Optional[int] = None
 
 
 class BulkUpdatePayload(BaseModel):
     category: Optional[str] = None  # None = all
-    price_pct: Optional[float] = None
-    cost_pct: Optional[float] = None
-    set_tax_rate: Optional[float] = None
+    percent_price: Optional[float] = None
+    percent_cost: Optional[float] = None
+    set_tax: Optional[float] = None
     add_stock: Optional[float] = None
 
 
@@ -94,12 +94,17 @@ class BulkUpdatePayload(BaseModel):
 async def list_products(
     q: Optional[str] = None,
     category: Optional[str] = None,
-    limit: int = Query(default=200, le=1000),
+    categories: Optional[str] = None,
+    limit: int = Query(default=500, le=5000),
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     stmt = select(Product)
-    if category and category != "all" and category != "Todos":
+    cat_list = [c.strip() for c in categories.split(",")] if categories else []
+    cat_list = [c for c in cat_list if c and c != "all"]
+    if cat_list:
+        stmt = stmt.where(Product.category.in_(cat_list))
+    elif category and category != "all":
         stmt = stmt.where(Product.category == category)
     if q:
         term = f"%{q.strip().lower()}%"
@@ -108,7 +113,6 @@ async def list_products(
                 func.lower(Product.name).like(term),
                 Product.barcode.like(f"%{q.strip()}%"),
                 func.lower(Product.sku).like(term),
-                func.lower(Product.category).like(term),
             )
         )
     stmt = stmt.order_by(Product.name.asc()).limit(limit)
@@ -225,7 +229,9 @@ async def list_categories(
 
     items = []
     for row in res:
-        c_name = row[0] or "General"
+        c_name = row[0]
+        if not c_name:
+            continue
         meta = meta_map.get(c_name)
         items.append(
             CategoryInfo(
@@ -234,55 +240,38 @@ async def list_categories(
                 stock=float(row[2]),
                 emoji=meta.emoji if meta else None,
                 pinned=meta.pinned if meta else False,
-                order=meta.order if meta else 0,
+                order=meta.order if meta else 999,
             )
         )
 
-    # Sort: pinned first (by order asc), then non-pinned by count desc
-    items.sort(key=lambda x: (not x.pinned, x.order, -x.count))
+    # Sort: pinned first (by order asc); non-pinned ties break by count desc only
+    items.sort(key=lambda x: (not x.pinned, x.order if x.pinned else 0, -x.count))
     return items
 
 
-@products_router.get("/categories/meta", response_model=List[CategoryMetaIn])
-async def get_categories_meta(
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
-    stmt = select(CategoryMeta).order_by(CategoryMeta.order.asc(), CategoryMeta.name.asc())
-    res = (await session.execute(stmt)).scalars().all()
-    return [CategoryMetaIn(name=m.name, emoji=m.emoji, pinned=m.pinned, order=m.order) for m in res]
-
-
 @products_router.put("/categories/meta")
-async def update_categories_meta(
-    payload: List[CategoryMetaIn],
-    session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_admin),
-):
-    for item in payload:
-        meta = await session.get(CategoryMeta, item.name)
-        if meta:
-            meta.emoji = item.emoji
-            meta.pinned = item.pinned
-            meta.order = item.order
-        else:
-            meta = CategoryMeta(name=item.name, emoji=item.emoji, pinned=item.pinned, order=item.order)
-            session.add(meta)
-    await session.commit()
-    return {"ok": True}
-
-
-# ----------------- Servicios & Operaciones Masivas -----------------
-@products_router.get("/services", response_model=List[ProductOut])
-async def list_services(
+async def upsert_category_meta(
+    payload: CategoryMetaUpsert,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Product).where(Product.is_service == True).order_by(Product.name.asc())
-    res = (await session.execute(stmt)).scalars().all()
-    return res
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None and k != "name"}
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nada para actualizar")
+
+    meta = await session.get(CategoryMeta, payload.name)
+    if meta:
+        for key, value in updates.items():
+            setattr(meta, key, value)
+    else:
+        meta = CategoryMeta(name=payload.name, **updates)
+        session.add(meta)
+    await session.commit()
+    await session.refresh(meta)
+    return {"name": meta.name, "emoji": meta.emoji, "pinned": meta.pinned, "order": meta.order}
 
 
+# ----------------- Operaciones Masivas -----------------
 @products_router.post("/products/bulk")
 async def bulk_load_products(
     items: List[ProductCreate],
@@ -301,12 +290,10 @@ async def bulk_load_products(
             existing = (await session.execute(stmt)).scalar_one_or_none()
 
         if existing:
-            existing.price = float(it.price or existing.price)
-            existing.cost = float(it.cost or existing.cost)
-            existing.stock = float(it.stock if it.stock is not None else existing.stock)
+            existing.price = float(it.price)
+            existing.cost = float(it.cost)
             existing.category = it.category or existing.category
-            existing.tax_rate = float(it.tax_rate if it.tax_rate is not None else existing.tax_rate)
-            existing.unit = it.unit or existing.unit
+            existing.stock = existing.stock + float(it.stock)
             existing.updated_at = utcnow()
             updated += 1
         else:
@@ -343,16 +330,16 @@ async def bulk_update_products(
 
     count = 0
     for p in products:
-        if payload.price_pct is not None:
-            p.price = round(p.price * (1 + payload.price_pct / 100.0), 2)
-        if payload.cost_pct is not None:
-            p.cost = round(p.cost * (1 + payload.cost_pct / 100.0), 2)
-        if payload.set_tax_rate is not None:
-            p.tax_rate = float(payload.set_tax_rate)
+        if payload.percent_price is not None:
+            p.price = round(p.price * (1 + payload.percent_price / 100.0), 2)
+        if payload.percent_cost is not None:
+            p.cost = round(p.cost * (1 + payload.percent_cost / 100.0), 2)
+        if payload.set_tax is not None:
+            p.tax_rate = float(payload.set_tax)
         if payload.add_stock is not None:
             p.stock = round(p.stock + payload.add_stock, 2)
         p.updated_at = utcnow()
         count += 1
 
     await session.commit()
-    return {"ok": True, "affected": count}
+    return {"ok": True, "updated": count}
