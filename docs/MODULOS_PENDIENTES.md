@@ -81,8 +81,8 @@
 - **Necesario**: % o valor por producto/categoría, reporte por vendedor, liquidación por periodo. Requiere usuarios/vendedores (depende de Permisos).
 
 ### 15. Permisos de Usuarios / Usuarios ilimitados
-- **Necesario**: auth (JWT) con roles (admin, cajero, bodeguero), permisos por módulo, PIN rápido de cajero en POS, auditoría de acciones. **Bloquea**: comisiones, recogidas por cajero, multi-caja.
-- **Estado**: el usuario decidió MVP sin auth.
+- **Estado**: ✅ implementado — auth JWT (cookies httpOnly) con roles admin/cajero, bloqueo de cuenta tras intentos fallidos.
+- **Pendiente**: rol bodeguero, permisos granulares por módulo, PIN rápido de cajero en POS, auditoría de acciones. **Bloquea**: comisiones, recogidas por cajero, multi-caja.
 
 ### 16. Cajas ilimitadas
 - **Necesario**: registro de cajas (punto físico), asignación de ventas/recogidas a caja, consecutivos por caja. Depende de usuarios.
@@ -97,4 +97,4 @@
 ---
 
 ## Características transversales pendientes
-- **Auth/roles** (bloqueante de varios módulos) · **Ancho 80mm** en impresión térmica · **Recordatorio WhatsApp de fiado** · **Facturación DIAN real** (reemplazar simulado) · **Modo offline** para ventas sin internet (PWA + sync)
+- **Permisos granulares por módulo** (auth básica ya implementada) · **Ancho 80mm** en impresión térmica · **Recordatorio WhatsApp de fiado** · **Facturación DIAN real** (reemplazar simulado) · **Modo offline** para ventas sin internet (PWA + sync)

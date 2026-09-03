@@ -25,12 +25,12 @@ Módulos DIAN reales y roadmap: ver [`docs/MODULOS_PENDIENTES.md`](docs/MODULOS_
 ```
 MONGO_URL=...
 DB_NAME=...
-CORS_ORIGINS=*
 EMERGENT_LLM_KEY=...        # OCR de facturas (Gemini)
 JWT_SECRET=...              # 64 hex chars
 ADMIN_EMAIL=...             # admin sembrado al iniciar
 ADMIN_PASSWORD=...
-FRONTEND_URL=https://...    # origen exacto para CORS con cookies
+FRONTEND_URL=https://...    # origen(es) exacto(s) para CORS con cookies; separa varios con coma (prod + preview)
+FRONTEND_URL_REGEX=...      # opcional: regex para orígenes dinámicos, ej. previews de Vercel (^https://jrpos-.*\.vercel\.app$)
 ```
 
 **`frontend/.env`**
