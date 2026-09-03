@@ -1,0 +1,174 @@
+{
+  "project": "Jrpos",
+  "version": "1.0.0",
+  "architecture": "Full-Stack SaaS (FastAPI + React + Tailwind CSS)",
+  "active_skills": [
+    {
+      "name": "caveman",
+      "category": "CORE",
+      "reason": "Output Compression (-75% token reduction)",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\caveman\\SKILL.md"
+    },
+    {
+      "name": "ponytail",
+      "category": "CORE",
+      "reason": "YAGNI & Simplicity Architecture",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\ponytail\\SKILL.md"
+    },
+    {
+      "name": "spec-kit",
+      "category": "CORE",
+      "reason": "Spec-Driven Development & Task Breakdown",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\spec-kit\\SKILL.md"
+    },
+    {
+      "name": "token-savings",
+      "category": "CORE",
+      "reason": "Context Budget & Skill Filtering",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\token-savings\\SKILL.md"
+    },
+    {
+      "name": "harness",
+      "category": "CORE",
+      "reason": "Automated Verification & Test Harness",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\harness\\SKILL.md"
+    },
+    {
+      "name": "claude-mem",
+      "category": "CORE",
+      "reason": "Persistent Session Memory",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\claude-mem\\SKILL.md"
+    },
+    {
+      "name": "rtk",
+      "category": "CORE",
+      "reason": "Terminal Log Compression (Rust Token Killer)",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\rtk\\SKILL.md"
+    },
+    {
+      "name": "graphify",
+      "category": "CORE",
+      "reason": "Codebase Knowledge Graph Indexing",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\graphify\\SKILL.md"
+    },
+    {
+      "name": "archify",
+      "category": "CORE",
+      "reason": "Interactive System Diagrams (Trigger: 3 Commits)",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\archify\\SKILL.md"
+    },
+    {
+      "name": "skill-seekers",
+      "category": "CORE",
+      "reason": "Ingesta & Búsqueda Activa de Skills",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\skill-seekers\\SKILL.md"
+    },
+    {
+      "name": "skill-vault",
+      "category": "CORE",
+      "reason": "Bóveda Persistente de Skills",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\skill-vault\\SKILL.md"
+    },
+    {
+      "name": "all-deploy",
+      "category": "CORE",
+      "reason": "Despliegues Universales Multicloud",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\all-deploy\\SKILL.md"
+    },
+    {
+      "name": "context-mode",
+      "category": "CORE",
+      "reason": "Gestión & Compresión de Contexto",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\context-mode\\SKILL.md"
+    },
+    {
+      "name": "aprende-skill",
+      "category": "CORE",
+      "reason": "Aprendizaje Acelerado Agéntico",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\aprende-skill\\SKILL.md"
+    },
+    {
+      "name": "agentshield",
+      "category": "CORE",
+      "reason": "Escudo de Seguridad & Prompt Sanitization",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\agentshield\\SKILL.md"
+    },
+    {
+      "name": "modo-tdah",
+      "category": "CORE",
+      "reason": "Ejecución Ultra-Focalizada sin Explicaciones Infladas",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\modo-tdah\\SKILL.md"
+    },
+    {
+      "name": "agentic-awesome-skills",
+      "category": "CORE",
+      "reason": "Patrones Agénticos Autónomos",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\agentic-awesome-skills\\SKILL.md"
+    },
+    {
+      "name": "gsd-core",
+      "category": "CORE",
+      "reason": "Get Shit Done (GSD) Execution Framework",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\gsd-core\\SKILL.md"
+    },
+    {
+      "name": "i-have-adhd",
+      "category": "CORE",
+      "reason": "Formateo Action-First",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\i-have-adhd\\SKILL.md"
+    },
+    {
+      "name": "fastapi-expert",
+      "category": "BACKEND",
+      "reason": "FastAPI backend REST endpoints, schemas, auth & routers",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\fastapi-expert\\SKILL.md"
+    },
+    {
+      "name": "python-patterns",
+      "category": "BACKEND",
+      "reason": "Python idioms, async patterns, and typing",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\python-patterns\\SKILL.md"
+    },
+    {
+      "name": "python-testing",
+      "category": "BACKEND",
+      "reason": "Pytest test suites, fixtures and coverage",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\python-testing\\SKILL.md"
+    },
+    {
+      "name": "react-patterns",
+      "category": "FRONTEND",
+      "reason": "React component hierarchy, hooks and state",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\react-patterns\\SKILL.md"
+    },
+    {
+      "name": "react-performance",
+      "category": "FRONTEND",
+      "reason": "React render optimization and UI responsiveness",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\react-performance\\SKILL.md"
+    },
+    {
+      "name": "tailwind-theme-builder",
+      "category": "FRONTEND",
+      "reason": "Tailwind CSS styling, design tokens and responsive UI",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\tailwind-theme-builder\\SKILL.md"
+    },
+    {
+      "name": "emil-design-eng",
+      "category": "DESIGN",
+      "reason": "Premium interactive UI craft, micro-animations and polish",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\emil-design-eng\\SKILL.md"
+    },
+    {
+      "name": "taste-skill",
+      "category": "DESIGN",
+      "reason": "Anti-slop clean UI/UX standards",
+      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\taste-skill\\SKILL.md"
+    }
+  ],
+  "rules": {
+    "view_file_required": true,
+    "archify_commits_trigger": 3,
+    "token_compression": true
+  }
+}

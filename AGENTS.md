@@ -1,0 +1,90 @@
+# SKILL RECOVERY — Instrucciones para cualquier agente
+
+Este documento permite a cualquier agente (Claude Code, Gemini CLI, Codex CLI, Cursor, etc.)
+reconstruir la lista completa de skills disponibles y entender el sistema multi-conocimiento.
+
+## Archivos clave
+
+| Archivo | Propósito |
+|---------|-----------|
+| `UNIFIED-KNOWLEDGE.md` | Taxonomía multi-conocimiento unificada con todas las skills |
+| `skills-inventory.md` | Inventario por repositorio de origen |
+
+## Directorios donde buscar skills
+
+**Aviso:** el layout exacto varía por máquina — depende de si los skills llegaron via marketplace/plugin (carpeta plana `~/.claude/skills/<nombre>/SKILL.md`) o via clone manual con los instaladores de este repo (carpeta `<fuente>-skills/` con subcarpetas). No asumas que las rutas de abajo existen tal cual en toda máquina: usa `SKILLS-INDEX.md` (columna "Location"/"GitHub") como fuente de verdad portable, ya que cada fila indica la ruta real dentro de `skills/` de este repo sin importar de dónde vino.
+
+Cada vez que un agente necesite un skill, debe buscar en estos directorios (ordenados por prioridad):
+
+```
+~/.agents/skills/                          # Skills de productividad, marketing, video (si existe)
+~/.config/opencode/skills/                 # Skills de OpenCode (mayoría en carpetas planas por skill)
+~/.claude/skills/                          # Skills de Claude Code (mayoría en carpetas planas por skill)
+```
+
+Skill-libraries clonadas explícitamente por `installers/install-claude-plugins.ps1` / `install-opencode-plugins.ps1` (carpetas con sufijo `-skills`, dentro de los dos directorios de arriba):
+
+```
+mingrath-skills/            # React, Next.js, PostgreSQL, API, A11y
+jeffallan-skills/           # 66 skills fullstack: backend, frontend, seguridad, testing, debugging
+jezweb-skills/              # Frontend, Cloudflare, Shopify, WordPress, D1
+impeccable-skills/          # Suite de mejora de diseño/UI (polish, harden, adapt, critique)
+ui-ux-pro-max-skills/       # Brand, banners, slides, design tokens
+ux-ui-agent-skills/         # Design tokens DTCG, 138 design systems, WCAG 2.2 (★444)
+wondelai-skills/            # refactoring-ui, hooked-ux, ux-heuristics, lean-ux, top-design + biz strategy (★1.7k)
+taste-skills/               # design-taste-frontend, brandkit, minimalist/brutalist anti-slop (★64.9k)
+excalidraw-diagram-skills/  # Diagramas Excalidraw para arquitectura/flujos (★4.1k)
+anthropics-skills/          # canvas-design, theme-factory, frontend-design, mcp-builder (oficial Anthropic)
+humanizer-skills/           # Quita marcas de escritura generada por IA (★29.7k)
+supabase-skills/            # Backend/DB: Auth, Postgres, Edge Functions, Realtime
+testcontainers-skills/      # Testing de integración .NET y Go
+agentic-qe-skills/          # QA fleet: contract/E2E/API testing, a11y (★408)
+backend-arch-skills/        # Pipeline agile + auditorías de seguridad/testing/debug (ln-*)
+ring-skills/                # TDD, systematic-debugging, code review, 10-gate dev cycle (★202)
+ponytail-skills/            # Anti-over-engineering, YAGNI, code simplicity (★82.9k)
+project-architect-skills/   # SPECIFICATION/IMPLEMENTATION/TASKS/BRANDING = PRD+TRD+dev-plan+UI (★251)
+the-architect-skills/       # Entrevista por fases, genera blueprint + CLAUDE.md objetivo (★374, wrapper SKILL.md propio)
+mattpocock-skills/          # to-spec, wayfinder, implement, domain-modeling, tdd, diagnosing-bugs (★189k)
+karpathy-skills-repo/       # karpathy-guidelines: anti-overengineering (★196k)
+claude-ads-skills/          # Auditorias de ads en 12 plataformas (Google, Meta, Amazon, Apple, TikTok...) (★7.5k)
+claudekit-skills/           # 45 skills variados de ClaudeKit.cc (★2.2k)
+notebooklm-skill-repo/      # Automatiza Google NotebookLM via browser (★7.5k)
+prompt-improver-skill-repo/ # Mejora prompts vagos antes de ejecutar (★1.8k)
+git-cicd-skills/            # Git workflow, CI/CD, PR review
+behisecc-security-skills/   # OWASP, STRIDE threat modeling, secret scanning
+owasp-security-skills/      # OWASP Top 10:2025, ASVS 5.0, Agentic AI security (★277)
+antigravity-fullstack-hq/   # 10 agentes: frontend, backend, db, architect, security
+harness-skills/             # CI/CD oficial Harness.io
+ui-skills-repo/             # baseline-ui, fixing-motion-performance, fixing-accessibility (★6.6k)
+awesome-design-md-repo/     # 74 DESIGN.md de marcas conocidas, wrapper SKILL.md propio (★105k)
+fabricioctelles-skills/     # design-md-validator + otros (★38)
+claude-mem-repo/            # Memoria/contexto persistente entre sesiones (★88.8k)
+composio-awesome-skills/    # Coleccion masiva (864 SKILL.md) (★71.2k)
+openai-skills-repo/         # Coleccion oficial OpenAI (★24.3k)
+alirezarezvani-skills/      # Coleccion masiva (798 SKILL.md) (★23.4k)
+claude-seo-repo/            # SEO tecnico, local, schema, GEO/AEO (★12.6k)
+microsoft-skills-repo/      # Coleccion oficial Microsoft (★2.8k)
+cloudflare-skills-repo/     # Workers, Pages, D1, R2, Durable Objects (★2.5k, oficial)
+```
+
+Skills propias (no vienen de un repo externo, escritas para este usuario):
+
+```
+neuro-persuasion-toolkit/   # Neuromarketing/neuroventas para copy, ads, SEO/SEM/MEO
+design-void/                # Design system cyber-brutalismo reverse-engineered
+web/                        # Constructor de sitios con assets de Forkads (/web)
+token-savings/              # Confirma skills relevantes antes de trabajar (ahorro de tokens)
+```
+
+## Comando para cargar skills
+
+```bash
+# Cargar un skill específico por nombre
+# Usa el sistema de skills del agente correspondiente
+```
+
+## Notas
+
+- Skills duplicados están documentados en UNIFIED-KNOWLEDGE.md sección "Duplicados: Merge Map"
+- Para crear nuevos skills, usar `skill-creator` o `creating-skills`
+- Para buscar skills por funcionalidad, revisar el "Mapa de Uso Rápido" en UNIFIED-KNOWLEDGE.md
