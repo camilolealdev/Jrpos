@@ -78,7 +78,7 @@ function ProtectedApp() {
 function App() {
   return (
     <div className="App">
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Toaster position="top-right" richColors />
         <AuthProvider>
           <Routes>

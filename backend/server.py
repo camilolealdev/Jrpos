@@ -106,20 +106,32 @@ auth_router = APIRouter(prefix="/api/auth")
 @auth_router.post("/login")
 async def login(payload: LoginRequest, request: Request, response: Response):
     email = payload.email.strip().lower()
-    identifier = f"{request.client.host if request.client else 'unknown'}:{email}"
+    # Bloqueo por CUENTA (el IP del ingress rota entre réplicas del balanceador)
+    identifier = email
     attempts = await db.login_attempts.find_one({"identifier": identifier}, {"_id": 0})
     if attempts and attempts.get("count", 0) >= 5:
         locked_until = attempts.get("locked_until")
         if locked_until and locked_until > now_iso():
-            raise HTTPException(status_code=429, detail="Demasiados intentos. Espera 15 minutos.")
+            raise HTTPException(
+                status_code=429,
+                detail="Cuenta bloqueada temporalmente por demasiados intentos. Espera 15 minutos.",
+                headers={"Retry-After": "900"},
+            )
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user or not verify_password(payload.password, user.get("password_hash", "")):
+        new_count = (attempts.get("count", 0) if attempts else 0) + 1
         await db.login_attempts.update_one(
             {"identifier": identifier},
-            {"$inc": {"count": 1},
-             "$set": {"locked_until": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()}},
+            {"$set": {"count": new_count,
+                      "locked_until": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()}},
             upsert=True,
         )
+        if new_count >= 5:
+            raise HTTPException(
+                status_code=429,
+                detail="Cuenta bloqueada temporalmente por demasiados intentos. Espera 15 minutos.",
+                headers={"Retry-After": "900"},
+            )
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     await db.login_attempts.delete_one({"identifier": identifier})
     set_auth_cookies(response, user)
