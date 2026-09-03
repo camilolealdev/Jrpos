@@ -17,7 +17,12 @@ from typing import List, Optional, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+except ImportError:
+    LlmChat = None
+    UserMessage = None
+    ImageContent = None
 
 
 ROOT_DIR = Path(__file__).parent
@@ -1740,7 +1745,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=_frontend_origins,
-    allow_origin_regex=os.environ.get("FRONTEND_URL_REGEX") or None,
+    allow_origin_regex=os.environ.get("FRONTEND_URL_REGEX") or r"^https://.*\.vercel\.app$",
     allow_methods=["*"],
     allow_headers=["*"],
 )
