@@ -1151,6 +1151,12 @@ async def mark_timeclock(payload: dict, user: dict = Depends(get_current_user)):
     last = await db.timeclock.find_one({"user_id": user["id"]}, {"_id": 0}, sort=[("created_at", -1)])
     if last and last.get("type") == mark_type:
         raise HTTPException(status_code=400, detail=f"Ya marcaste {'entrada' if mark_type == 'in' else 'salida'}; marca primero lo contrario")
+    # Salida requiere una entrada previa en el día
+    if mark_type == "out":
+        today = datetime.now(timezone.utc).date().isoformat()
+        has_in = await db.timeclock.find_one({"user_id": user["id"], "type": "in", "created_at": {"$regex": f"^{today}"}})
+        if not has_in:
+            raise HTTPException(status_code=400, detail="No puedes marcar salida sin haber marcado entrada hoy")
 
     now = datetime.now(timezone.utc)
     late = False

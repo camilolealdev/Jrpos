@@ -45,6 +45,10 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ /api/categories devuelve pinned primero (ordenados) y luego por conteo desc
 - ✅ POS: chips fijados con emoji custom, botón "Iconos y categorías" desde Inventario abre CategoryManager
 - ✅ Impresión térmica ESC/POS vía Web Bluetooth (58mm) para recibos POS y abonos de fiado
+## Implemented (Sep 2026 - v2.3: Marcación + fix login)
+- ✅ Bug login resuelto: causa = lockout residual del correo viejo + usuario intentando email migrado (camiloleal.opx@gmail.com ya no existe); limpiado y verificado 200 con admin@jrpos.com
+- ✅ Módulo Marcación `/marcacion`: reloj en vivo, entrada/salida con bloqueo de doble marca, salida requiere entrada previa del día, detección de tardanza (entry_time + tolerancia), horario programable por admin, reporte por empleado con filtro de fecha (solo admin); cajero solo ve sus marcas. Testing iteration_7: 14/14 pytest + E2E 100%
+
 ## Implemented (Sep 2026 - v2.2: Pulido de seguridad y consola)
 - ✅ Brute force: 429 + Retry-After: 900 + mensaje claro "Cuenta bloqueada temporalmente..." (lock por cuenta; fix del bug donde el ingress rotaba IPs y el contador se dividía)
 - ✅ React Router future flags (v7_startTransition, v7_relativeSplatPath) — warnings de consola eliminados

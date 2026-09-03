@@ -1,0 +1,35 @@
+{
+  "summary": "E2E test JRPOS Marcación + login regression. Backend pytest: 14/14 PASS (test_timeclock.py NEW: 3 login regression + 3 schedule + 5 mark + 3 records). Frontend playwright: TODOS los flujos críticos PASS. (1) Login old admin email camiloleal.opx@gmail.com → 'Credenciales incorrectas' visible en login-error. (2) Login admin@jrpos.com/jrpos2026 → /dashboard OK. (3) nav-marcacion visible en sidebar. (4) /marcacion: clock-display live, subtitle muestra horario, admin ve sched-entry/sched-exit/sched-tolerance/save-schedule-btn y records-date. (5) Guardar horario 07:15/17:15/12min → subtitle actualiza a '07:15 – 17:15 (tolerancia 12 min)'. Horario restaurado a 08:00/18:00/10min. (6) Cajero login: NO ve sched-*, NO ve records-date, sólo mark-in-btn/mark-out-btn + 'Mis marcas de hoy'. mark-out-btn disabled porque la última marca fue 'out'. (7) Sidebar cajero: nav-pos, nav-creditos, nav-reportes, nav-marcacion visibles. Backend: PUT /api/timeclock/schedule con cajero = 403; GET /api/timeclock/records con cajero = 403; POST mark type='xxx' = 400; doble mismo type consecutivo = 400; late=true cuando entry_time forzado al pasado.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/timeclock/mark", "issue": "El requerimiento dice 'type=out sin entrada previa devuelve 400', pero el backend sólo bloquea marcas del MISMO tipo consecutivas. Si un usuario nuevo (sin marcas) hace type='out' como PRIMERA marca del día → 200 (debería ser 400). Impacto bajo porque el UI deshabilita mark-out-btn cuando lastType='out'/vacío, pero un cliente API podría bypass."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_timeclock.py",
+    "/app/test_reports/pytest/results.xml"
+  ],
+  "action_items": [
+    "(Opcional) Reforzar POST /api/timeclock/mark: rechazar type='out' cuando NO existe una marca 'in' previa hoy (no sólo bloquear mismo-tipo consecutivo). Alinea backend con el spec del review request."
+  ],
+  "critical_code_review_comments": [
+    "server.py mark_timeclock: la lógica de doble-marca sólo compara con last.type == mark_type (mismo tipo consecutivo). No valida que 'out' requiera 'in' previo del día. Ver bug menor arriba.",
+    "Timeclock.jsx: renderizado condicional user?.role === 'admin' oculta bien schedule/records al cajero. lastType derivado de marks[last].type con default 'out' → primera acción disponible es 'Marcar Entrada'. Buen UX.",
+    "Backend get_schedule() público (sin auth) — expone horario a cualquiera con la URL. No es dato sensible pero considerar require auth por consistencia con otros settings."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_timeclock.py (NEW: 14 tests)"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% flujos críticos"},
+  "test_credentials": "admin: admin@jrpos.com / jrpos2026; cajero: cajero@jrpos.co / cajero123",
+  "seed_data_creation": "Ninguna. Los tests crean marcas del día para admin y cajero (dato transitorio, se resetea por fecha).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Modulo Marcación estable. Horario default 08:00/18:00/10min. Endpoint público GET /timeclock/schedule (sin auth). Endpoint PUT schedule y GET records requieren admin (403 para cajero). POST mark valida same-type consecutive (400) pero NO valida 'out' sin 'in' previo — main agent decidirá si endurecer. Para forzar late=true en tests: PUT schedule con entry_time='00:01' antes de marcar 'in', luego restaurar."
+}
