@@ -269,7 +269,7 @@ class SaleItem(BaseModel):
     qty: float
     price: float
     tax_rate: float = 19.0
-    subtotal: float
+    subtotal: Optional[float] = None
 
 
 class Sale(BaseModel):
@@ -1400,9 +1400,10 @@ async def convert_doc_to_sale(kind: str, doc_id: str, user: dict = Depends(get_c
                 notes=f"Desde {doc['number']}")
     await db.sales.insert_one(sale.model_dump())
     for it in items:
-        p = await db.products.find_one({"id": it.product_id}, {"_id": 0, "is_service": 1})
-        if not (p and p.get("is_service")):
-            await db.products.update_one({"id": it.product_id}, {"$inc": {"stock": -it.qty}})
+        if it.product_id and it.product_id != "manual":
+            p = await db.products.find_one({"id": it.product_id}, {"_id": 0, "is_service": 1})
+            if not (p and p.get("is_service")):
+                await db.products.update_one({"id": it.product_id}, {"$inc": {"stock": -it.qty}})
     await db[cfg[0]].update_one({"id": doc_id}, {"$set": {"status": "convertida", "sale_id": sale.id}})
     return sale
 
@@ -1414,7 +1415,12 @@ async def create_credit_note(payload: dict):
     if not sale:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     ntype = payload.get("type", "credito")
-    amount = round(float(payload.get("amount") or sale.get("total", 0)), 2)
+    sale_total = round(float(sale.get("total", 0)), 2)
+    amount = round(float(payload.get("amount") or sale_total), 2)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="El monto de la nota debe ser mayor a 0")
+    if amount > sale_total:
+        raise HTTPException(status_code=400, detail=f"El monto de la nota ({amount}) no puede superar el total de la venta ({sale_total})")
     prefix = "NC" if ntype == "credito" else "ND"
     note = {"id": str(uuid.uuid4()), "number": await _next_number("credit_notes", prefix),
             "sale_id": sale["id"], "sale_number": sale["number"], "type": ntype,
@@ -1684,7 +1690,7 @@ async def save_general_settings(payload: GeneralSettings, admin: dict = Depends(
 
 # ----------------- Seed sample data -----------------
 @api_router.post("/seed")
-async def seed_data():
+async def seed_data(admin: dict = Depends(require_admin)):
     existing = await db.products.count_documents({})
     if existing > 0:
         return {"ok": True, "seeded": False, "message": "Ya existen datos"}
@@ -1724,10 +1730,17 @@ async def root():
 app.include_router(auth_router)
 app.include_router(api_router)
 
+_frontend_origins = [
+    origin.strip()
+    for origin in os.environ.get("FRONTEND_URL", "http://localhost:3000").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
+    allow_origins=_frontend_origins,
+    allow_origin_regex=os.environ.get("FRONTEND_URL_REGEX") or None,
     allow_methods=["*"],
     allow_headers=["*"],
 )
