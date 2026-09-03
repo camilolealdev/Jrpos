@@ -26,3 +26,9 @@ python-multipart>=0.0.9
 jq>=1.6.0
 typer>=0.9.0
 emergentintegrations==0.2.0
+
+# --- Vercel/Postgres backend (nuevo, coexiste con lo anterior hasta el corte de la Fase 10) ---
+sqlalchemy[asyncio]>=2.0.35
+asyncpg>=0.29.0
+alembic>=1.13.2
+google-genai>=0.3.0
