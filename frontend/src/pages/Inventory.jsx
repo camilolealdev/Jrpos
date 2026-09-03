@@ -144,6 +144,17 @@ export default function Inventory() {
               <label className="text-xs font-semibold">IVA (%)</label>
               <Input type="number" value={form.tax_rate} onChange={(e) => setForm({ ...form, tax_rate: Number(e.target.value) })} data-testid="f-tax" />
             </div>
+            <div className="col-span-2 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is-service"
+                checked={!!form.is_service}
+                onChange={(e) => setForm({ ...form, is_service: e.target.checked })}
+                className="w-4 h-4 accent-emerald-700"
+                data-testid="f-service"
+              />
+              <label htmlFor="is-service" className="text-sm">Es un servicio (no descuenta stock: recargas, copias, giros)</label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

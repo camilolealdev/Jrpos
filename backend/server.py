@@ -227,6 +227,7 @@ class Product(BaseModel):
     tax_rate: float = 19.0  # IVA Colombia
     supplier_id: Optional[str] = None
     image_url: Optional[str] = None
+    is_service: bool = False
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
@@ -243,6 +244,7 @@ class ProductCreate(BaseModel):
     tax_rate: float = 19.0
     supplier_id: Optional[str] = None
     image_url: Optional[str] = None
+    is_service: bool = False
 
 
 class ProductUpdate(BaseModel):
@@ -257,6 +259,7 @@ class ProductUpdate(BaseModel):
     tax_rate: Optional[float] = None
     supplier_id: Optional[str] = None
     image_url: Optional[str] = None
+    is_service: Optional[bool] = None
 
 
 class SaleItem(BaseModel):
@@ -541,9 +544,11 @@ async def create_sale(payload: SaleCreate):
     )
     await db.sales.insert_one(sale.model_dump())
 
-    # Decrease stock
+    # Decrease stock (servicios no descuentan inventario)
     for it in items:
-        await db.products.update_one({"id": it.product_id}, {"$inc": {"stock": -it.qty}})
+        p = await db.products.find_one({"id": it.product_id}, {"_id": 0, "is_service": 1})
+        if not (p and p.get("is_service")):
+            await db.products.update_one({"id": it.product_id}, {"$inc": {"stock": -it.qty}})
     return sale
 
 
@@ -1199,6 +1204,413 @@ async def timeclock_records(date: Optional[str] = None, admin: dict = Depends(re
     for m in marks:
         by_user.setdefault(m["user_name"], []).append(m)
     return {"date": day, "employees": [{"name": k, "marks": v} for k, v in by_user.items()]}
+
+
+# ----------------- Recogidas de Dinero / Arqueo de Caja -----------------
+@api_router.post("/cash/open")
+async def open_cash(payload: dict, user: dict = Depends(get_current_user)):
+    existing = await db.cash_sessions.find_one({"user_id": user["id"], "status": "open"}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Ya tienes una caja abierta. Ciérrala primero.")
+    base = float(payload.get("base", 0) or 0)
+    if base < 0:
+        raise HTTPException(status_code=400, detail="La base no puede ser negativa")
+    session = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "opened_by": user.get("name") or user.get("email"),
+        "opened_at": now_iso(),
+        "base": base,
+        "status": "open",
+        "pickups": [],
+    }
+    await db.cash_sessions.insert_one(session)
+    session.pop("_id", None)
+    return session
+
+
+async def _session_totals(session: dict) -> dict:
+    """Ventas en efectivo desde la apertura + recogidas."""
+    cash_sales = await db.sales.find(
+        {"payment_method": "efectivo", "created_at": {"$gte": session["opened_at"]}},
+        {"_id": 0, "total": 1},
+    ).to_list(5000)
+    sales_total = sum(float(s.get("total", 0)) for s in cash_sales)
+    pickups_total = sum(float(p.get("amount", 0)) for p in session.get("pickups", []))
+    expected = round(session.get("base", 0) + sales_total - pickups_total, 2)
+    return {"sales_total": round(sales_total, 2), "sales_count": len(cash_sales),
+            "pickups_total": round(pickups_total, 2), "expected": expected}
+
+
+@api_router.get("/cash/current")
+async def current_cash(user: dict = Depends(get_current_user)):
+    session = await db.cash_sessions.find_one({"user_id": user["id"], "status": "open"}, {"_id": 0})
+    if not session:
+        return {"open": False}
+    totals = await _session_totals(session)
+    return {"open": True, "session": session, **totals}
+
+
+@api_router.post("/cash/pickup")
+async def cash_pickup(payload: dict, user: dict = Depends(get_current_user)):
+    session = await db.cash_sessions.find_one({"user_id": user["id"], "status": "open"}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=400, detail="No tienes caja abierta")
+    amount = float(payload.get("amount", 0) or 0)
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="El monto debe ser mayor a 0")
+    pickup = {"id": str(uuid.uuid4()), "amount": amount, "notes": payload.get("notes"),
+              "by": user.get("name"), "created_at": now_iso()}
+    await db.cash_sessions.update_one({"id": session["id"]}, {"$push": {"pickups": pickup}})
+    return pickup
+
+
+@api_router.post("/cash/close")
+async def close_cash(payload: dict, user: dict = Depends(get_current_user)):
+    session = await db.cash_sessions.find_one({"user_id": user["id"], "status": "open"}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=400, detail="No tienes caja abierta")
+    counted = float(payload.get("counted", 0) or 0)
+    totals = await _session_totals(session)
+    diff = round(counted - totals["expected"], 2)
+    await db.cash_sessions.update_one(
+        {"id": session["id"]},
+        {"$set": {"status": "closed", "closed_at": now_iso(), "counted": counted,
+                  "expected": totals["expected"], "diff": diff, **{k: totals[k] for k in ("sales_total", "sales_count", "pickups_total")}}},
+    )
+    doc = await db.cash_sessions.find_one({"id": session["id"]}, {"_id": 0})
+    return doc
+
+
+@api_router.get("/cash/history")
+async def cash_history(user: dict = Depends(get_current_user)):
+    query = {} if user.get("role") == "admin" else {"user_id": user["id"]}
+    docs = await db.cash_sessions.find({**query, "status": "closed"}, {"_id": 0}).sort("closed_at", -1).limit(100).to_list(100)
+    return docs
+
+
+# ----------------- Promociones -----------------
+@api_router.get("/promotions")
+async def list_promotions():
+    return await db.promotions.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+
+@api_router.get("/promotions/active")
+async def active_promotions():
+    today = datetime.now(timezone.utc).date().isoformat()
+    docs = await db.promotions.find({"active": True}, {"_id": 0}).to_list(500)
+    return [d for d in docs if (not d.get("start") or d["start"] <= today) and (not d.get("end") or d["end"] >= today)]
+
+
+@api_router.post("/promotions")
+async def create_promotion(payload: dict):
+    doc = {"id": str(uuid.uuid4()), "name": payload.get("name"), "type": payload.get("type", "percent_all"),
+           "value": float(payload.get("value", 0)), "category": payload.get("category"),
+           "active": bool(payload.get("active", True)), "start": payload.get("start"), "end": payload.get("end"),
+           "created_at": now_iso()}
+    if not doc["name"] or doc["value"] <= 0:
+        raise HTTPException(status_code=400, detail="Nombre y valor > 0 requeridos")
+    await db.promotions.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.put("/promotions/{pid}")
+async def update_promotion(pid: str, payload: dict):
+    updates = {k: v for k, v in payload.items() if k in ("name", "type", "value", "category", "active", "start", "end")}
+    res = await db.promotions.update_one({"id": pid}, {"$set": updates})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="No encontrada")
+    return await db.promotions.find_one({"id": pid}, {"_id": 0})
+
+
+@api_router.delete("/promotions/{pid}")
+async def delete_promotion(pid: str):
+    await db.promotions.delete_one({"id": pid})
+    return {"ok": True}
+
+
+# ----------------- Documentos de venta genéricos (cotizaciones, remisiones, cuentas cobro) -----------------
+DOC_CFG = {
+    "quotes": ("quotes", "COT", "borrador"),
+    "remissions": ("remissions", "REM", "pendiente"),
+    "collection_accounts": ("collection_accounts", "CC", "pendiente"),
+}
+
+
+async def _next_number(coll: str, prefix: str) -> str:
+    return f"{prefix}-{(await db[coll].count_documents({})) + 1:06d}"
+
+
+@api_router.get("/docs/{kind}")
+async def list_docs(kind: str):
+    cfg = DOC_CFG.get(kind)
+    if not cfg:
+        raise HTTPException(status_code=404, detail="Tipo inválido")
+    return await db[cfg[0]].find({}, {"_id": 0}).sort("created_at", -1).limit(300).to_list(300)
+
+
+@api_router.post("/docs/{kind}")
+async def create_doc(kind: str, payload: dict):
+    cfg = DOC_CFG.get(kind)
+    if not cfg:
+        raise HTTPException(status_code=404, detail="Tipo inválido")
+    items = payload.get("items", [])
+    total = round(sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items), 2)
+    doc = {"id": str(uuid.uuid4()), "number": await _next_number(cfg[0], cfg[1]),
+           "customer_id": payload.get("customer_id"), "customer_name": payload.get("customer_name"),
+           "concept": payload.get("concept"), "items": items, "total": total,
+           "status": cfg[2], "notes": payload.get("notes"), "created_at": now_iso()}
+    if kind == "collection_accounts" and payload.get("amount"):
+        doc["total"] = round(float(payload["amount"]), 2)
+    await db[cfg[0]].insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.put("/docs/{kind}/{doc_id}")
+async def update_doc_status(kind: str, doc_id: str, payload: dict):
+    cfg = DOC_CFG.get(kind)
+    if not cfg:
+        raise HTTPException(status_code=404, detail="Tipo inválido")
+    res = await db[cfg[0]].update_one({"id": doc_id}, {"$set": {"status": payload.get("status")}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="No encontrado")
+    return await db[cfg[0]].find_one({"id": doc_id}, {"_id": 0})
+
+
+@api_router.post("/docs/{kind}/{doc_id}/convert")
+async def convert_doc_to_sale(kind: str, doc_id: str, user: dict = Depends(get_current_user)):
+    cfg = DOC_CFG.get(kind)
+    if not cfg or kind == "collection_accounts":
+        raise HTTPException(status_code=400, detail="Este documento no se convierte a venta")
+    doc = await db[cfg[0]].find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="No encontrado")
+    if doc.get("status") == "convertida":
+        raise HTTPException(status_code=400, detail="Ya fue convertida")
+    items = [SaleItem(product_id=i.get("product_id") or "manual", name=i["name"], barcode=i.get("barcode"),
+                      qty=float(i["qty"]), price=float(i["price"]), tax_rate=float(i.get("tax_rate", 19)),
+                      subtotal=round(float(i["qty"]) * float(i["price"]), 2)) for i in doc["items"]]
+    subtotal = sum(i.subtotal for i in items)
+    sale = Sale(number=await next_sale_number(), items=items, subtotal=subtotal,
+                tax_total=round(sum(i.subtotal * (i.tax_rate / 100) / (1 + i.tax_rate / 100) for i in items), 2),
+                total=subtotal, payment_method="efectivo", customer_id=doc.get("customer_id"),
+                customer_name=doc.get("customer_name"), cashier=user.get("name"),
+                notes=f"Desde {doc['number']}")
+    await db.sales.insert_one(sale.model_dump())
+    for it in items:
+        p = await db.products.find_one({"id": it.product_id}, {"_id": 0, "is_service": 1})
+        if not (p and p.get("is_service")):
+            await db.products.update_one({"id": it.product_id}, {"$inc": {"stock": -it.qty}})
+    await db[cfg[0]].update_one({"id": doc_id}, {"$set": {"status": "convertida", "sale_id": sale.id}})
+    return sale
+
+
+# ----------------- Notas Crédito / Débito (simuladas DIAN) -----------------
+@api_router.post("/credit-notes")
+async def create_credit_note(payload: dict):
+    sale = await db.sales.find_one({"id": payload.get("sale_id")}, {"_id": 0})
+    if not sale:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    ntype = payload.get("type", "credito")
+    amount = round(float(payload.get("amount") or sale.get("total", 0)), 2)
+    prefix = "NC" if ntype == "credito" else "ND"
+    note = {"id": str(uuid.uuid4()), "number": await _next_number("credit_notes", prefix),
+            "sale_id": sale["id"], "sale_number": sale["number"], "type": ntype,
+            "concept": payload.get("concept", "devolucion"), "amount": amount,
+            "cufe": hashlib.sha256(f"{prefix}{sale['number']}{amount}".encode()).hexdigest(),
+            "status": "simulada", "created_at": now_iso()}
+    await db.credit_notes.insert_one(note)
+    note.pop("_id", None)
+    # Devolución: re-ingresar stock
+    if ntype == "credito" and payload.get("restock", True):
+        for it in sale.get("items", []):
+            await db.products.update_one({"id": it.get("product_id")}, {"$inc": {"stock": float(it.get("qty", 0))}})
+    # Si la venta era a crédito, bajar el saldo
+    if ntype == "credito" and sale.get("is_credit"):
+        new_bal = max(0.0, round(float(sale.get("balance_due", 0)) - amount, 2))
+        await db.sales.update_one({"id": sale["id"]},
+                                  {"$set": {"balance_due": new_bal, "credit_status": "paid" if new_bal <= 0 else "partial"}})
+    return note
+
+
+@api_router.get("/credit-notes")
+async def list_credit_notes():
+    return await db.credit_notes.find({}, {"_id": 0}).sort("created_at", -1).to_list(300)
+
+
+# ----------------- Garantías y Devoluciones -----------------
+@api_router.post("/warranties")
+async def create_warranty(payload: dict):
+    doc = {"id": str(uuid.uuid4()), "number": await _next_number("warranties", "GAR"),
+           "sale_id": payload.get("sale_id"), "sale_number": payload.get("sale_number"),
+           "product_name": payload.get("product_name"), "reason": payload.get("reason"),
+           "resolution": payload.get("resolution", "cambio"), "status": "abierta", "created_at": now_iso()}
+    if not doc["product_name"]:
+        raise HTTPException(status_code=400, detail="Producto requerido")
+    await db.warranties.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/warranties")
+async def list_warranties():
+    return await db.warranties.find({}, {"_id": 0}).sort("created_at", -1).to_list(300)
+
+
+@api_router.put("/warranties/{wid}")
+async def update_warranty(wid: str, payload: dict):
+    res = await db.warranties.update_one({"id": wid}, {"$set": {"status": payload.get("status"), "resolution": payload.get("resolution")}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="No encontrada")
+    return await db.warranties.find_one({"id": wid}, {"_id": 0})
+
+
+# ----------------- Órdenes de Compra -----------------
+@api_router.post("/purchase-orders")
+async def create_purchase_order(payload: dict):
+    items = payload.get("items", [])
+    if not items:
+        raise HTTPException(status_code=400, detail="Agrega al menos un ítem")
+    doc = {"id": str(uuid.uuid4()), "number": await _next_number("purchase_orders", "OC"),
+           "supplier_id": payload.get("supplier_id"), "supplier_name": payload.get("supplier_name"),
+           "items": items, "total": round(sum(float(i.get("qty", 0)) * float(i.get("cost", 0)) for i in items), 2),
+           "status": "enviada", "created_at": now_iso()}
+    await db.purchase_orders.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/purchase-orders")
+async def list_purchase_orders():
+    return await db.purchase_orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(300)
+
+
+@api_router.post("/purchase-orders/{oid}/receive")
+async def receive_purchase_order(oid: str):
+    doc = await db.purchase_orders.find_one({"id": oid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="No encontrada")
+    if doc["status"] == "recibida":
+        raise HTTPException(status_code=400, detail="Ya fue recibida")
+    for it in doc["items"]:
+        existing = None
+        if it.get("barcode"):
+            existing = await db.products.find_one({"barcode": it["barcode"]})
+        if not existing:
+            existing = await db.products.find_one({"name": it["name"]})
+        if existing:
+            await db.products.update_one({"id": existing["id"]},
+                                         {"$inc": {"stock": float(it.get("qty", 0))},
+                                          "$set": {"cost": float(it.get("cost", 0)), "updated_at": now_iso()}})
+        else:
+            await db.products.insert_one(Product(name=it["name"], barcode=it.get("barcode"),
+                                                 cost=float(it.get("cost", 0)), price=round(float(it.get("cost", 0)) * 1.3, 2),
+                                                 stock=float(it.get("qty", 0))).model_dump())
+    await db.purchase_orders.update_one({"id": oid}, {"$set": {"status": "recibida", "received_at": now_iso()}})
+    return {"ok": True}
+
+
+# ----------------- Documento Soporte (simulado) -----------------
+@api_router.post("/support-docs")
+async def create_support_doc(payload: dict):
+    items = payload.get("items", [])
+    doc = {"id": str(uuid.uuid4()), "number": await _next_number("support_docs", "DS"),
+           "supplier_name": payload.get("supplier_name"), "supplier_doc": payload.get("supplier_doc"),
+           "items": items, "total": round(sum(float(i.get("qty", 0)) * float(i.get("price", 0)) for i in items), 2),
+           "status": "simulada", "created_at": now_iso()}
+    doc["cude"] = hashlib.sha256(f"DS{doc['number']}{doc['total']}".encode()).hexdigest()
+    await db.support_docs.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/support-docs")
+async def list_support_docs():
+    return await db.support_docs.find({}, {"_id": 0}).sort("created_at", -1).to_list(300)
+
+
+# ----------------- Nómina Electrónica (simulada) -----------------
+@api_router.post("/payroll")
+async def create_payslip(payload: dict):
+    salary = float(payload.get("salary", 0))
+    bonuses = float(payload.get("bonuses", 0))
+    deductions = float(payload.get("deductions", 0)) or round((salary + bonuses) * 0.08, 2)  # salud+pensión 8%
+    doc = {"id": str(uuid.uuid4()), "number": await _next_number("payroll", "NOM"),
+           "employee_name": payload.get("employee_name"), "period": payload.get("period"),
+           "salary": salary, "bonuses": bonuses, "deductions": deductions,
+           "net": round(salary + bonuses - deductions, 2), "status": "simulada", "created_at": now_iso()}
+    if not doc["employee_name"]:
+        raise HTTPException(status_code=400, detail="Empleado requerido")
+    await db.payroll.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/payroll")
+async def list_payroll():
+    return await db.payroll.find({}, {"_id": 0}).sort("created_at", -1).to_list(300)
+
+
+# ----------------- RADIAN (simulado) -----------------
+@api_router.get("/radian/invoices")
+async def radian_invoices():
+    return await db.sales.find({"cufe": {"$exists": True}}, {"_id": 0, "id": 1, "number": 1, "electronic_number": 1,
+                                                              "cufe": 1, "total": 1, "created_at": 1, "electronic_status": 1}).to_list(300)
+
+
+# ----------------- Certificado Digital (metadata) -----------------
+@api_router.post("/electronic/certificate")
+async def upload_certificate(payload: dict, admin: dict = Depends(require_admin)):
+    cert = {"filename": payload.get("filename"), "size": payload.get("size"),
+            "expires": payload.get("expires"), "uploaded_by": admin.get("email"), "uploaded_at": now_iso()}
+    if not cert["filename"]:
+        raise HTTPException(status_code=400, detail="Archivo requerido")
+    await db.settings.update_one({"key": "certificate"}, {"$set": {"key": "certificate", "value": cert}}, upsert=True)
+    return cert
+
+
+@api_router.get("/electronic/certificate")
+async def get_certificate():
+    doc = await db.settings.find_one({"key": "certificate"}, {"_id": 0})
+    return (doc or {}).get("value") or {}
+
+
+# ----------------- Comisiones -----------------
+@api_router.post("/commissions/rules")
+async def create_commission_rule(payload: dict, admin: dict = Depends(require_admin)):
+    doc = {"id": str(uuid.uuid4()), "user_name": payload.get("user_name"), "percent": float(payload.get("percent", 0)),
+           "active": True, "created_at": now_iso()}
+    if not doc["user_name"]:
+        raise HTTPException(status_code=400, detail="Vendedor requerido")
+    await db.commission_rules.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/commissions/rules")
+async def list_commission_rules():
+    return await db.commission_rules.find({}, {"_id": 0}).to_list(100)
+
+
+@api_router.delete("/commissions/rules/{rid}")
+async def delete_commission_rule(rid: str, admin: dict = Depends(require_admin)):
+    await db.commission_rules.delete_one({"id": rid})
+    return {"ok": True}
+
+
+@api_router.get("/commissions/report")
+async def commissions_report():
+    rules = await db.commission_rules.find({"active": True}, {"_id": 0}).to_list(100)
+    sales = await db.sales.find({}, {"_id": 0, "cashier": 1, "total": 1}).to_list(5000)
+    by_seller = {}
+    for s in sales:
+        name = s.get("cashier") or "Cajero"
+        by_seller[name] = by_seller.get(name, 0) + float(s.get("total", 0))
+    return [{"user_name": r["user_name"], "percent": r["percent"],
+             "sales_total": round(by_seller.get(r["user_name"], 0), 2),
+             "commission": round(by_seller.get(r["user_name"], 0) * r["percent"] / 100, 2)} for r in rules]
 
 
 # ----------------- Users & Roles (admin) -----------------

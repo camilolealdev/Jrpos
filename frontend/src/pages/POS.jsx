@@ -27,6 +27,7 @@ export default function POS() {
   const [received, setReceived] = useState("");
   const [receiptSale, setReceiptSale] = useState(null);
   const [held, setHeld] = useState([]);
+  const [promos, setPromos] = useState([]);
   const [camOpen, setCamOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [newProd, setNewProd] = useState({ barcode: "", name: "", price: 0, cost: 0, stock: 1, category: "General" });
@@ -52,7 +53,10 @@ export default function POS() {
     setCustomers(data);
   };
   useEffect(() => { load(); }, [q, selectedCats]);
-  useEffect(() => { loadCats(); loadCustomers(); loadHeld(); }, []);
+  useEffect(() => {
+    loadCats(); loadCustomers(); loadHeld();
+    api.get("/promotions/active").then((r) => setPromos(r.data)).catch(() => {});
+  }, []);
 
   const holdCurrent = async () => {
     if (cart.length === 0) return toast.error("El carrito está vacío");
@@ -111,8 +115,17 @@ export default function POS() {
   const totals = useMemo(() => {
     const subtotal = cart.reduce((s, x) => s + x.qty * x.price, 0);
     const tax = cart.reduce((s, x) => s + (x.qty * x.price) * (x.tax_rate / 100) / (1 + x.tax_rate / 100), 0);
-    return { subtotal, tax, total: subtotal };
-  }, [cart]);
+    // Descuento por promociones activas
+    const catOf = (pid) => products.find((p) => p.id === pid)?.category;
+    let promo = 0;
+    for (const pr of promos) {
+      if (pr.type === "percent_all") promo += subtotal * (pr.value / 100);
+      else if (pr.type === "percent_category" && pr.category)
+        promo += cart.filter((x) => catOf(x.product_id) === pr.category).reduce((s, x) => s + x.qty * x.price, 0) * (pr.value / 100);
+    }
+    promo = Math.min(promo, subtotal);
+    return { subtotal, tax, promo: Math.round(promo), total: subtotal - Math.round(promo) };
+  }, [cart, promos, products]);
 
   const lookupBarcode = async (code) => {
     if (!code) return;
@@ -163,6 +176,7 @@ export default function POS() {
       const customer = customers.find((x) => x.id === customerId);
       const { data } = await api.post("/sales", {
         items,
+        discount: totals.promo,
         payment_method: payment,
         customer_id: customerId || undefined,
         customer_name: customer?.name || undefined,
@@ -411,6 +425,12 @@ export default function POS() {
             <span>IVA</span>
             <span className="font-mono">{formatCOP(totals.tax)}</span>
           </div>
+          {totals.promo > 0 && (
+            <div className="flex justify-between text-sm text-amber-700 font-semibold" data-testid="promo-line">
+              <span>🏷 Promoción</span>
+              <span className="font-mono">-{formatCOP(totals.promo)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2">
             <span>Total</span>
             <span className="font-mono text-emerald-700" data-testid="cart-total">{formatCOP(totals.total)}</span>

@@ -20,25 +20,16 @@ import Users from "@/pages/Users";
 import Settings from "@/pages/Settings";
 import Support from "@/pages/Support";
 import Timeclock from "@/pages/Timeclock";
+import CashPickup from "@/pages/CashPickup";
+import Promotions from "@/pages/Promotions";
+import SalesDocs from "@/pages/SalesDocs";
+import Purchases from "@/pages/Purchases";
+import Dian from "@/pages/Dian";
+import Commissions from "@/pages/Commissions";
+import Services from "@/pages/Services";
 import Placeholder from "@/pages/Placeholder";
 
-const soonModules = [
-  { path: "facturacion-electronica", title: "Facturación Electrónica", desc: "Emisión DIAN con proveedor tecnológico." },
-  { path: "remisiones", title: "Remisiones", desc: "Traslados y notas de entrega." },
-  { path: "nomina-electronica", title: "Nómina Electrónica", desc: "Emisión de soportes de nómina DIAN." },
-  { path: "documento-soporte", title: "Documento Soporte Electrónico", desc: "Compras a no obligados." },
-  { path: "radian", title: "Radian", desc: "Registro y circulación de facturas electrónicas." },
-  { path: "promociones", title: "Promociones y Descuentos", desc: "Ofertas, combos y cupones." },
-  { path: "ordenes-venta", title: "Órdenes de Venta y Cotizaciones", desc: "Cotiza y confirma pedidos." },
-  { path: "garantias", title: "Garantías y Devoluciones", desc: "Casos y reversos de venta." },
-  { path: "ordenes-compra", title: "Órdenes de Compra", desc: "Solicitudes a proveedores." },
-  { path: "notas", title: "Notas Crédito y Débito", desc: "Ajustes documentales electrónicos." },
-  { path: "cuentas-cobro", title: "Cuentas de Cobro", desc: "Documentos equivalentes." },
-  { path: "servicios", title: "Prestación de Servicios", desc: "Ventas de servicios facturables." },
-  { path: "recogidas", title: "Recogidas de Dinero", desc: "Retiros y arqueos de caja." },
-  { path: "comisiones", title: "Comisiones por Productos", desc: "Reglas de comisión por vendedor." },
-  { path: "certificado-digital", title: "Certificado Digital", desc: "Instalación .p12 para DIAN." },
-];
+const soonModules = [];
 
 function ProtectedApp() {
   const { user } = useAuth();
@@ -69,6 +60,21 @@ function ProtectedApp() {
         <Route path="configuracion" element={<Settings />} />
         <Route path="soporte" element={<Support />} />
         <Route path="marcacion" element={<Timeclock />} />
+        <Route path="recogidas" element={<CashPickup />} />
+        <Route path="promociones" element={<Promotions />} />
+        <Route path="ordenes-venta" element={<SalesDocs key="cot" defaultTab="cotizaciones" />} />
+        <Route path="remisiones" element={<SalesDocs key="rem" defaultTab="remisiones" />} />
+        <Route path="cuentas-cobro" element={<SalesDocs key="cc" defaultTab="cuentas" />} />
+        <Route path="notas" element={<SalesDocs key="nc" defaultTab="notas" />} />
+        <Route path="garantias" element={<SalesDocs key="gar" defaultTab="garantias" />} />
+        <Route path="ordenes-compra" element={<Purchases key="oc" defaultTab="oc" />} />
+        <Route path="documento-soporte" element={<Purchases key="ds" defaultTab="ds" />} />
+        <Route path="facturacion-electronica" element={<Dian key="fe" defaultTab="fe" />} />
+        <Route path="nomina-electronica" element={<Dian key="nom" defaultTab="nomina" />} />
+        <Route path="radian" element={<Dian key="rad" defaultTab="radian" />} />
+        <Route path="certificado-digital" element={<Dian key="cert" defaultTab="cert" />} />
+        <Route path="comisiones" element={<Commissions />} />
+        <Route path="servicios" element={<Services />} />
         {soonModules.map((m) => (
           <Route key={m.path} path={m.path} element={<Placeholder title={m.title} description={m.desc} />} />
         ))}
