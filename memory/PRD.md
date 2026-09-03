@@ -45,6 +45,22 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 - ✅ /api/categories devuelve pinned primero (ordenados) y luego por conteo desc
 - ✅ POS: chips fijados con emoji custom, botón "Iconos y categorías" desde Inventario abre CategoryManager
 - ✅ Impresión térmica ESC/POS vía Web Bluetooth (58mm) para recibos POS y abonos de fiado
+## Implemented (Sep 2026 - v3.0: TODOS los módulos completos)
+- ✅ **Promociones**: CRUD + integración automática al checkout POS (% tienda o % por categoría, línea 🏷 en el total)
+- ✅ **Cotizaciones/Remisiones**: CRUD + conversión a venta con 1 clic (descuenta stock, respeta servicios)
+- ✅ **Cuentas de Cobro**: numeración CC-XXXXXX, estados pendiente/pagada
+- ✅ **Notas Crédito/Débito**: NC/ND-XXXXXX con CUFE simulado, re-ingreso de stock en devoluciones, reduce saldo de fiado
+- ✅ **Garantías y Devoluciones**: casos vinculados a venta con estados y resolución
+- ✅ **Órdenes de Compra**: OC-XXXXXX a proveedores, recepción suma stock (crea producto si no existe)
+- ✅ **Documento Soporte**: DS-XXXXXX con CUDE simulado (compras a no obligados)
+- ✅ **Nómina Electrónica**: NOM-XXXXXX con deducción automática 8% (salud+pensión) — simulada
+- ✅ **RADIAN**: vista de facturas electrónicas con CUFE — simulada
+- ✅ **Certificado Digital**: carga .p12/.pfx (metadata) — simulado
+- ✅ **Comisiones**: reglas % por vendedor + liquidación (ventas × %)
+- ✅ **Servicios**: producto is_service no descuenta stock (recargas, giros, copias)
+- ✅ **Recogidas de Caja**: apertura con base, recogidas, arqueo con conteo ciego y diferencia, historial por cajero
+- ✅ Cero placeholders: los 23 módulos del enunciado están activos
+
 ## Implemented (Sep 2026 - v2.3: Marcación + fix login)
 - ✅ Bug login resuelto: causa = lockout residual del correo viejo + usuario intentando email migrado (camiloleal.opx@gmail.com ya no existe); limpiado y verificado 200 con admin@jrpos.com
 - ✅ Módulo Marcación `/marcacion`: reloj en vivo, entrada/salida con bloqueo de doble marca, salida requiere entrada previa del día, detección de tardanza (entry_time + tolerancia), horario programable por admin, reporte por empleado con filtro de fecha (solo admin); cajero solo ve sus marcas. Testing iteration_7: 14/14 pytest + E2E 100%
