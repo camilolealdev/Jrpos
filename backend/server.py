@@ -1116,6 +1116,85 @@ async def electronic_invoice(sale_id: str):
     return {"number": number, "cufe": cufe, "xml": xml, "status": "simulada"}
 
 
+# ----------------- Marcación (entrada/salida de empleados) -----------------
+class TimeclockSchedule(BaseModel):
+    entry_time: str = "08:00"
+    exit_time: str = "18:00"
+    tolerance_minutes: int = 10
+
+
+@api_router.get("/timeclock/schedule")
+async def get_schedule():
+    doc = await db.settings.find_one({"key": "timeclock_schedule"}, {"_id": 0})
+    base = TimeclockSchedule().model_dump()
+    if doc:
+        base.update(doc.get("value") or {})
+    return base
+
+
+@api_router.put("/timeclock/schedule")
+async def save_schedule(payload: TimeclockSchedule, admin: dict = Depends(require_admin)):
+    await db.settings.update_one(
+        {"key": "timeclock_schedule"},
+        {"$set": {"key": "timeclock_schedule", "value": payload.model_dump()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api_router.post("/timeclock/mark")
+async def mark_timeclock(payload: dict, user: dict = Depends(get_current_user)):
+    mark_type = payload.get("type")
+    if mark_type not in ("in", "out"):
+        raise HTTPException(status_code=400, detail="Tipo debe ser 'in' (entrada) u 'out' (salida)")
+    # No permitir dos marcas iguales seguidas
+    last = await db.timeclock.find_one({"user_id": user["id"]}, {"_id": 0}, sort=[("created_at", -1)])
+    if last and last.get("type") == mark_type:
+        raise HTTPException(status_code=400, detail=f"Ya marcaste {'entrada' if mark_type == 'in' else 'salida'}; marca primero lo contrario")
+
+    now = datetime.now(timezone.utc)
+    late = False
+    if mark_type == "in":
+        sched = await get_schedule()
+        try:
+            hh, mm = sched["entry_time"].split(":")
+            limit = now.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0) + timedelta(minutes=int(sched.get("tolerance_minutes", 0)))
+            late = now > limit
+        except Exception:
+            late = False
+
+    mark = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "user_name": user.get("name") or user.get("email"),
+        "role": user.get("role"),
+        "type": mark_type,
+        "late": late,
+        "note": payload.get("note"),
+        "created_at": now.isoformat(),
+    }
+    await db.timeclock.insert_one(mark)
+    mark.pop("_id", None)
+    return mark
+
+
+@api_router.get("/timeclock/today")
+async def my_timeclock_today(user: dict = Depends(get_current_user)):
+    today = datetime.now(timezone.utc).date().isoformat()
+    marks = await db.timeclock.find({"user_id": user["id"], "created_at": {"$regex": f"^{today}"}}, {"_id": 0}).sort("created_at", 1).to_list(50)
+    return marks
+
+
+@api_router.get("/timeclock/records")
+async def timeclock_records(date: Optional[str] = None, admin: dict = Depends(require_admin)):
+    day = date or datetime.now(timezone.utc).date().isoformat()
+    marks = await db.timeclock.find({"created_at": {"$regex": f"^{day}"}}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    by_user = {}
+    for m in marks:
+        by_user.setdefault(m["user_name"], []).append(m)
+    return {"date": day, "employees": [{"name": k, "marks": v} for k, v in by_user.items()]}
+
+
 # ----------------- Users & Roles (admin) -----------------
 class UserCreate(BaseModel):
     name: str

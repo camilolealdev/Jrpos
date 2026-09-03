@@ -19,6 +19,7 @@ import ElectronicPOS from "@/pages/ElectronicPOS";
 import Users from "@/pages/Users";
 import Settings from "@/pages/Settings";
 import Support from "@/pages/Support";
+import Timeclock from "@/pages/Timeclock";
 import Placeholder from "@/pages/Placeholder";
 
 const soonModules = [
@@ -67,6 +68,7 @@ function ProtectedApp() {
         <Route path="usuarios" element={<Users />} />
         <Route path="configuracion" element={<Settings />} />
         <Route path="soporte" element={<Support />} />
+        <Route path="marcacion" element={<Timeclock />} />
         {soonModules.map((m) => (
           <Route key={m.path} path={m.path} element={<Placeholder title={m.title} description={m.desc} />} />
         ))}

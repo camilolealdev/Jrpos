@@ -8,7 +8,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Camera, Users, Truck, LineChart,
   FileText, Receipt, ClipboardList, Percent, ShoppingBag, RotateCcw,
   BadgeDollarSign, Wallet, HandCoins, PiggyBank, ShieldCheck, KeyRound,
-  BookOpen, Award, FileSignature, Menu, X, Store, Wrench, Boxes, RefreshCw, HelpCircle, LogOut, Settings2,
+  BookOpen, Award, FileSignature, Menu, X, Store, Wrench, Boxes, RefreshCw, HelpCircle, LogOut, Settings2, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ const groups = [
       { to: "/facturas", label: "Escanear Factura", icon: Camera, tid: "nav-facturas", badge: "IA" },
       { to: "/inventario", label: "Inventario", icon: Package, tid: "nav-inventario" },
       { to: "/reportes", label: "Reportes", icon: LineChart, tid: "nav-reportes" },
+      { to: "/marcacion", label: "Marcación", icon: Clock, tid: "nav-marcacion" },
     ],
   },
   {
