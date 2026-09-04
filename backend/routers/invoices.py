@@ -353,3 +353,34 @@ async def list_support_docs(
     stmt = select(SupportDoc).order_by(SupportDoc.created_at.desc()).limit(300)
     docs = (await session.execute(stmt)).scalars().all()
     return [await _support_doc_out(session, d) for d in docs]
+
+
+@invoices_router.get("/invoices/purchase")
+async def list_purchase_invoices(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    stmt = select(PurchaseInvoice).order_by(PurchaseInvoice.created_at.desc()).limit(200)
+    invoices = (await session.execute(stmt)).scalars().all()
+    result = []
+    for inv in invoices:
+        items = (await session.execute(
+            select(PurchaseInvoiceItem).where(PurchaseInvoiceItem.purchase_invoice_id == inv.id)
+        )).scalars().all()
+        result.append({
+            "id": inv.id,
+            "supplier_name": inv.supplier_name,
+            "supplier_nit": inv.supplier_nit,
+            "invoice_number": inv.invoice_number,
+            "date": inv.date,
+            "created_at": inv.created_at,
+            "items": [
+                {
+                    "name": it.name, "barcode": it.barcode, "quantity": it.quantity,
+                    "unit_price": it.unit_price, "selling_price": it.selling_price,
+                    "category": it.category, "tax_rate": it.tax_rate,
+                }
+                for it in items
+            ],
+        })
+    return result

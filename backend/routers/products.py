@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user, require_admin
 from db import get_session
-from models_sql import CategoryMeta, Product, User, utcnow
+from models_sql import CategoryMeta, Contact, Product, User, utcnow
 
 products_router = APIRouter(prefix="/api", tags=["products"])
 
@@ -343,3 +343,45 @@ async def bulk_update_products(
 
     await session.commit()
     return {"ok": True, "updated": count}
+
+
+# ----------------- Seed sample data -----------------
+_SEED_PRODUCTS = [
+    {"name": "Arroz Diana 500g", "barcode": "7702001010011", "category": "Granos", "price": 2500, "cost": 1800, "stock": 40, "unit": "und"},
+    {"name": "Aceite Girasol 1L", "barcode": "7702001010028", "category": "Aceites", "price": 12500, "cost": 9800, "stock": 22, "unit": "und"},
+    {"name": "Panela cuadrada 500g", "barcode": "7702001010035", "category": "Endulzantes", "price": 3800, "cost": 2600, "stock": 30, "unit": "und"},
+    {"name": "Leche Alqueria 1L", "barcode": "7702001010042", "category": "Lácteos", "price": 4800, "cost": 3600, "stock": 25, "unit": "und"},
+    {"name": "Huevos AA x30", "barcode": "7702001010059", "category": "Huevos", "price": 18500, "cost": 14000, "stock": 12, "unit": "und"},
+    {"name": "Pan tajado Bimbo", "barcode": "7702001010066", "category": "Panadería", "price": 6900, "cost": 4900, "stock": 15, "unit": "und"},
+    {"name": "Café Sello Rojo 250g", "barcode": "7702001010073", "category": "Café", "price": 9800, "cost": 7000, "stock": 20, "unit": "und"},
+    {"name": "Frijol rojo 500g", "barcode": "7702001010080", "category": "Granos", "price": 5200, "cost": 3800, "stock": 18, "unit": "und"},
+    {"name": "Coca-Cola 1.5L", "barcode": "7702001010097", "category": "Bebidas", "price": 5500, "cost": 4100, "stock": 30, "unit": "und"},
+    {"name": "Jabón Rey 300g", "barcode": "7702001010103", "category": "Aseo", "price": 4200, "cost": 3000, "stock": 24, "unit": "und"},
+    {"name": "Chocolatina Jet", "barcode": "7702001010110", "category": "Golosinas", "price": 1200, "cost": 800, "stock": 60, "unit": "und"},
+    {"name": "Papas Margarita 105g", "barcode": "7702001010127", "category": "Snacks", "price": 4500, "cost": 3200, "stock": 3, "unit": "und"},
+]
+
+_SEED_CONTACTS = [
+    {"kind": "supplier", "name": "Distribuidora La Cosecha", "document": "900123456-7", "phone": "3001112233", "city": "Bogotá"},
+    {"kind": "supplier", "name": "Nutresa S.A.", "document": "890900608-9", "phone": "6045118111", "city": "Medellín"},
+    {"kind": "customer", "name": "Consumidor Final", "document": "222222222222", "document_type": "NIT"},
+    {"kind": "customer", "name": "María López", "document": "1020304050", "document_type": "CC", "phone": "3113334455"},
+]
+
+
+@products_router.post("/seed")
+async def seed_data(
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    existing = (await session.execute(select(func.count(Product.id)))).scalar_one()
+    if existing > 0:
+        return {"ok": True, "seeded": False, "message": "Ya existen datos"}
+
+    for p in _SEED_PRODUCTS:
+        session.add(Product(**p))
+    for c in _SEED_CONTACTS:
+        session.add(Contact(**c))
+    await session.commit()
+
+    return {"ok": True, "seeded": True, "products": len(_SEED_PRODUCTS), "contacts": len(_SEED_CONTACTS)}

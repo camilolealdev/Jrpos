@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# Not on standard PyPI (emergent.sh's own index) — installed separately so Vercel's
+# uv-based resolver (which reads requirements.txt for the backend Service) never sees it.
+RUN pip install --no-cache-dir emergentintegrations==0.2.0
 
 COPY . .
 

@@ -25,7 +25,10 @@ numpy>=1.26.0
 python-multipart>=0.0.9
 jq>=1.6.0
 typer>=0.9.0
-emergentintegrations==0.2.0
+# emergentintegrations==0.2.0  -- movido a un paso aparte del Dockerfile: no está en PyPI
+# estándar (usa el índice de emergent.sh) y el resolver `uv` de Vercel no puede instalarlo,
+# lo que rompe el build del servicio backend. server.py/Railway lo siguen instalando vía
+# Dockerfile; app.py (Vercel) ya no lo necesita — usa google-genai directamente.
 
 # --- Vercel/Postgres backend (nuevo, coexiste con lo anterior hasta el corte de la Fase 10) ---
 sqlalchemy[asyncio]>=2.0.35
