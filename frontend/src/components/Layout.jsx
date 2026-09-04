@@ -40,14 +40,14 @@ const groups = [
     label: "Facturación DIAN",
     items: [
       { to: "/facturacion-electronica", label: "Facturación Electrónica", icon: FileText, tid: "nav-fe", adminOnly: true },
-      { to: "/facturacion-pos-electronica", label: "POS Electrónica", icon: Receipt, tid: "nav-pos-electronica", badge: "Sim", adminOnly: true },
+      { to: "/facturacion-pos-electronica", label: "POS Electrónica", icon: Receipt, tid: "nav-pos-electronica", badge: "Demo", adminOnly: true },
       { to: "/remisiones", label: "Remisiones", icon: ClipboardList, tid: "nav-remisiones", adminOnly: true },
-      { to: "/nomina-electronica", label: "Nómina Electrónica", icon: FileSignature, tid: "nav-nomina", badge: "Sim", adminOnly: true },
-      { to: "/documento-soporte", label: "Doc. Soporte", icon: FileText, tid: "nav-doc-soporte", badge: "Sim", adminOnly: true },
-      { to: "/radian", label: "Radian", icon: ShieldCheck, tid: "nav-radian", badge: "Sim", adminOnly: true },
+      { to: "/nomina-electronica", label: "Nómina Electrónica", icon: FileSignature, tid: "nav-nomina", badge: "Demo", adminOnly: true },
+      { to: "/documento-soporte", label: "Doc. Soporte", icon: FileText, tid: "nav-doc-soporte", badge: "Demo", adminOnly: true },
+      { to: "/radian", label: "Radian", icon: ShieldCheck, tid: "nav-radian", badge: "Demo", adminOnly: true },
       { to: "/notas", label: "Notas Crédito/Débito", icon: FileText, tid: "nav-notas", adminOnly: true },
       { to: "/cuentas-cobro", label: "Cuentas de Cobro", icon: BadgeDollarSign, tid: "nav-cuentas", adminOnly: true },
-      { to: "/certificado-digital", label: "Certificado Digital", icon: Award, tid: "nav-certificado", badge: "Sim", adminOnly: true },
+      { to: "/certificado-digital", label: "Certificado Digital", icon: Award, tid: "nav-certificado", badge: "Demo", adminOnly: true },
     ],
   },
   {
@@ -121,7 +121,16 @@ function SidebarContent({ onNavigate, storeName = "JRPOS", role = "admin" }) {
                   <it.icon className="w-4 h-4 shrink-0" />
                   <span className="flex-1 truncate">{it.label}</span>
                   {it.badge && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold px-1.5 py-0.5 rounded border tracking-wide",
+                        it.badge === "IA"
+                          ? "bg-purple-50 text-purple-700 border-purple-200"
+                          : it.badge === "Nuevo"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      )}
+                    >
                       {it.badge}
                     </span>
                   )}
