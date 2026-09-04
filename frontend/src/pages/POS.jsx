@@ -17,7 +17,12 @@ import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, 
 export default function POS() {
   const [products, setProducts] = useState([]);
   const [q, setQ] = useState("");
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem("jrpos_pos_cart");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [selectedCats, setSelectedCats] = useState([]); // multi-select; [] = todas
   const [categories, setCategories] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -32,6 +37,16 @@ export default function POS() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newProd, setNewProd] = useState({ barcode: "", name: "", price: 0, cost: 0, stock: 1, category: "General" });
   const barcodeRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      if (cart.length > 0) {
+        sessionStorage.setItem("jrpos_pos_cart", JSON.stringify(cart));
+      } else {
+        sessionStorage.removeItem("jrpos_pos_cart");
+      }
+    } catch {}
+  }, [cart]);
 
   const loadHeld = async () => {
     const { data } = await api.get("/held");
