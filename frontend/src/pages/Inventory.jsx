@@ -33,15 +33,22 @@ export default function Inventory() {
     load();
   }, [load]);
 
-  // Vista previa en vivo: costo por paquete / unidades por paquete + % utilidad -> costo y precio unitario
-  const preview = useMemo(() => {
-    const upp = Number(form.units_per_package) > 0 ? Number(form.units_per_package) : 1;
-    const pkgCost = Number(form.package_cost) || 0;
-    const margin = Number(form.margin_percent) || 0;
+  // Recalcula costo/precio unitario cuando cambia costo por paquete, unidades por paquete o % de
+  // utilidad — pero quedan en inputs normales así que después se pueden digitar/ajustar a mano
+  // sin que se vuelvan a pisar (solo se recalculan si tocas de nuevo alguno de esos 3 campos).
+  const recomputeFromPackage = (next) => {
+    const upp = Number(next.units_per_package) > 0 ? Number(next.units_per_package) : 1;
+    const pkgCost = Number(next.package_cost) || 0;
+    const margin = Number(next.margin_percent) || 0;
     const unitCost = upp ? pkgCost / upp : pkgCost;
     const unitPrice = unitCost * (1 + margin / 100);
-    return { unitCost, unitPrice };
-  }, [form.package_cost, form.units_per_package, form.margin_percent]);
+    return {
+      ...next,
+      cost: Math.round(unitCost * 100) / 100,
+      price: Math.round(unitPrice * 100) / 100,
+    };
+  };
+  const setPackageField = (key, value) => setForm((f) => recomputeFromPackage({ ...f, [key]: value }));
 
   const save = async () => {
     if (!form.name) return toast.error("El nombre es obligatorio");
