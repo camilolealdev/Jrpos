@@ -99,6 +99,7 @@ function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/welcome" element={<Login />} />
             <Route path="/*" element={<ProtectedApp />} />
           </Routes>
         </AuthProvider>

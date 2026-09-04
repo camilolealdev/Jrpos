@@ -1,14 +1,22 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store } from "lucide-react";
+import { Store, ArrowLeft, ShieldCheck, Lock, User, KeyRound, Sparkles } from "lucide-react";
+import WelcomeHero from "@/components/WelcomeHero";
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Si el usuario viene redirigido explícitamente desde una ruta protegida, mostrar directamente el formulario
+  const isDirectLogin = Boolean(location.state?.from);
+  const [view, setView] = useState(isDirectLogin ? "login" : "welcome"); // 'welcome' | 'login'
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,46 +24,154 @@ export default function Login() {
 
   const submit = async (e) => {
     e.preventDefault();
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
     try {
       await login(email, password);
       navigate("/dashboard");
     } catch (err) {
       const d = err?.response?.data?.detail;
-      setError(typeof d === "string" ? d : "Error de autenticación");
-    } finally { setLoading(false); }
+      setError(typeof d === "string" ? d : "Error de autenticación. Verifica tus credenciales.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen grid place-items-center bg-background grain-bg p-4" data-testid="login-page">
-      <Card className="w-full max-w-sm shadow-xl">
-        <CardContent className="p-8 space-y-5">
-          <div className="text-center">
-            <div className="w-14 h-14 mx-auto rounded-xl bg-emerald-700 text-white grid place-items-center shadow">
-              <Store className="w-7 h-7" />
+    <div className="min-h-screen w-full bg-slate-950 text-slate-100 relative overflow-x-hidden">
+      <AnimatePresence mode="wait">
+        {view === "welcome" ? (
+          <motion.div
+            key="welcome-view"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
+            className="w-full"
+          >
+            <WelcomeHero onProceedToLogin={() => setView("login")} />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="login-view"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.35, ease: "easeInOut" }}
+            className="min-h-screen w-full flex flex-col justify-center items-center p-4 relative"
+          >
+            {/* Background lighting */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-600/15 rounded-full blur-[128px]" />
+              <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-600/15 rounded-full blur-[128px]" />
             </div>
-            <h1 className="text-2xl font-extrabold mt-3 tracking-tight">JRPOS</h1>
-            <p className="text-sm text-slate-500">Ingresa a tu tienda</p>
-          </div>
-          <form onSubmit={submit} className="space-y-3">
-            <div>
-              <label className="text-xs font-semibold">Correo</label>
-              <Input type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus data-testid="login-email" />
+
+            {/* Back button */}
+            <div className="absolute top-6 left-6 z-20">
+              <Button
+                variant="ghost"
+                onClick={() => setView("welcome")}
+                className="text-slate-400 hover:text-white hover:bg-slate-900/80 gap-2 text-xs"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Volver a la Bienvenida</span>
+              </Button>
             </div>
-            <div>
-              <label className="text-xs font-semibold">Contraseña</label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required data-testid="login-password" />
-            </div>
-            {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2" data-testid="login-error">{error}</div>}
-            <Button type="submit" className="w-full h-11 bg-emerald-700 hover:bg-emerald-800 font-bold" disabled={loading} data-testid="login-submit">
-              {loading ? "Ingresando..." : "Ingresar"}
-            </Button>
-          </form>
-          <p className="text-center text-xs text-slate-400">
-            ¿Olvidaste tu contraseña? Pídele al administrador de tu tienda que te la restablezca desde el módulo de Usuarios.
-          </p>
-        </CardContent>
-      </Card>
+
+            {/* Login Card */}
+            <Card className="w-full max-w-md bg-slate-900/90 border-slate-800 backdrop-blur-xl shadow-2xl relative z-10">
+              <CardContent className="p-8 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white grid place-items-center shadow-lg shadow-emerald-950/60 border border-emerald-400/30">
+                    <Store className="w-7 h-7" />
+                  </div>
+                  <h1 className="text-2xl font-extrabold tracking-tight text-white font-['Outfit']">
+                    Iniciar Sesión
+                  </h1>
+                  <p className="text-xs text-slate-400">
+                    Ingresa tus credenciales para acceder al terminal JRPOS
+                  </p>
+                </div>
+
+                <form onSubmit={submit} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Correo o Usuario</span>
+                    </label>
+                    <Input
+                      type="text"
+                      autoComplete="username"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoFocus
+                      placeholder="admin@jrpos.com"
+                      className="bg-slate-950 border-slate-800 focus:border-emerald-500 text-white placeholder:text-slate-600 h-10"
+                      data-testid="login-email"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Contraseña</span>
+                    </label>
+                    <Input
+                      type="password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="bg-slate-950 border-slate-800 focus:border-emerald-500 text-white placeholder:text-slate-600 h-10"
+                      data-testid="login-password"
+                    />
+                  </div>
+
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-xs text-red-400 bg-red-950/50 border border-red-800/60 rounded-lg p-3 text-center"
+                      data-testid="login-error"
+                    >
+                      {error}
+                    </motion.div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-950/60 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.98]"
+                    disabled={loading}
+                    data-testid="login-submit"
+                  >
+                    {loading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Autenticando...</span>
+                      </span>
+                    ) : (
+                      "Ingresar a mi Tienda"
+                    )}
+                  </Button>
+                </form>
+
+                <div className="pt-2 border-t border-slate-800 text-center space-y-2">
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    ¿Olvidaste tu contraseña? Solicita el restablecimiento al administrador de la tienda desde el módulo de Usuarios.
+                  </p>
+                  <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Conexión cifrada de extremo a extremo</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
