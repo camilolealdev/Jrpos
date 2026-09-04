@@ -21,7 +21,7 @@ Módulos DIAN reales y roadmap: ver [`docs/MODULOS_PENDIENTES.md`](docs/MODULOS_
 
 ## Variables de entorno
 
-**`backend/.env`**
+**`backend/.env`** (stack Mongo original — Railway/Docker)
 ```
 MONGO_URL=...
 DB_NAME=...
@@ -31,6 +31,15 @@ ADMIN_EMAIL=...             # admin sembrado al iniciar
 ADMIN_PASSWORD=...
 FRONTEND_URL=https://...    # origen(es) exacto(s) para CORS con cookies; separa varios con coma (prod + preview)
 FRONTEND_URL_REGEX=...      # opcional: regex para orígenes dinámicos, ej. previews de Vercel (^https://jrpos-.*\.vercel\.app$)
+```
+
+**Vercel (stack nuevo Postgres/Supabase — `backend/app.py`)**, además de `JWT_SECRET`/`ADMIN_EMAIL`/`ADMIN_PASSWORD`/`FRONTEND_URL*` de arriba:
+```
+DATABASE_URL=...            # Supabase, pooler modo TRANSACCIÓN (puerto 6543) — usado en runtime por la app
+DATABASE_URL_UNPOOLED=...   # Supabase, pooler modo SESIÓN (puerto 5432) — usado por Alembic al migrar
+                             # OJO: no usar la conexión "directa" (db.<ref>.supabase.co) — es IPv6 y
+                             # Vercel es IPv4-only, la conexión fallaría en el build/runtime.
+GEMINI_API_KEY=...          # reemplaza EMERGENT_LLM_KEY para el OCR vía google-genai
 ```
 
 **`frontend/.env`**
