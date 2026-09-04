@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -52,21 +52,18 @@ export default function Inventory() {
 
   const save = async () => {
     if (!form.name) return toast.error("El nombre es obligatorio");
-    const payload = { ...form };
+    // form.cost/form.price son siempre la fuente de verdad: se recalculan solos al tocar
+    // costo por paquete/unidades/% utilidad, pero si el usuario los edita a mano después,
+    // ese valor manda (el backend respeta el precio explícito sobre el % de utilidad).
+    const payload = { ...form, cost: Number(form.cost) || 0, price: Number(form.price) || 0 };
     if (useMargin) {
       payload.package_cost = Number(form.package_cost) || 0;
       payload.units_per_package = Number(form.units_per_package) || 1;
       payload.margin_percent = Number(form.margin_percent) || 0;
-      // el backend recalcula cost/price con estos tres; mandamos también el preview
-      // para que la lista se vea correcta de inmediato si algo falla en el cálculo del server.
-      payload.cost = Math.round(preview.unitCost * 100) / 100;
-      payload.price = Math.round(preview.unitPrice * 100) / 100;
     } else {
       delete payload.package_cost;
       delete payload.units_per_package;
       delete payload.margin_percent;
-      payload.cost = Number(form.cost) || 0;
-      payload.price = Number(form.price) || 0;
     }
     try {
       if (editingId) {
