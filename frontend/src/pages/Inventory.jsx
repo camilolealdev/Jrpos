@@ -7,8 +7,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
+import CameraScanner from "@/components/CameraScanner";
 
 const empty = {
   name: "", barcode: "", category: "General", price: 0, cost: 0, stock: 0, unit: "und", tax_rate: 19,
@@ -23,6 +24,8 @@ export default function Inventory() {
   const [form, setForm] = useState(empty);
   const [editingId, setEditingId] = useState(null);
   const [useMargin, setUseMargin] = useState(false);
+  const [searchCamOpen, setSearchCamOpen] = useState(false);
+  const [formCamOpen, setFormCamOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -111,9 +114,27 @@ export default function Inventory() {
         </Button>
       </div>
 
-      <div className="relative mb-3">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <Input placeholder="Buscar por nombre, código, SKU..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" data-testid="inv-search" />
+      <div className="flex gap-2 mb-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Input
+            placeholder="Buscar por nombre, código de barras, SKU..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="pl-9"
+            data-testid="inv-search"
+          />
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setSearchCamOpen(true)}
+          className="flex items-center gap-1.5 border-emerald-300 hover:bg-emerald-50 text-emerald-800"
+          title="Escanear código de barras para buscar producto"
+          data-testid="inv-barcode-search-btn"
+        >
+          <Barcode className="w-4 h-4 text-emerald-700" />
+          <span className="hidden sm:inline text-xs font-semibold">Escanear</span>
+        </Button>
       </div>
 
       <Card className="overflow-hidden">
@@ -171,11 +192,30 @@ export default function Inventory() {
             </div>
             <div>
               <label className="text-xs font-semibold">Código de barras</label>
-              <Input value={form.barcode || ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} className="font-mono" data-testid="f-barcode" />
+              <div className="flex gap-1.5 mt-1">
+                <Input
+                  value={form.barcode || ""}
+                  onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                  className="font-mono flex-1"
+                  placeholder="Ej: 7702001..."
+                  data-testid="f-barcode"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="border-emerald-300 hover:bg-emerald-50 text-emerald-700"
+                  onClick={() => setFormCamOpen(true)}
+                  title="Escanear código con la cámara"
+                  data-testid="f-barcode-scan-btn"
+                >
+                  <Camera className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
             <div>
               <label className="text-xs font-semibold">Categoría</label>
-              <Input value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} data-testid="f-category" />
+              <Input value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="f-category" />
             </div>
 
             <div className="col-span-2 flex items-center justify-between border-t pt-3 mt-1">
@@ -249,6 +289,26 @@ export default function Inventory() {
       </Dialog>
 
       <CategoryManager open={catMgrOpen} onOpenChange={setCatMgrOpen} onSaved={load} />
+
+      {/* Escáner para búsqueda rápida en el inventario */}
+      <CameraScanner
+        open={searchCamOpen}
+        onOpenChange={setSearchCamOpen}
+        onScan={(code) => {
+          setQ(code);
+          toast.success(`Código escaneado: ${code}`);
+        }}
+      />
+
+      {/* Escáner para asignar código de barras en el formulario de producto */}
+      <CameraScanner
+        open={formCamOpen}
+        onOpenChange={setFormCamOpen}
+        onScan={(code) => {
+          setForm((prev) => ({ ...prev, barcode: code }));
+          toast.success(`Código asignado: ${code}`);
+        }}
+      />
     </div>
   );
 }
