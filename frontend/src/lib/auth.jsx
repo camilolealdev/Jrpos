@@ -1,32 +1,46 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
+import { API } from "./api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(undefined); // undefined=cargando, null=no auth, obj=auth
 
   useEffect(() => {
-    // Verifica sesión; si expiró el access token, intenta refresh transparente
-    axios.get(`${API}/auth/me`, { withCredentials: true })
-      .then((r) => setUser(r.data))
+    let active = true;
+    // Timeout de seguridad de 4s para evitar quedarse colgado en loading ante caídas de red
+    axios.get(`${API}/auth/me`, { withCredentials: true, timeout: 4000 })
+      .then((r) => {
+        if (active) setUser(r.data);
+      })
       .catch(async () => {
         try {
-          await axios.post(`${API}/auth/refresh`, {}, { withCredentials: true });
-          const r = await axios.get(`${API}/auth/me`, { withCredentials: true });
-          setUser(r.data);
-        } catch { setUser(null); }
+          await axios.post(`${API}/auth/refresh`, {}, { withCredentials: true, timeout: 4000 });
+          const r = await axios.get(`${API}/auth/me`, { withCredentials: true, timeout: 4000 });
+          if (active) setUser(r.data);
+        } catch {
+          if (active) setUser(null);
+        }
       });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = async (email, password) => {
-    const { data } = await axios.post(`${API}/auth/login`, { email, password }, { withCredentials: true });
+    const { data } = await axios.post(`${API}/auth/login`, { email, password }, { withCredentials: true, timeout: 8000 });
     setUser(data);
     return data;
   };
+
   const logout = async () => {
-    try { await axios.post(`${API}/auth/logout`, {}, { withCredentials: true }); } catch { /* noop */ }
+    try {
+      await axios.post(`${API}/auth/logout`, {}, { withCredentials: true, timeout: 4000 });
+    } catch {
+      /* noop */
+    }
     setUser(null);
   };
 
