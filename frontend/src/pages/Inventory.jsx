@@ -21,6 +21,7 @@ export default function Inventory() {
   const [items, setItems] = useState([]);
   const [catMgrOpen, setCatMgrOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editingId, setEditingId] = useState(null);
@@ -29,14 +30,20 @@ export default function Inventory() {
   const [formCamOpen, setFormCamOpen] = useState(false);
   const [labelProd, setLabelProd] = useState(null);
 
+  // Debounce de búsqueda para evitar spam de peticiones
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q), 250);
+    return () => clearTimeout(timer);
+  }, [q]);
+
   const load = useCallback(async () => {
     try {
-      const { data } = await api.get("/products", { params: { q: q || undefined } });
+      const { data } = await api.get("/products", { params: { q: debouncedQ || undefined } });
       setItems(Array.isArray(data) ? data : []);
     } catch {
       setItems([]);
     }
-  }, [q]);
+  }, [debouncedQ]);
 
   useEffect(() => {
     load();

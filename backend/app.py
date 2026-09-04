@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 
 from auth import auth_router, seed_admin
 from db import SessionLocal
@@ -66,6 +67,8 @@ _frontend_origins = [
     for origin in os.environ.get("FRONTEND_URL", "http://localhost:3000").split(",")
     if origin.strip()
 ]
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,
