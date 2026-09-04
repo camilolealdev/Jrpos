@@ -164,9 +164,13 @@ async def create_product(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    # El precio que llega en el payload siempre gana (el usuario lo pudo digitar a mano en el
+    # formulario, aunque haya usado la calculadora de utilidad primero) — el % solo se usa si
+    # no hay un precio explícito.
     unit_cost, unit_price = compute_unit_pricing(
         payload.package_cost, payload.units_per_package, payload.margin_percent,
         fallback_cost=float(payload.cost or 0.0), fallback_price=float(payload.price or 0.0),
+        explicit_price=float(payload.price) if payload.price else None,
     )
     product = Product(
         name=payload.name.strip(),
@@ -205,6 +209,9 @@ async def update_product(
     package_cost = data.pop("package_cost", None)
     units_per_package = data.pop("units_per_package", None)
     margin_percent = data.pop("margin_percent", None)
+    # ¿El request trajo un precio explícito? (el formulario siempre lo manda, calculado o
+    # digitado a mano) — si sí, gana sobre el % de utilidad, igual que en create_product.
+    price_sent = data.get("price")
 
     for key, value in data.items():
         setattr(product, key, value)
@@ -213,6 +220,7 @@ async def update_product(
         unit_cost, unit_price = compute_unit_pricing(
             package_cost, units_per_package or product.units_per_package, margin_percent,
             fallback_cost=product.cost, fallback_price=product.price,
+            explicit_price=float(price_sent) if price_sent else None,
         )
         product.cost = unit_cost
         product.price = unit_price
@@ -328,6 +336,7 @@ async def bulk_load_products(
         unit_cost, unit_price = compute_unit_pricing(
             it.package_cost, it.units_per_package, it.margin_percent,
             fallback_cost=float(it.cost or 0.0), fallback_price=float(it.price or 0.0),
+            explicit_price=float(it.price) if it.price else None,
         )
 
         if existing:

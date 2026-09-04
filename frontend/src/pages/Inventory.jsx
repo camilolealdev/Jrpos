@@ -193,19 +193,25 @@ export default function Inventory() {
               <>
                 <div>
                   <label className="text-xs font-semibold">Costo por paquete/caja</label>
-                  <Input type="number" value={form.package_cost} onChange={(e) => setForm({ ...form, package_cost: e.target.value })} data-testid="f-package-cost" placeholder="Ej: 48000" />
+                  <Input type="number" value={form.package_cost} onChange={(e) => setPackageField("package_cost", e.target.value)} data-testid="f-package-cost" placeholder="Ej: 48000" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold">Unidades por paquete</label>
-                  <Input type="number" value={form.units_per_package} onChange={(e) => setForm({ ...form, units_per_package: e.target.value })} data-testid="f-units-per-package" placeholder="Ej: 24" />
+                  <Input type="number" value={form.units_per_package} onChange={(e) => setPackageField("units_per_package", e.target.value)} data-testid="f-units-per-package" placeholder="Ej: 24" />
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs font-semibold">% de utilidad</label>
-                  <Input type="number" value={form.margin_percent} onChange={(e) => setForm({ ...form, margin_percent: e.target.value })} data-testid="f-margin-percent" placeholder="Ej: 30" />
+                  <Input type="number" value={form.margin_percent} onChange={(e) => setPackageField("margin_percent", e.target.value)} data-testid="f-margin-percent" placeholder="Ej: 30" />
                 </div>
-                <div className="col-span-2 rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-sm flex justify-between" data-testid="margin-preview">
-                  <span>Costo unitario: <b className="font-mono">{formatCOP(preview.unitCost)}</b></span>
-                  <span>Precio de venta: <b className="font-mono text-emerald-700">{formatCOP(preview.unitPrice)}</b></span>
+                <div className="col-span-2 grid grid-cols-2 gap-3 rounded-lg bg-emerald-50 border border-emerald-200 p-2.5" data-testid="margin-preview">
+                  <div>
+                    <label className="text-xs font-semibold">Costo unitario (calculado, editable)</label>
+                    <Input type="number" value={form.cost} onChange={(e) => setForm({ ...form, cost: Number(e.target.value) })} data-testid="f-cost-margin" className="font-mono bg-white" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-emerald-700">Precio de venta (calculado, editable)</label>
+                    <Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} data-testid="f-price-margin" className="font-mono bg-white" />
+                  </div>
                 </div>
               </>
             ) : (

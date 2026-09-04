@@ -224,13 +224,11 @@ async def import_invoice_to_inventory(
         total_units = package_qty * units_per_package
         unit_cost, unit_price = compute_unit_pricing(
             package_cost, units_per_package, margin_percent,
-            fallback_price=selling_price,
+            explicit_price=selling_price,
         )
         # sin selling_price ni margin_percent, conserva el fallback histórico (30% de markup)
         if unit_price is None:
             unit_price = round((unit_cost or 0) * 1.3, 2)
-        if selling_price is not None:
-            unit_price = selling_price
 
         existing_p = None
         if barcode:
