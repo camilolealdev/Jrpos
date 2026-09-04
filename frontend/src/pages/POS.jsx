@@ -256,13 +256,36 @@ export default function POS() {
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // F2: Enfoque al lector de código de barras
+      if (e.key === "F2") {
+        e.preventDefault();
+        barcodeRef.current?.focus();
+        barcodeRef.current?.select();
+      }
+      // F4: Vaciar carrito
+      if (e.key === "F4" && cart.length > 0) {
+        e.preventDefault();
+        if (window.confirm("¿Vaciar carrito de compras?")) clearCart();
+      }
+      // F9: Abrir cobro
+      if (e.key === "F9" && cart.length > 0 && !payOpen) {
+        e.preventDefault();
+        setPayOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [cart, payOpen]);
+
   const change = Number(received || 0) - totals.total;
 
   return (
     <div className="h-full grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-0" data-testid="pos-page">
       {/* Left: product grid */}
       <div className="p-3 lg:p-5 flex flex-col min-h-0">
-        <div className="flex flex-col sm:flex-row gap-2 mb-2">
+        <div className="flex flex-col sm:flex-row gap-2 mb-1.5">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input
@@ -277,7 +300,7 @@ export default function POS() {
             <ScanLine className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600" />
             <Input
               ref={barcodeRef}
-              placeholder="Escanea código de barras..."
+              placeholder="Escanea código (F2)..."
               className="pl-9 h-11 font-mono"
               data-testid="pos-barcode-input"
               autoFocus
@@ -499,13 +522,20 @@ export default function POS() {
             <span className="font-mono text-emerald-700" data-testid="cart-total">{formatCOP(totals.total)}</span>
           </div>
           <Button
-            className="w-full h-12 bg-emerald-700 hover:bg-emerald-800 mt-2 text-base font-bold"
+            className="w-full h-12 bg-emerald-700 hover:bg-emerald-800 mt-2 text-base font-bold flex items-center justify-center gap-2"
             disabled={!Array.isArray(cart) || cart.length === 0}
             onClick={() => setPayOpen(true)}
             data-testid="checkout-btn"
           >
-            <CircleDollarSign className="w-5 h-5 mr-1" /> Cobrar
+            <CircleDollarSign className="w-5 h-5" />
+            <span>Cobrar</span>
+            <span className="text-xs bg-emerald-800/80 px-1.5 py-0.5 rounded font-mono font-normal">F9</span>
           </Button>
+          <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono pt-1">
+            <span><kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-600">F2</kbd> Lector</span>
+            <span><kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-600">F4</kbd> Vaciar</span>
+            <span><kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-600">F9</kbd> Cobrar</span>
+          </div>
         </div>
       </aside>
 
