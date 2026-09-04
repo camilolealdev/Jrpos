@@ -69,7 +69,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=_frontend_origins,
-    allow_origin_regex=os.environ.get("FRONTEND_URL_REGEX") or r"^https://(jrpos[a-z0-9\-]*|localhost:[0-9]+)\.(vercel\.app|local)$",
+    # jrpos*.vercel.app (prod + previews) o localhost/127.0.0.1 en cualquier puerto (dev local,
+    # http o https) — la versión anterior exigía "localhost:PUERTO.local", que ningún navegador
+    # envía jamás como Origin real, dejando el dev local sin CORS.
+    allow_origin_regex=os.environ.get("FRONTEND_URL_REGEX") or r"^(https://jrpos[a-z0-9\-]*\.vercel\.app|https?://(localhost|127\.0\.0\.1):[0-9]+)$",
     allow_methods=["*"],
     allow_headers=["*"],
 )
