@@ -21,10 +21,12 @@ const CFG = {
 
 function ItemsEditor({ items, setItems, products, priceField = "price" }) {
   const [pid, setPid] = useState("");
+  const safeProducts = Array.isArray(products) ? products : [];
+  const safeItems = Array.isArray(items) ? items : [];
   const add = () => {
-    const p = products.find((x) => x.id === pid);
+    const p = safeProducts.find((x) => x.id === pid);
     if (!p) return;
-    setItems([...items, { product_id: p.id, name: p.name, barcode: p.barcode, qty: 1, price: p.price, cost: p.cost, tax_rate: p.tax_rate }]);
+    setItems([...safeItems, { product_id: p.id, name: p.name, barcode: p.barcode, qty: 1, price: p.price, cost: p.cost, tax_rate: p.tax_rate }]);
     setPid("");
   };
   return (
@@ -32,16 +34,16 @@ function ItemsEditor({ items, setItems, products, priceField = "price" }) {
       <div className="flex gap-2">
         <Select value={pid} onValueChange={setPid}>
           <SelectTrigger className="flex-1" data-testid="item-product"><SelectValue placeholder="Producto..." /></SelectTrigger>
-          <SelectContent>{products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} · {formatCOP(priceField === "cost" ? p.cost : p.price)}</SelectItem>)}</SelectContent>
+          <SelectContent>{safeProducts.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} · {formatCOP(priceField === "cost" ? p.cost : p.price)}</SelectItem>)}</SelectContent>
         </Select>
         <Button variant="outline" onClick={add} data-testid="add-item-btn"><Plus className="w-4 h-4" /></Button>
       </div>
-      {items.map((it, i) => (
+      {safeItems.map((it, i) => (
         <div key={i} className="flex items-center gap-2 text-sm">
           <span className="flex-1 truncate">{it.name}</span>
-          <Input type="number" value={it.qty} onChange={(e) => { const c = [...items]; c[i].qty = Number(e.target.value); setItems(c); }} className="w-16 h-8 text-right font-mono" />
-          <span className="font-mono w-24 text-right">{formatCOP(it.qty * (priceField === "cost" ? it.cost : it.price))}</span>
-          <Button size="icon" variant="ghost" onClick={() => setItems(items.filter((_, x) => x !== i))}><Trash2 className="w-3 h-3 text-red-600" /></Button>
+          <Input type="number" value={it.qty} onChange={(e) => { const c = [...safeItems]; c[i].qty = Number(e.target.value); setItems(c); }} className="w-16 h-8 text-right font-mono" />
+          <span className="font-mono w-24 text-right">{formatCOP((Number(it.qty) || 0) * (priceField === "cost" ? (Number(it.cost) || 0) : (Number(it.price) || 0)))}</span>
+          <Button size="icon" variant="ghost" onClick={() => setItems(safeItems.filter((_, x) => x !== i))}><Trash2 className="w-3 h-3 text-red-600" /></Button>
         </div>
       ))}
     </div>
@@ -65,36 +67,53 @@ export default function SalesDocs({ defaultTab = "cotizaciones" }) {
   const [reason, setReason] = useState("");
 
   useEffect(() => {
-    api.get("/products").then((r) => setProducts(r.data));
-    api.get("/contacts", { params: { kind: "customer" } }).then((r) => setCustomers(r.data));
-    api.get("/sales").then((r) => setSales(r.data));
+    api.get("/products").then((r) => setProducts(Array.isArray(r.data) ? r.data : [])).catch(() => setProducts([]));
+    api.get("/contacts", { params: { kind: "customer" } }).then((r) => setCustomers(Array.isArray(r.data) ? r.data : [])).catch(() => setCustomers([]));
+    api.get("/sales").then((r) => setSales(Array.isArray(r.data) ? r.data : [])).catch(() => setSales([]));
   }, []);
 
   const load = useCallback(async () => {
     const cfg = CFG[tab];
-    if (cfg.kind) setDocs((await api.get(`/docs/${cfg.kind}`)).data);
-    if (tab === "notas") setNotes((await api.get("/credit-notes")).data);
-    if (tab === "garantias") setWarranties((await api.get("/warranties")).data);
+    try {
+      if (cfg?.kind) {
+        const r = await api.get(`/docs/${cfg.kind}`);
+        setDocs(Array.isArray(r.data) ? r.data : []);
+      }
+      if (tab === "notas") {
+        const r = await api.get("/credit-notes");
+        setNotes(Array.isArray(r.data) ? r.data : []);
+      }
+      if (tab === "garantias") {
+        const r = await api.get("/warranties");
+        setWarranties(Array.isArray(r.data) ? r.data : []);
+      }
+    } catch {
+      setDocs([]); setNotes([]); setWarranties([]);
+    }
   }, [tab]);
   useEffect(() => { load(); }, [load]);
 
-  const cfg = CFG[tab];
+  const cfg = CFG[tab] || {};
 
   const save = async () => {
     try {
+      const safeSales = Array.isArray(sales) ? sales : [];
+      const safeCustomers = Array.isArray(customers) ? customers : [];
+      const safeItems = Array.isArray(items) ? items : [];
+
       if (tab === "notas") {
         if (!saleId) return toast.error("Selecciona la venta");
         await api.post("/credit-notes", { sale_id: saleId, type: noteType, restock: true });
       } else if (tab === "garantias") {
         if (!saleId || !reason) return toast.error("Venta y motivo requeridos");
-        const sale = sales.find((s) => s.id === saleId);
+        const sale = safeSales.find((s) => s.id === saleId);
         await api.post("/warranties", { sale_id: saleId, sale_number: sale?.number, product_name: reason, reason });
       } else if (cfg.simple) {
         if (!customerId || !amount) return toast.error("Cliente y monto requeridos");
-        await api.post(`/docs/${cfg.kind}`, { customer_id: customerId, customer_name: customers.find((c) => c.id === customerId)?.name, amount: Number(amount) });
+        await api.post(`/docs/${cfg.kind}`, { customer_id: customerId, customer_name: safeCustomers.find((c) => c.id === customerId)?.name, amount: Number(amount) });
       } else {
-        if (items.length === 0) return toast.error("Agrega productos");
-        await api.post(`/docs/${cfg.kind}`, { customer_id: customerId || undefined, customer_name: customers.find((c) => c.id === customerId)?.name, items });
+        if (safeItems.length === 0) return toast.error("Agrega productos");
+        await api.post(`/docs/${cfg.kind}`, { customer_id: customerId || undefined, customer_name: safeCustomers.find((c) => c.id === customerId)?.name, items: safeItems });
       }
       toast.success("Documento creado"); setOpen(false); setItems([]); setAmount(""); setSaleId(""); setReason(""); load();
     } catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
@@ -109,7 +128,11 @@ export default function SalesDocs({ defaultTab = "cotizaciones" }) {
   const setStatus = async (d, st) => { await api.put(`/docs/${cfg.kind}/${d.id}`, { status: st }); load(); };
   const setWarrantyStatus = async (w, st) => { await api.put(`/warranties/${w.id}`, { status: st, resolution: w.resolution }); load(); };
 
-  const listData = tab === "notas" ? notes : tab === "garantias" ? warranties : docs;
+  const rawList = tab === "notas" ? notes : tab === "garantias" ? warranties : docs;
+  const listData = Array.isArray(rawList) ? rawList : [];
+  const safeSales = Array.isArray(sales) ? sales : [];
+  const safeCustomers = Array.isArray(customers) ? customers : [];
+  const safeProducts = Array.isArray(products) ? products : [];
 
   return (
     <div className="p-4 lg:p-6 space-y-4" data-testid="sales-docs-page">
@@ -171,7 +194,7 @@ export default function SalesDocs({ defaultTab = "cotizaciones" }) {
                 <div><label className="text-xs font-semibold">Venta origen</label>
                   <Select value={saleId} onValueChange={setSaleId}>
                     <SelectTrigger data-testid="d-sale"><SelectValue placeholder="Selecciona venta..." /></SelectTrigger>
-                    <SelectContent>{sales.map((s) => <SelectItem key={s.id} value={s.id}>{s.number} · {formatCOP(s.total)}</SelectItem>)}</SelectContent>
+                    <SelectContent>{safeSales.map((s) => <SelectItem key={s.id} value={s.id}>{s.number} · {formatCOP(s.total)}</SelectItem>)}</SelectContent>
                   </Select></div>
                 {tab === "notas" ? (
                   <div><label className="text-xs font-semibold">Tipo</label>
@@ -189,13 +212,13 @@ export default function SalesDocs({ defaultTab = "cotizaciones" }) {
                 <div><label className="text-xs font-semibold">Cliente</label>
                   <Select value={customerId} onValueChange={setCustomerId}>
                     <SelectTrigger data-testid="d-customer"><SelectValue placeholder="Selecciona..." /></SelectTrigger>
-                    <SelectContent>{customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>{safeCustomers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                   </Select></div>
                 {cfg.simple ? (
                   <div><label className="text-xs font-semibold">Monto</label>
                     <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="font-mono" data-testid="d-amount" /></div>
                 ) : (
-                  <ItemsEditor items={items} setItems={setItems} products={products} />
+                  <ItemsEditor items={items} setItems={setItems} products={safeProducts} />
                 )}
               </>
             )}

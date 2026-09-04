@@ -20,11 +20,19 @@ export default function Promotions() {
   const load = useCallback(async () => {
     try {
       const [p, c] = await Promise.all([api.get("/promotions"), api.get("/categories")]);
-      setItems(p.data); setCats(c.data);
-    } catch {}
+      setItems(Array.isArray(p.data) ? p.data : []);
+      const rawCats = Array.isArray(c.data) ? c.data : [];
+      setCats(rawCats.map(cat => typeof cat === "string" ? { name: cat } : cat).filter(Boolean));
+    } catch {
+      setItems([]);
+      setCats([]);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const safeItems = Array.isArray(items) ? items : [];
+  const safeCats = Array.isArray(cats) ? cats : [];
 
   const save = async () => {
     if (!form.name || !form.value) return toast.error("Nombre y valor requeridos");
@@ -47,8 +55,8 @@ export default function Promotions() {
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {items.length === 0 && <p className="text-slate-400 col-span-3 p-6 text-center">Sin promociones. Crea la primera (ej: 10% en Granos).</p>}
-        {items.map((p) => (
+        {safeItems.length === 0 && <p className="text-slate-400 col-span-3 p-6 text-center">Sin promociones. Crea la primera (ej: 10% en Granos).</p>}
+        {safeItems.map((p) => (
           <Card key={p.id} data-testid={`promo-${p.id}`} className={!p.active ? "opacity-60" : ""}>
             <CardContent className="p-4 space-y-2">
               <div className="flex justify-between items-start">
@@ -89,7 +97,10 @@ export default function Promotions() {
               <div><label className="text-xs font-semibold">Categoría</label>
                 <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
                   <SelectTrigger data-testid="p-category"><SelectValue placeholder="Selecciona..." /></SelectTrigger>
-                  <SelectContent>{cats.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{safeCats.map((c) => {
+                    const cName = typeof c === "string" ? c : c.name;
+                    return <SelectItem key={cName} value={cName}>{cName}</SelectItem>;
+                  })}</SelectContent>
                 </Select></div>
             )}
             <div><label className="text-xs font-semibold">Descuento (%)</label>

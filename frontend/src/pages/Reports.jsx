@@ -10,25 +10,32 @@ import { printThermal } from "@/lib/thermalPrint";
 
 export default function Reports() {
   const [sales, setSales] = useState([]);
-  useEffect(() => { api.get("/sales").then((r) => setSales(r.data)); }, []);
+  useEffect(() => {
+    api.get("/sales")
+      .then((r) => setSales(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setSales([]));
+  }, []);
 
   const reprint = async (s) => {
     try {
+      const itemsList = Array.isArray(s?.items) ? s.items : [];
       await printThermal({
         title: "JRPOS",
         subtitle: "REIMPRESIÓN",
         meta: [
-          `Factura: ${s.number}`,
-          new Date(s.created_at).toLocaleString("es-CO"),
-          `Pago: ${s.payment_method}`,
+          `Factura: ${s?.number || ""}`,
+          s?.created_at ? new Date(s.created_at).toLocaleString("es-CO") : "",
+          `Pago: ${s?.payment_method || ""}`,
         ],
-        items: s.items.map((it) => ({ name: it.name, qty: it.qty, price: formatCOP(it.price), total: formatCOP(it.subtotal) })),
-        totals: [["TOTAL", formatCOP(s.total)]],
+        items: itemsList.map((it) => ({ name: it.name, qty: it.qty, price: formatCOP(it.price), total: formatCOP(it.subtotal) })),
+        totals: [["TOTAL", formatCOP(s?.total || 0)]],
         footer: "¡Gracias por su compra!",
       });
       toast.success("Enviado a la impresora");
     } catch (e) { toast.error(e.message || "Error de impresión"); }
   };
+
+  const safeSales = Array.isArray(sales) ? sales : [];
 
   return (
     <div className="p-4 lg:p-6 space-y-4" data-testid="reports-page">
@@ -52,13 +59,13 @@ export default function Reports() {
                 </tr>
               </thead>
               <tbody>
-                {sales.length === 0 ? (
+                {safeSales.length === 0 ? (
                   <tr><td colSpan={6} className="p-8 text-center text-slate-500">Aún no hay ventas.</td></tr>
-                ) : sales.map((s) => (
+                ) : safeSales.map((s) => (
                   <tr key={s.id} className="border-b hover:bg-slate-50" data-testid={`sale-row-${s.id}`}>
                     <td className="p-3 font-mono">{s.number}</td>
                     <td className="p-3">{formatDate(s.created_at)}</td>
-                    <td className="p-3">{s.items.length}</td>
+                    <td className="p-3">{Array.isArray(s?.items) ? s.items.length : 0}</td>
                     <td className="p-3"><Badge variant="outline" className="capitalize">{s.payment_method}</Badge></td>
                     <td className="p-3 text-right font-mono font-bold text-emerald-700">{formatCOP(s.total)}</td>
                     <td className="p-3 text-right">

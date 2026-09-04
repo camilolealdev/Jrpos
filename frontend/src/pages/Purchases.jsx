@@ -21,28 +21,45 @@ export default function Purchases({ defaultTab = "oc" }) {
   const [items, setItems] = useState([]);
   const [name, setName] = useState(""); const [qty, setQty] = useState(1); const [cost, setCost] = useState("");
 
-  useEffect(() => { api.get("/contacts", { params: { kind: "supplier" } }).then((r) => setSuppliers(r.data)); }, []);
+  useEffect(() => {
+    api.get("/contacts", { params: { kind: "supplier" } })
+      .then((r) => setSuppliers(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setSuppliers([]));
+  }, []);
+
   const load = useCallback(async () => {
-    if (tab === "oc") setOrders((await api.get("/purchase-orders")).data);
-    else setDocs((await api.get("/support-docs")).data);
+    try {
+      if (tab === "oc") {
+        const r = await api.get("/purchase-orders");
+        setOrders(Array.isArray(r.data) ? r.data : []);
+      } else {
+        const r = await api.get("/support-docs");
+        setDocs(Array.isArray(r.data) ? r.data : []);
+      }
+    } catch {
+      setOrders([]);
+      setDocs([]);
+    }
   }, [tab]);
   useEffect(() => { load(); }, [load]);
 
   const addItem = () => {
     if (!name || !qty) return;
-    setItems([...items, { name, qty: Number(qty), cost: Number(cost) || 0, price: Number(cost) || 0 }]);
+    setItems((prev) => [...(Array.isArray(prev) ? prev : []), { name, qty: Number(qty), cost: Number(cost) || 0, price: Number(cost) || 0 }]);
     setName(""); setQty(1); setCost("");
   };
 
   const save = async () => {
     try {
+      const safeItems = Array.isArray(items) ? items : [];
+      const safeSuppliers = Array.isArray(suppliers) ? suppliers : [];
       if (tab === "oc") {
-        if (items.length === 0) return toast.error("Agrega ítems");
-        await api.post("/purchase-orders", { supplier_id: supplierId || undefined, supplier_name: suppliers.find((s) => s.id === supplierId)?.name, items });
+        if (safeItems.length === 0) return toast.error("Agrega ítems");
+        await api.post("/purchase-orders", { supplier_id: supplierId || undefined, supplier_name: safeSuppliers.find((s) => s.id === supplierId)?.name, items: safeItems });
       } else {
-        if (!name && items.length === 0) return toast.error("Agrega ítems");
-        const supplier = suppliers.find((s) => s.id === supplierId);
-        await api.post("/support-docs", { supplier_name: supplier?.name || name, supplier_doc: supplier?.document, items });
+        if (!name && safeItems.length === 0) return toast.error("Agrega ítems");
+        const supplier = safeSuppliers.find((s) => s.id === supplierId);
+        await api.post("/support-docs", { supplier_name: supplier?.name || name, supplier_doc: supplier?.document, items: safeItems });
       }
       toast.success("Creado"); setOpen(false); setItems([]); load();
     } catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
@@ -53,7 +70,7 @@ export default function Purchases({ defaultTab = "oc" }) {
     catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
   };
 
-  const data = tab === "oc" ? orders : docs;
+  const data = Array.isArray(tab === "oc" ? orders : docs) ? (tab === "oc" ? orders : docs) : [];
 
   return (
     <div className="p-4 lg:p-6 space-y-4" data-testid="purchases-page">
@@ -109,7 +126,7 @@ export default function Purchases({ defaultTab = "oc" }) {
             <div><label className="text-xs font-semibold">Proveedor</label>
               <Select value={supplierId} onValueChange={setSupplierId}>
                 <SelectTrigger data-testid="po-supplier"><SelectValue placeholder="Selecciona..." /></SelectTrigger>
-                <SelectContent>{suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{(Array.isArray(suppliers) ? suppliers : []).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
               </Select></div>
             <div className="flex gap-2">
               <Input placeholder="Producto" value={name} onChange={(e) => setName(e.target.value)} className="flex-1" data-testid="po-item-name" />
@@ -117,14 +134,14 @@ export default function Purchases({ defaultTab = "oc" }) {
               <Input type="number" placeholder="Costo" value={cost} onChange={(e) => setCost(e.target.value)} className="w-28 font-mono" data-testid="po-item-cost" />
               <Button variant="outline" onClick={addItem} data-testid="po-add-item"><Plus className="w-4 h-4" /></Button>
             </div>
-            {items.map((it, i) => (
+            {(Array.isArray(items) ? items : []).map((it, i) => (
               <div key={i} className="flex items-center gap-2 text-sm border-b pb-1">
                 <span className="flex-1">{it.name}</span>
                 <span className="font-mono">{it.qty} × {formatCOP(it.cost)}</span>
-                <Button size="icon" variant="ghost" onClick={() => setItems(items.filter((_, x) => x !== i))}><Trash2 className="w-3 h-3 text-red-600" /></Button>
+                <Button size="icon" variant="ghost" onClick={() => setItems((Array.isArray(items) ? items : []).filter((_, x) => x !== i))}><Trash2 className="w-3 h-3 text-red-600" /></Button>
               </div>
             ))}
-            {items.length > 0 && <div className="text-right font-mono font-bold">Total: {formatCOP(items.reduce((s, i) => s + i.qty * i.cost, 0))}</div>}
+            {Array.isArray(items) && items.length > 0 && <div className="text-right font-mono font-bold">Total: {formatCOP(items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.cost) || 0), 0))}</div>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

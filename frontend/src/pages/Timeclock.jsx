@@ -24,20 +24,30 @@ export default function Timeclock() {
   }, []);
 
   const load = useCallback(async () => {
-    const [m, s] = await Promise.all([api.get("/timeclock/today"), api.get("/timeclock/schedule")]);
-    setMarks(m.data); setSched(s.data);
+    try {
+      const [m, s] = await Promise.all([api.get("/timeclock/today"), api.get("/timeclock/schedule")]);
+      setMarks(Array.isArray(m.data) ? m.data : []);
+      if (s.data && typeof s.data === "object") setSched(s.data);
+    } catch {
+      setMarks([]);
+    }
   }, []);
 
   const loadRecords = useCallback(async () => {
     if (user?.role !== "admin") return;
-    const { data } = await api.get("/timeclock/records", { params: { date: recDate } });
-    setRecords(data);
+    try {
+      const { data } = await api.get("/timeclock/records", { params: { date: recDate } });
+      setRecords(data && typeof data === "object" ? data : { employees: [] });
+    } catch {
+      setRecords({ employees: [] });
+    }
   }, [recDate, user]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadRecords(); }, [loadRecords]);
 
-  const lastType = marks.length ? marks[marks.length - 1].type : "out";
+  const safeMarks = Array.isArray(marks) ? marks : [];
+  const lastType = safeMarks.length ? safeMarks[safeMarks.length - 1]?.type : "out";
 
   const mark = async (type) => {
     try {
@@ -91,12 +101,12 @@ export default function Timeclock() {
       <Card>
         <CardHeader><CardTitle className="text-lg">Mis marcas de hoy</CardTitle></CardHeader>
         <CardContent>
-          {marks.length === 0 ? (
+          {safeMarks.length === 0 ? (
             <p className="text-sm text-slate-400">Sin marcas hoy.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {marks.map((m) => (
-                <Badge key={m.id} variant="outline" className={m.type === "in" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-orange-50 text-orange-800 border-orange-200"} data-testid={`mark-${m.id}`}>
+              {safeMarks.map((m) => (
+                <Badge key={m.id || Math.random()} variant="outline" className={m.type === "in" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-orange-50 text-orange-800 border-orange-200"} data-testid={`mark-${m.id}`}>
                   {m.type === "in" ? "➜ Entrada" : "⬅ Salida"} {fmtTime(m.created_at)}
                   {m.late && <span className="ml-1 text-red-600 font-bold">· tarde</span>}
                 </Badge>
@@ -127,14 +137,14 @@ export default function Timeclock() {
             </CardHeader>
             <CardContent className="space-y-3">
               <Input type="date" value={recDate} onChange={(e) => setRecDate(e.target.value)} className="w-48" data-testid="records-date" />
-              {!records || records.employees.length === 0 ? (
+              {!records || !Array.isArray(records.employees) || records.employees.length === 0 ? (
                 <p className="text-sm text-slate-400">Sin marcas en esta fecha.</p>
               ) : records.employees.map((emp) => (
-                <div key={emp.name} className="border rounded-lg p-3" data-testid={`emp-${emp.name}`}>
+                <div key={emp.name || Math.random()} className="border rounded-lg p-3" data-testid={`emp-${emp.name}`}>
                   <div className="font-semibold text-sm mb-1.5">{emp.name}</div>
                   <div className="flex flex-wrap gap-2">
-                    {emp.marks.map((m) => (
-                      <Badge key={m.id} variant="outline" className={m.type === "in" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-orange-50 text-orange-800 border-orange-200"}>
+                    {(Array.isArray(emp.marks) ? emp.marks : []).map((m) => (
+                      <Badge key={m.id || Math.random()} variant="outline" className={m.type === "in" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-orange-50 text-orange-800 border-orange-200"}>
                         {m.type === "in" ? "➜" : "⬅"} {fmtTime(m.created_at)}
                         {m.late && <span className="ml-1 text-red-600 font-bold">· tarde</span>}
                       </Badge>

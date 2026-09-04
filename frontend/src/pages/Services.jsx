@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 export default function Services() {
   const [items, setItems] = useState([]);
   useEffect(() => {
-    api.get("/products", { params: { limit: 5000 } }).then((r) => setItems(r.data.filter((p) => p.is_service)));
+    api.get("/products", { params: { limit: 5000 } })
+      .then((r) => setItems(Array.isArray(r.data) ? r.data.filter((p) => p && p.is_service) : []))
+      .catch(() => setItems([]));
   }, []);
 
   return (

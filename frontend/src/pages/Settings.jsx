@@ -33,9 +33,11 @@ export default function Settings() {
       try { setForm((prev) => ({ ...prev, ...JSON.parse(cached) })); } catch { /* noop */ }
     }
     api.get("/settings/general").then((r) => {
-      if (!dirty.current) setForm(r.data);
-      applyAccent(r.data.accent);
-    });
+      if (r.data && typeof r.data === "object") {
+        if (!dirty.current) setForm((prev) => ({ ...prev, ...r.data }));
+        if (r.data.accent) applyAccent(r.data.accent);
+      }
+    }).catch(() => {});
   }, []);
 
   const update = (changes) => { dirty.current = true; setForm((prev) => ({ ...prev, ...changes })); };

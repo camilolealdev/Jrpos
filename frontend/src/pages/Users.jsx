@@ -21,11 +21,15 @@ export default function Users() {
   const load = useCallback(async () => {
     try {
       const res = await api.get("/users");
-      setItems(res.data);
-    } catch {}
+      setItems(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setItems([]);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const safeItems = Array.isArray(items) ? items : [];
 
   if (user && user.role !== "admin") {
     return <div className="p-8 text-center text-slate-500" data-testid="users-denied">Solo administradores pueden gestionar usuarios.</div>;
@@ -60,7 +64,7 @@ export default function Users() {
             <th className="p-3">Nombre</th><th className="p-3">Correo</th><th className="p-3">Rol</th><th></th>
           </tr></thead>
           <tbody>
-            {items.map((u) => (
+            {safeItems.map((u) => (
               <tr key={u.id} className="border-b hover:bg-slate-50" data-testid={`user-row-${u.id}`}>
                 <td className="p-3 font-medium">{u.name}</td>
                 <td className="p-3">{u.email}</td>

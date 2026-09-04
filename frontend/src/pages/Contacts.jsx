@@ -16,13 +16,19 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
   const [editingId, setEditingId] = useState(null);
 
   const load = useCallback(async () => {
-    const { data } = await api.get("/contacts", { params: { kind } });
-    setItems(data);
+    try {
+      const { data } = await api.get("/contacts", { params: { kind } });
+      setItems(Array.isArray(data) ? data : []);
+    } catch {
+      setItems([]);
+    }
   }, [kind]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const safeItems = Array.isArray(items) ? items : [];
 
   const save = async () => {
     if (!form.name) return toast.error("El nombre es obligatorio");
@@ -47,7 +53,7 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
       <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">{title}</h1>
-          <p className="text-sm text-slate-500">{items.length} registros</p>
+          <p className="text-sm text-slate-500">{safeItems.length} registros</p>
         </div>
         <Button onClick={() => { setForm({ ...empty, kind }); setEditingId(null); setOpen(true); }} className="bg-emerald-700 hover:bg-emerald-800" data-testid={`new-${kind}-btn`}>
           <Plus className="w-4 h-4 mr-1" /> Nuevo
@@ -64,11 +70,11 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
               <th></th>
             </tr></thead>
             <tbody>
-              {items.length === 0 ? (
+              {safeItems.length === 0 ? (
                 <tr><td colSpan={5} className="p-8 text-center text-slate-500">
                   <Users className="w-8 h-8 mx-auto opacity-40" /><p className="mt-2">Sin registros.</p>
                 </td></tr>
-              ) : items.map((c) => (
+              ) : safeItems.map((c) => (
                 <tr key={c.id} className="border-b hover:bg-slate-50">
                   <td className="p-3 font-medium">{c.name}</td>
                   <td className="p-3 font-mono text-xs">{c.document_type} {c.document || "-"}</td>

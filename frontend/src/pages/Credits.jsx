@@ -30,16 +30,22 @@ export default function Credits() {
   const loadSummary = useCallback(async () => {
     try {
       const { data } = await api.get("/credits/summary");
-      setSummary(data);
-    } catch {}
+      setSummary(data && Array.isArray(data.customers) ? data : { customers: Array.isArray(data) ? data : [], total_due: data?.total_due || 0 });
+    } catch {
+      setSummary({ customers: [], total_due: 0 });
+    }
   }, []);
 
   useEffect(() => { loadSummary(); }, [loadSummary]);
 
   const openStatement = async (customerId) => {
     if (!customerId) return toast.error("Cliente sin identificar");
-    const { data } = await api.get(`/credits/customer/${customerId}`);
-    setStatement(data);
+    try {
+      const { data } = await api.get(`/credits/customer/${customerId}`);
+      setStatement(data && typeof data === "object" ? data : null);
+    } catch {
+      toast.error("No se pudo cargar el estado de cuenta");
+    }
   };
 
   const sendReminder = (customer, balance, salesCount, oldestDate) => {
@@ -83,6 +89,9 @@ export default function Credits() {
 
   if (statement) {
     const c = statement.customer;
+    const statementSales = Array.isArray(statement.sales) ? statement.sales : [];
+    const statementPayments = Array.isArray(statement.payments) ? statement.payments : [];
+
     return (
       <div className="p-4 lg:p-6 space-y-4" data-testid="credit-statement-page">
         <button onClick={() => setStatement(null)} className="flex items-center gap-1 text-sm text-slate-600 hover:text-emerald-700" data-testid="back-to-credits">
@@ -101,8 +110,8 @@ export default function Credits() {
                 size="sm"
                 className="mt-2 bg-green-600 hover:bg-green-700 text-white"
                 onClick={() => {
-                  const oldest = statement.sales.filter((s) => s.credit_status !== "paid").map((s) => s.created_at).sort()[0];
-                  const pendingCount = statement.sales.filter((s) => s.credit_status !== "paid").length;
+                  const oldest = statementSales.filter((s) => s.credit_status !== "paid").map((s) => s.created_at).sort()[0];
+                  const pendingCount = statementSales.filter((s) => s.credit_status !== "paid").length;
                   sendReminder(statement.customer, statement.balance, pendingCount, oldest);
                 }}
                 data-testid="whatsapp-reminder-btn"
@@ -116,7 +125,7 @@ export default function Credits() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Total fiado</div><div className="font-mono font-bold text-lg">{formatCOP(statement.total_credit)}</div></CardContent></Card>
           <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Total abonado</div><div className="font-mono font-bold text-lg text-emerald-700">{formatCOP(statement.total_paid)}</div></CardContent></Card>
-          <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Facturas</div><div className="font-mono font-bold text-lg">{statement.sales.length}</div></CardContent></Card>
+          <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Facturas</div><div className="font-mono font-bold text-lg">{statementSales.length}</div></CardContent></Card>
         </div>
 
         <Card>
@@ -130,9 +139,9 @@ export default function Credits() {
                   <th className="p-3">Estado</th><th></th>
                 </tr></thead>
                 <tbody>
-                  {statement.sales.length === 0 ? (
+                  {statementSales.length === 0 ? (
                     <tr><td colSpan={6} className="p-6 text-center text-slate-400">Sin ventas a crédito.</td></tr>
-                  ) : statement.sales.map((s) => (
+                  ) : statementSales.map((s) => (
                     <tr key={s.id} className="border-b hover:bg-slate-50" data-testid={`credit-sale-${s.id}`}>
                       <td className="p-3 font-mono">{s.number}</td>
                       <td className="p-3">{formatDate(s.created_at)}</td>
@@ -172,9 +181,9 @@ export default function Credits() {
                   <th className="p-3">Método</th><th className="p-3 text-right">Monto</th>
                 </tr></thead>
                 <tbody>
-                  {statement.payments.length === 0 ? (
+                  {statementPayments.length === 0 ? (
                     <tr><td colSpan={4} className="p-6 text-center text-slate-400">Sin abonos.</td></tr>
-                  ) : statement.payments.map((p) => (
+                  ) : statementPayments.map((p) => (
                     <tr key={p.id} className="border-b">
                       <td className="p-3">{formatDate(p.created_at)}</td>
                       <td className="p-3 font-mono">{p.sale_number}</td>
@@ -237,6 +246,8 @@ export default function Credits() {
     );
   }
 
+  const customersList = Array.isArray(summary?.customers) ? summary.customers : [];
+
   return (
     <div className="p-4 lg:p-6 space-y-4" data-testid="credits-page">
       <div className="flex flex-col sm:flex-row justify-between gap-3">
@@ -247,8 +258,8 @@ export default function Credits() {
         <Card className="min-w-[220px]">
           <CardContent className="p-3">
             <div className="text-[11px] uppercase tracking-widest text-slate-500">Cartera total</div>
-            <div className="text-2xl font-bold font-mono text-orange-700" data-testid="total-cartera">{formatCOP(summary.total_due)}</div>
-            <div className="text-xs text-slate-500">{summary.customers.length} clientes con saldo</div>
+            <div className="text-2xl font-bold font-mono text-orange-700" data-testid="total-cartera">{formatCOP(summary?.total_due || 0)}</div>
+            <div className="text-xs text-slate-500">{customersList.length} clientes con saldo</div>
           </CardContent>
         </Card>
       </div>
@@ -256,7 +267,7 @@ export default function Credits() {
       <Card>
         <CardHeader><CardTitle className="text-lg">Clientes con saldo pendiente</CardTitle></CardHeader>
         <CardContent className="p-0">
-          {summary.customers.length === 0 ? (
+          {customersList.length === 0 ? (
             <div className="p-8 text-center text-slate-400">
               <HandCoins className="w-8 h-8 mx-auto opacity-40" />
               <p className="mt-2">Nadie tiene fiado pendiente. ¡Excelente!</p>
@@ -264,7 +275,7 @@ export default function Credits() {
             </div>
           ) : (
             <ul className="divide-y">
-              {summary.customers.map((c) => (
+              {customersList.map((c) => (
                 <li key={c.customer_id || c.customer_name}
                     className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer"
                     onClick={() => openStatement(c.customer_id)}

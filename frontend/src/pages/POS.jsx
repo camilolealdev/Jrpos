@@ -49,28 +49,41 @@ export default function POS() {
   }, [cart]);
 
   const loadHeld = async () => {
-    const { data } = await api.get("/held");
-    setHeld(data);
+    try {
+      const { data } = await api.get("/held");
+      setHeld(Array.isArray(data) ? data : []);
+    } catch { setHeld([]); }
   };
 
   const load = useCallback(async () => {
     const params = { q: q || undefined };
     if (selectedCats.length > 0) params.categories = selectedCats.join(",");
-    const { data } = await api.get("/products", { params });
-    setProducts(data);
+    try {
+      const { data } = await api.get("/products", { params });
+      setProducts(Array.isArray(data) ? data : []);
+    } catch { setProducts([]); }
   }, [q, selectedCats]);
+
   const loadCats = async () => {
-    const { data } = await api.get("/categories");
-    setCategories(data);
+    try {
+      const { data } = await api.get("/categories");
+      setCategories(Array.isArray(data) ? data : []);
+    } catch { setCategories([]); }
   };
+
   const loadCustomers = async () => {
-    const { data } = await api.get("/contacts", { params: { kind: "customer" } });
-    setCustomers(data);
+    try {
+      const { data } = await api.get("/contacts", { params: { kind: "customer" } });
+      setCustomers(Array.isArray(data) ? data : []);
+    } catch { setCustomers([]); }
   };
+
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     loadCats(); loadCustomers(); loadHeld();
-    api.get("/promotions/active").then((r) => setPromos(r.data)).catch(() => {});
+    api.get("/promotions/active")
+      .then((r) => setPromos(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setPromos([]));
   }, []);
 
   const holdCurrent = async () => {
@@ -127,16 +140,32 @@ export default function POS() {
   const removeItem = (id) => setCart((prev) => prev.filter(x => x.product_id !== id));
   const clearCart = () => setCart([]);
 
+  const normCategories = useMemo(() => {
+    if (!Array.isArray(categories)) return [];
+    return categories.map((c) => {
+      if (typeof c === "string") return { name: c, count: 0, emoji: "" };
+      return { name: c?.name || "", count: Number(c?.count) || 0, emoji: c?.emoji || "" };
+    }).filter(c => c.name);
+  }, [categories]);
+
   const totals = useMemo(() => {
-    const subtotal = cart.reduce((s, x) => s + x.qty * x.price, 0);
-    const tax = cart.reduce((s, x) => s + (x.qty * x.price) * (x.tax_rate / 100) / (1 + x.tax_rate / 100), 0);
+    const safeCart = Array.isArray(cart) ? cart : [];
+    const safePromos = Array.isArray(promos) ? promos : [];
+    const safeProducts = Array.isArray(products) ? products : [];
+    const subtotal = safeCart.reduce((s, x) => s + (Number(x.qty) || 0) * (Number(x.price) || 0), 0);
+    const tax = safeCart.reduce((s, x) => {
+      const q = Number(x.qty) || 0;
+      const p = Number(x.price) || 0;
+      const tr = Number(x.tax_rate) || 0;
+      return s + (q * p) * (tr / 100) / (1 + tr / 100);
+    }, 0);
     // Descuento por promociones activas
-    const catOf = (pid) => products.find((p) => p.id === pid)?.category;
+    const catOf = (pid) => safeProducts.find((p) => p.id === pid)?.category;
     let promo = 0;
-    for (const pr of promos) {
-      if (pr.type === "percent_all") promo += subtotal * (pr.value / 100);
+    for (const pr of safePromos) {
+      if (pr.type === "percent_all") promo += subtotal * ((Number(pr.value) || 0) / 100);
       else if (pr.type === "percent_category" && pr.category)
-        promo += cart.filter((x) => catOf(x.product_id) === pr.category).reduce((s, x) => s + x.qty * x.price, 0) * (pr.value / 100);
+        promo += safeCart.filter((x) => catOf(x.product_id) === pr.category).reduce((s, x) => s + (Number(x.qty) || 0) * (Number(x.price) || 0), 0) * ((Number(pr.value) || 0) / 100);
     }
     promo = Math.min(promo, subtotal);
     return { subtotal, tax, promo: Math.round(promo), total: subtotal - Math.round(promo) };
@@ -297,9 +326,9 @@ export default function POS() {
             className={`shrink-0 h-9 px-3 rounded-full text-xs font-semibold border transition ${selectedCats.length === 0 ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-700 border-slate-200 hover:border-emerald-400"}`}
             data-testid="pos-cat-all"
           >
-            🛍️ Todas · {categories.reduce((s, c) => s + (c.count || 0), 0)}
+            🛍️ Todas · {normCategories.reduce((s, c) => s + (c.count || 0), 0)}
           </button>
-          {categories.map((c) => {
+          {normCategories.map((c) => {
             const on = selectedCats.includes(c.name);
             return (
               <button
@@ -327,7 +356,7 @@ export default function POS() {
         </div>
 
         <ScrollArea className="flex-1">
-          {products.length === 0 ? (
+          {(!Array.isArray(products) || products.length === 0) ? (
             <div className="text-center py-12 text-slate-500">
               <PackageIcon className="w-10 h-10 mx-auto opacity-40" />
               <p className="mt-2">Sin productos. Carga demo desde el panel o crea en Inventario.</p>
@@ -342,7 +371,7 @@ export default function POS() {
                   data-testid={`pos-product-${p.id}`}
                 >
                   <div className="text-[11px] uppercase font-semibold tracking-wider text-emerald-700 flex items-center gap-1">
-                    <span>{(categories.find((c) => c.name === p.category)?.emoji) || categoryIcon(p.category)}</span>
+                    <span>{(normCategories.find((c) => c.name === p.category)?.emoji) || categoryIcon(p.category)}</span>
                     <span className="truncate">{p.category}</span>
                   </div>
                   <div className="text-sm font-semibold leading-tight mt-1 line-clamp-2 h-10">{p.name}</div>
@@ -366,20 +395,20 @@ export default function POS() {
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-emerald-700" />
               <h3 className="font-bold">Carrito</h3>
-              <Badge variant="secondary">{cart.length}</Badge>
+              <Badge variant="secondary">{Array.isArray(cart) ? cart.length : 0}</Badge>
             </div>
             <div className="flex gap-1">
-              <Button variant="outline" size="sm" onClick={holdCurrent} disabled={cart.length === 0} data-testid="hold-sale-btn" title="Retener cuenta y atender otro cliente">
+              <Button variant="outline" size="sm" onClick={holdCurrent} disabled={!Array.isArray(cart) || cart.length === 0} data-testid="hold-sale-btn" title="Retener cuenta y atender otro cliente">
                 <Pause className="w-4 h-4 mr-1" /> Retener
               </Button>
-              {cart.length > 0 && (
+              {Array.isArray(cart) && cart.length > 0 && (
                 <Button variant="ghost" size="sm" onClick={clearCart} data-testid="clear-cart-btn">
                   <Trash2 className="w-4 h-4" />
                 </Button>
               )}
             </div>
           </div>
-          {held.length > 0 && (
+          {Array.isArray(held) && held.length > 0 && (
             <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1" data-testid="held-accounts-bar">
               <div className="flex items-center gap-1 text-[10px] uppercase font-semibold text-slate-400 shrink-0"><Users className="w-3 h-3" /> Abiertas:</div>
               {held.map((h) => (
@@ -397,7 +426,7 @@ export default function POS() {
           )}
         </div>
         <ScrollArea className="flex-1">
-          {cart.length === 0 ? (
+          {(!Array.isArray(cart) || cart.length === 0) ? (
             <div className="p-6 text-center text-slate-400 text-sm">
               Agrega productos para iniciar una venta.
             </div>
@@ -452,7 +481,7 @@ export default function POS() {
           </div>
           <Button
             className="w-full h-12 bg-emerald-700 hover:bg-emerald-800 mt-2 text-base font-bold"
-            disabled={cart.length === 0}
+            disabled={!Array.isArray(cart) || cart.length === 0}
             onClick={() => setPayOpen(true)}
             data-testid="checkout-btn"
           >
@@ -487,7 +516,7 @@ export default function POS() {
                 <Select value={customerId} onValueChange={setCustomerId}>
                   <SelectTrigger className="h-11" data-testid="credit-customer-select"><SelectValue placeholder="Selecciona cliente" /></SelectTrigger>
                   <SelectContent>
-                    {customers.map((c) => (
+                    {(Array.isArray(customers) ? customers : []).map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}{c.document ? ` · ${c.document}` : ""}</SelectItem>
                     ))}
                   </SelectContent>
@@ -526,7 +555,7 @@ export default function POS() {
                 <div className="text-xs">Factura POS: {receiptSale.number}</div>
               </div>
               <hr className="my-2 border-dashed" />
-              {receiptSale.items.map((it) => (
+              {(Array.isArray(receiptSale.items) ? receiptSale.items : []).map((it) => (
                 <div key={it.product_id} className="flex justify-between">
                   <span className="truncate">{it.qty}x {it.name}</span>
                   <span>{formatCOP(it.subtotal)}</span>

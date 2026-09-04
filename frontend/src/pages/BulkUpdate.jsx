@@ -15,10 +15,19 @@ export default function BulkUpdate() {
   const [affected, setAffected] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { api.get("/categories").then((r) => setCategories(r.data)); }, []);
+  useEffect(() => {
+    api.get("/categories")
+      .then((r) => {
+        const raw = Array.isArray(r.data) ? r.data : [];
+        setCategories(raw.map(c => typeof c === "string" ? { name: c } : c).filter(Boolean));
+      })
+      .catch(() => setCategories([]));
+  }, []);
   useEffect(() => {
     const params = category === "all" ? {} : { category };
-    api.get("/products", { params: { ...params, limit: 5000 } }).then((r) => setAffected(r.data.length));
+    api.get("/products", { params: { ...params, limit: 5000 } })
+      .then((r) => setAffected(Array.isArray(r.data) ? r.data.length : 0))
+      .catch(() => setAffected(0));
   }, [category]);
 
   const apply = async () => {

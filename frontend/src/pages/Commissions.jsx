@@ -17,8 +17,12 @@ export default function Commissions() {
   const load = useCallback(async () => {
     try {
       const [r, rep] = await Promise.all([api.get("/commissions/rules"), api.get("/commissions/report")]);
-      setRules(r.data); setReport(rep.data);
-    } catch {}
+      setRules(Array.isArray(r.data) ? r.data : []);
+      setReport(Array.isArray(rep.data) ? rep.data : []);
+    } catch {
+      setRules([]);
+      setReport([]);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -31,6 +35,9 @@ export default function Commissions() {
     } catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
   };
   const remove = async (id) => { await api.delete(`/commissions/rules/${id}`); load(); };
+
+  const safeReport = Array.isArray(report) ? report : [];
+  const safeRules = Array.isArray(rules) ? rules : [];
 
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-3xl" data-testid="commissions-page">
@@ -50,8 +57,8 @@ export default function Commissions() {
               <th className="p-3">Vendedor</th><th className="p-3 text-right">Ventas</th><th className="p-3 text-right">%</th><th className="p-3 text-right">Comisión</th>
             </tr></thead>
             <tbody>
-              {report.length === 0 ? <tr><td colSpan={4} className="p-6 text-center text-slate-400">Sin reglas de comisión.</td></tr>
-              : report.map((r) => (
+              {safeReport.length === 0 ? <tr><td colSpan={4} className="p-6 text-center text-slate-400">Sin reglas de comisión.</td></tr>
+              : safeReport.map((r) => (
                 <tr key={r.user_name} className="border-b" data-testid={`comm-${r.user_name}`}>
                   <td className="p-3 font-medium">{r.user_name}</td>
                   <td className="p-3 text-right font-mono">{formatCOP(r.sales_total)}</td>
@@ -67,7 +74,7 @@ export default function Commissions() {
       <Card>
         <CardHeader><CardTitle className="text-lg">Reglas activas</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          {rules.map((r) => (
+          {safeRules.map((r) => (
             <div key={r.id} className="flex justify-between items-center text-sm border rounded-lg p-2.5">
               <span><b>{r.user_name}</b> — {r.percent}% de sus ventas</span>
               <Button size="icon" variant="ghost" onClick={() => remove(r.id)}><Trash2 className="w-4 h-4 text-red-600" /></Button>

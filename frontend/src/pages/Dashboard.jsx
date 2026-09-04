@@ -80,11 +80,11 @@ export default function Dashboard() {
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle className="text-lg">Ventas últimos días</CardTitle></CardHeader>
           <CardContent>
-            {data?.daily_sales?.length ? (
+            {Array.isArray(data?.daily_sales) && data.daily_sales.length > 0 ? (
               <div className="space-y-2">
                 {data.daily_sales.map((d) => {
-                  const max = Math.max(...data.daily_sales.map(x => x.total)) || 1;
-                  const pct = (d.total / max) * 100;
+                  const max = Math.max(...data.daily_sales.map(x => Number(x?.total) || 0), 1);
+                  const pct = ((Number(d?.total) || 0) / max) * 100;
                   return (
                     <div key={d.date} className="flex items-center gap-3">
                       <div className="w-24 text-xs text-slate-500 font-mono">{d.date}</div>
@@ -105,7 +105,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader><CardTitle className="text-lg">Más vendidos</CardTitle></CardHeader>
           <CardContent>
-            {data?.top_products?.length ? (
+            {Array.isArray(data?.top_products) && data.top_products.length > 0 ? (
               <ul className="space-y-2">
                 {data.top_products.map((p, i) => (
                   <li key={i} className="flex items-center justify-between text-sm border-b border-slate-100 pb-1.5">
@@ -121,7 +121,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {data?.low_stock?.length > 0 && (
+      {Array.isArray(data?.low_stock) && data.low_stock.length > 0 && (
         <Card>
           <CardHeader><CardTitle className="text-lg text-orange-700">⚠️ Productos con stock bajo</CardTitle></CardHeader>
           <CardContent>

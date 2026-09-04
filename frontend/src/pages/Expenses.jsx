@@ -21,11 +21,24 @@ export default function Expenses() {
   const load = useCallback(async () => {
     try {
       const res = await api.get("/expenses");
-      setData(res.data);
-    } catch {}
+      if (res.data && typeof res.data === "object") {
+        setData({
+          expenses: Array.isArray(res.data.expenses) ? res.data.expenses : [],
+          total: Number(res.data.total) || 0,
+          today: Number(res.data.today) || 0,
+          month: Number(res.data.month) || 0,
+        });
+      } else {
+        setData({ expenses: [], total: 0, today: 0, month: 0 });
+      }
+    } catch {
+      setData({ expenses: [], total: 0, today: 0, month: 0 });
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const safeExpenses = Array.isArray(data?.expenses) ? data.expenses : [];
 
   const save = async () => {
     if (!form.concept || Number(form.amount) <= 0) return toast.error("Concepto y monto válido requeridos");
@@ -66,9 +79,9 @@ export default function Expenses() {
                 <th className="p-3">Método</th><th className="p-3 text-right">Monto</th><th></th>
               </tr></thead>
               <tbody>
-                {data.expenses.length === 0 ? (
+                {safeExpenses.length === 0 ? (
                   <tr><td colSpan={6} className="p-8 text-center text-slate-400">Sin gastos registrados.</td></tr>
-                ) : data.expenses.map((e) => (
+                ) : safeExpenses.map((e) => (
                   <tr key={e.id} className="border-b hover:bg-slate-50">
                     <td className="p-3">{formatDate(e.created_at)}</td>
                     <td className="p-3 font-medium">{e.concept}</td>

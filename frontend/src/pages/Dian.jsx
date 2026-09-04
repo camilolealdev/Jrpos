@@ -21,14 +21,32 @@ export default function Dian({ defaultTab = "fe" }) {
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
-    if (tab === "radian") setRadian((await api.get("/radian/invoices")).data);
-    if (tab === "nomina") setPayroll((await api.get("/payroll")).data);
-    if (tab === "cert") setCert((await api.get("/electronic/certificate")).data);
+    try {
+      if (tab === "radian") {
+        const res = await api.get("/radian/invoices");
+        setRadian(Array.isArray(res.data) ? res.data : []);
+      }
+      if (tab === "nomina") {
+        const res = await api.get("/payroll");
+        setPayroll(Array.isArray(res.data) ? res.data : []);
+      }
+      if (tab === "cert") {
+        const res = await api.get("/electronic/certificate");
+        setCert(res.data && typeof res.data === "object" ? res.data : {});
+      }
+    } catch {
+      if (tab === "radian") setRadian([]);
+      if (tab === "nomina") setPayroll([]);
+      if (tab === "cert") setCert({});
+    }
   }, [tab]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const safePayroll = Array.isArray(payroll) ? payroll : [];
+  const safeRadian = Array.isArray(radian) ? radian : [];
 
   const savePayslip = async () => {
     if (!form.employee_name || !form.salary) return toast.error("Empleado y salario requeridos");
@@ -78,10 +96,10 @@ export default function Dian({ defaultTab = "fe" }) {
                 <th className="p-3 text-right">Devengado</th><th className="p-3 text-right">Deducciones</th><th className="p-3 text-right">Neto</th>
               </tr></thead>
               <tbody>
-                {payroll.length === 0 ? <tr><td colSpan={6} className="p-6 text-center text-slate-400">Sin nóminas.</td></tr>
-                : payroll.map((p) => (
+                {safePayroll.length === 0 ? <tr><td colSpan={6} className="p-6 text-center text-slate-400">Sin nóminas.</td></tr>
+                : safePayroll.map((p) => (
                   <tr key={p.id} className="border-b"><td className="p-3 font-mono">{p.number}</td><td className="p-3">{p.employee_name}</td>
-                    <td className="p-3 font-mono">{p.period}</td><td className="p-3 text-right font-mono">{formatCOP(p.salary + p.bonuses)}</td>
+                    <td className="p-3 font-mono">{p.period}</td><td className="p-3 text-right font-mono">{formatCOP((Number(p.salary) || 0) + (Number(p.bonuses) || 0))}</td>
                     <td className="p-3 text-right font-mono text-orange-700">-{formatCOP(p.deductions)}</td>
                     <td className="p-3 text-right font-mono font-bold text-emerald-700">{formatCOP(p.net)}</td></tr>
                 ))}
@@ -99,8 +117,8 @@ export default function Dian({ defaultTab = "fe" }) {
                   <th className="p-3">N°</th><th className="p-3">Fecha</th><th className="p-3 text-right">Total</th><th className="p-3">CUFE</th><th className="p-3">Estado</th>
                 </tr></thead>
                 <tbody>
-                  {radian.length === 0 ? <tr><td colSpan={5} className="p-6 text-center text-slate-400">Sin facturas electrónicas. Genéralas en POS Electrónica.</td></tr>
-                  : radian.map((s) => (
+                  {safeRadian.length === 0 ? <tr><td colSpan={5} className="p-6 text-center text-slate-400">Sin facturas electrónicas. Genéralas en POS Electrónica.</td></tr>
+                  : safeRadian.map((s) => (
                     <tr key={s.id} className="border-b"><td className="p-3 font-mono">{s.electronic_number || s.number}</td>
                       <td className="p-3">{formatDate(s.created_at)}</td><td className="p-3 text-right font-mono">{formatCOP(s.total)}</td>
                       <td className="p-3 font-mono text-xs max-w-[200px] truncate">{s.cufe}</td>

@@ -18,9 +18,15 @@ export default function ElectronicPOS() {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    api.get("/electronic/settings").then((r) => setSettings({ ...emptySettings, ...r.data }));
-    api.get("/sales").then((r) => setSales(r.data));
+    api.get("/electronic/settings")
+      .then((r) => setSettings(r.data && typeof r.data === "object" ? { ...emptySettings, ...r.data } : emptySettings))
+      .catch(() => {});
+    api.get("/sales")
+      .then((r) => setSales(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setSales([]));
   }, []);
+
+  const safeSales = Array.isArray(sales) ? sales : [];
 
   const saveSettings = async () => {
     await api.put("/electronic/settings", settings);
@@ -63,7 +69,7 @@ export default function ElectronicPOS() {
           <Select value={saleId} onValueChange={setSaleId}>
             <SelectTrigger className="flex-1" data-testid="el-sale-select"><SelectValue placeholder="Selecciona una venta..." /></SelectTrigger>
             <SelectContent>
-              {sales.map((s) => <SelectItem key={s.id} value={s.id}>{s.number} · {formatDate(s.created_at)} · {formatCOP(s.total)}</SelectItem>)}
+              {safeSales.map((s) => <SelectItem key={s.id} value={s.id}>{s.number} · {formatDate(s.created_at)} · {formatCOP(s.total)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={generate} data-testid="el-generate-btn"><FileCode2 className="w-4 h-4 mr-1" /> Generar XML + CUFE</Button>

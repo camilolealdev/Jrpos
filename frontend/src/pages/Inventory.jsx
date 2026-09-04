@@ -25,8 +25,12 @@ export default function Inventory() {
   const [useMargin, setUseMargin] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await api.get("/products", { params: { q: q || undefined } });
-    setItems(data);
+    try {
+      const { data } = await api.get("/products", { params: { q: q || undefined } });
+      setItems(Array.isArray(data) ? data : []);
+    } catch {
+      setItems([]);
+    }
   }, [q]);
 
   useEffect(() => {
@@ -128,7 +132,7 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 ? (
+              {(!Array.isArray(items) || items.length === 0) ? (
                 <tr><td colSpan={8} className="p-8 text-center text-slate-500">
                   <Package className="w-8 h-8 mx-auto opacity-40" />
                   <p className="mt-2">Sin productos.</p>

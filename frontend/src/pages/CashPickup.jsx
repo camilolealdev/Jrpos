@@ -22,11 +22,17 @@ export default function CashPickup() {
   const load = useCallback(async () => {
     try {
       const [c, h] = await Promise.all([api.get("/cash/current"), api.get("/cash/history")]);
-      setCurrent(c.data); setHistory(h.data);
-    } catch {}
+      setCurrent(c.data && typeof c.data === "object" ? c.data : null);
+      setHistory(Array.isArray(h.data) ? h.data : []);
+    } catch {
+      setCurrent(null);
+      setHistory([]);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const safeHistory = Array.isArray(history) ? history : [];
 
   const open = async () => {
     try {
@@ -72,10 +78,10 @@ export default function CashPickup() {
       ) : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Base</div><div className="font-mono font-bold text-lg">{formatCOP(s.base)}</div></CardContent></Card>
-            <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Ventas efectivo ({current.sales_count})</div><div className="font-mono font-bold text-lg text-emerald-700">{formatCOP(current.sales_total)}</div></CardContent></Card>
-            <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Recogidas</div><div className="font-mono font-bold text-lg text-orange-700">-{formatCOP(current.pickups_total)}</div></CardContent></Card>
-            <Card className="border-emerald-300"><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Esperado en caja</div><div className="font-mono font-bold text-xl text-emerald-800" data-testid="expected-cash">{formatCOP(current.expected)}</div></CardContent></Card>
+            <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Base</div><div className="font-mono font-bold text-lg">{formatCOP(s?.base || 0)}</div></CardContent></Card>
+            <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Ventas efectivo ({current.sales_count || 0})</div><div className="font-mono font-bold text-lg text-emerald-700">{formatCOP(current.sales_total || 0)}</div></CardContent></Card>
+            <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Recogidas</div><div className="font-mono font-bold text-lg text-orange-700">-{formatCOP(current.pickups_total || 0)}</div></CardContent></Card>
+            <Card className="border-emerald-300"><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Esperado en caja</div><div className="font-mono font-bold text-xl text-emerald-800" data-testid="expected-cash">{formatCOP(current.expected || 0)}</div></CardContent></Card>
           </div>
 
           <Card>
@@ -87,7 +93,7 @@ export default function CashPickup() {
             </CardContent>
           </Card>
 
-          {s.pickups?.length > 0 && (
+          {Array.isArray(s?.pickups) && s.pickups.length > 0 && (
             <Card>
               <CardHeader><CardTitle className="text-lg">Recogidas de hoy</CardTitle></CardHeader>
               <CardContent className="space-y-1.5">
@@ -154,9 +160,9 @@ export default function CashPickup() {
                 <th className="p-3 text-right">Contado</th><th className="p-3 text-right">Diferencia</th>
               </tr></thead>
               <tbody>
-                {history.length === 0 ? (
+                {safeHistory.length === 0 ? (
                   <tr><td colSpan={5} className="p-6 text-center text-slate-400">Sin cierres aún.</td></tr>
-                ) : history.map((h) => (
+                ) : safeHistory.map((h) => (
                   <tr key={h.id} className="border-b hover:bg-slate-50">
                     <td className="p-3">{formatDate(h.closed_at)}</td>
                     <td className="p-3">{h.opened_by}</td>
