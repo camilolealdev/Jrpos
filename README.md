@@ -130,7 +130,7 @@ mindmap
    ```
 
 ### Despliegue en Railway (opcional / alterno)
-[`Procfile`](backend/Procfile), [`railway.json`](backend/railway.json) y [`Dockerfile`](backend/Dockerfile) ejecutan `uvicorn app:app` — el mismo backend Postgres que Vercel. El proyecto usa **PostgreSQL vía Supabase** como única base de datos; no hay dependencia de MongoDB en el backend activo (`backend/server.py` es un prototipo legado sobre Mongo, sin usar en ningún despliegue — pendiente de retirar, ver deuda técnica).
+[`Procfile`](backend/Procfile), [`railway.json`](backend/railway.json) y [`Dockerfile`](backend/Dockerfile) ejecutan `uvicorn app:app` — el mismo backend Postgres que Vercel. El proyecto usa **PostgreSQL vía Supabase** como única base de datos; no hay dependencia de MongoDB en el backend activo (el prototipo legado sobre Mongo quedó archivado en [`backend/_legacy_mongo_archive/`](backend/_legacy_mongo_archive/)).
 
 ---
 
@@ -163,7 +163,7 @@ Ranking por severidad, de una auditoría interna del código (no exhaustiva lín
 
 1. ✅ ~~Config de despliegue de Railway apunta a la app muerta.~~ **Corregido:** `backend/Procfile`, `backend/railway.json` y `backend/Dockerfile` ahora ejecutan `app:app` (Postgres/Supabase), igual que Vercel.
 2. ✅ ~~API keys de IA expuestas a cualquier cajero.~~ **Corregido:** `GET /api/settings/general` (`backend/routers/settings.py`) ahora filtra `ai_api_key` y `ai_base_url` para cualquier usuario que no sea admin — esos campos nunca llegan al `localStorage` de un cajero.
-3. 🟠 **`backend/server.py` (1759 líneas) sigue siendo una app completa alternativa sobre MongoDB**, no importada por nada activo — duplica toda la lógica de negocio (productos, ventas, créditos, auth, etc.). Ya no hay ningún archivo de despliegue apuntándole, pero el archivo en sí sigue en el repo; queda pendiente decidir si se archiva/elimina.
+3. ✅ ~~`backend/server.py` (1759 líneas) es una app completa alternativa sobre MongoDB.~~ **Archivado:** movido a [`backend/_legacy_mongo_archive/`](backend/_legacy_mongo_archive/) con nota explicativa; `pymongo`/`motor` ya no están en `requirements.txt`.
 4. 🟠 **La suite de Facturación DIAN es 100% cosmética** (ver sección de módulos arriba) — el CUFE se calcula correctamente pero nada se envía a la DIAN real. Riesgo si un usuario cree que está facturando legalmente.
 5. 🟡 `backend/tests/backend_test.py` está roto/obsoleto: apunta a una URL externa de la era emergent.sh que ya no existe.
 6. 🟡 El endpoint `PUT /users/{id}/reset-password` (admin) no tiene test de regresión.
