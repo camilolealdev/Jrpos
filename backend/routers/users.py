@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import hash_password, require_admin
 from db import get_session
-from models_sql import User
+from models_sql import LoginAttempt, User
 
 users_router = APIRouter(prefix="/api", tags=["users"])
 
@@ -55,6 +55,30 @@ async def create_user(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+class ResetPasswordIn(BaseModel):
+    new_password: str
+
+
+@users_router.put("/users/{user_id}/reset-password")
+async def reset_password(
+    user_id: str,
+    payload: ResetPasswordIn,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    if len(payload.new_password) < 4:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres")
+    user = await session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    user.password_hash = hash_password(payload.new_password)
+    attempt = await session.get(LoginAttempt, user.email)
+    if attempt:
+        await session.delete(attempt)
+    await session.commit()
+    return {"ok": True}
 
 
 @users_router.delete("/users/{user_id}")

@@ -40,7 +40,7 @@ export default function Login() {
           <form onSubmit={submit} className="space-y-3">
             <div>
               <label className="text-xs font-semibold">Correo</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus data-testid="login-email" />
+              <Input type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus data-testid="login-email" />
             </div>
             <div>
               <label className="text-xs font-semibold">Contraseña</label>
@@ -51,6 +51,9 @@ export default function Login() {
               {loading ? "Ingresando..." : "Ingresar"}
             </Button>
           </form>
+          <p className="text-center text-xs text-slate-400">
+            ¿Olvidaste tu contraseña? Pídele al administrador de tu tienda que te la restablezca desde el módulo de Usuarios.
+          </p>
         </CardContent>
       </Card>
     </div>

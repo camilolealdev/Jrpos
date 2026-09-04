@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, ShieldCheck, UserCog } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, UserCog, KeyRound } from "lucide-react";
 
 const empty = { name: "", email: "", password: "", role: "cajero" };
 
@@ -17,6 +17,8 @@ export default function Users() {
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
+  const [resetTarget, setResetTarget] = useState(null);
+  const [newPassword, setNewPassword] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +51,15 @@ export default function Users() {
     catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
   };
 
+  const resetPassword = async () => {
+    if (!newPassword || newPassword.length < 4) return toast.error("La contraseña debe tener al menos 4 caracteres");
+    try {
+      await api.put(`/users/${resetTarget.id}/reset-password`, { new_password: newPassword });
+      toast.success(`Contraseña de ${resetTarget.name} actualizada`);
+      setResetTarget(null); setNewPassword("");
+    } catch (e) { toast.error(e?.response?.data?.detail || "Error restableciendo contraseña"); }
+  };
+
   return (
     <div className="p-4 lg:p-6" data-testid="users-page">
       <div className="flex justify-between items-center mb-4">
@@ -73,7 +84,8 @@ export default function Users() {
                     {u.role === "admin" && <ShieldCheck className="w-3 h-3 mr-1" />}{u.role}
                   </Badge>
                 </td>
-                <td className="p-3 text-right">
+                <td className="p-3 text-right space-x-1">
+                  <Button size="icon" variant="ghost" title="Restablecer contraseña" onClick={() => { setResetTarget(u); setNewPassword(""); }} data-testid={`reset-pw-${u.id}`}><KeyRound className="w-4 h-4 text-slate-600" /></Button>
                   {user?.id !== u.id && (
                     <Button size="icon" variant="ghost" onClick={() => remove(u.id)} data-testid={`del-user-${u.id}`}><Trash2 className="w-4 h-4 text-red-600" /></Button>
                   )}
@@ -91,7 +103,7 @@ export default function Users() {
             <div><label className="text-xs font-semibold">Nombre</label>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} data-testid="u-name" /></div>
             <div><label className="text-xs font-semibold">Correo</label>
-              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} data-testid="u-email" /></div>
+              <Input type="text" autoComplete="off" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} data-testid="u-email" /></div>
             <div><label className="text-xs font-semibold">Contraseña</label>
               <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="u-password" /></div>
             <div><label className="text-xs font-semibold">Rol</label>
@@ -106,6 +118,25 @@ export default function Users() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={save} data-testid="save-user-btn">Crear</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!resetTarget} onOpenChange={(v) => !v && setResetTarget(null)}>
+        <DialogContent data-testid="reset-pw-form">
+          <DialogHeader><DialogTitle>Restablecer contraseña</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              Nueva contraseña para <b>{resetTarget?.name}</b> ({resetTarget?.email}). Compártesela directamente; el sistema no envía correos.
+            </p>
+            <div>
+              <label className="text-xs font-semibold">Nueva contraseña</label>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoFocus data-testid="reset-pw-input" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetTarget(null)}>Cancelar</Button>
+            <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={resetPassword} data-testid="reset-pw-confirm-btn">Guardar nueva contraseña</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
