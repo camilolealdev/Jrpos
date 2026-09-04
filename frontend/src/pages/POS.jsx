@@ -37,6 +37,7 @@ export default function POS() {
   const [camOpen, setCamOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [newProd, setNewProd] = useState({ barcode: "", name: "", price: 0, cost: 0, stock: 1, category: "General" });
+  const [searchResults, setSearchResults] = useState(null); // null=cerrado; [] o [items] = abierto con resultados de búsqueda por nombre
   const barcodeRef = useRef(null);
 
   useEffect(() => {
@@ -221,10 +222,34 @@ export default function POS() {
       addToCart(data);
       toast.success(`+ ${data.name}`);
     } catch {
-      // No existe: ofrecer crear el producto con este código
-      setNewProd({ barcode: code, name: "", price: 0, cost: 0, stock: 1, category: "General" });
+      // No es un código de barras registrado: puede que el usuario haya escrito un nombre
+      // (ej. "aceite" en vez de escanear) — buscar coincidencias por nombre antes de asumir
+      // que hay que crear un producto nuevo, para no duplicar productos ya existentes.
+      try {
+        const { data: matches } = await api.get("/products", { params: { q: code, limit: 8 } });
+        if (Array.isArray(matches) && matches.length > 0) {
+          setSearchResults({ query: code, items: matches });
+          return;
+        }
+      } catch { /* si la búsqueda falla, cae a crear producto igual */ }
+      const looksLikeBarcode = /^\d+$/.test(code);
+      setNewProd({ barcode: looksLikeBarcode ? code : "", name: looksLikeBarcode ? "" : code, price: 0, cost: 0, stock: 1, category: "General" });
       setCreateOpen(true);
     }
+  };
+
+  const pickSearchResult = (p) => {
+    addToCart(p);
+    toast.success(`+ ${p.name}`);
+    setSearchResults(null);
+  };
+
+  const createFromSearch = () => {
+    const code = searchResults?.query || "";
+    const looksLikeBarcode = /^\d+$/.test(code);
+    setNewProd({ barcode: looksLikeBarcode ? code : "", name: looksLikeBarcode ? "" : code, price: 0, cost: 0, stock: 1, category: "General" });
+    setSearchResults(null);
+    setCreateOpen(true);
   };
 
   const createScannedProduct = async () => {
@@ -369,6 +394,40 @@ export default function POS() {
           </Button>
         </div>
         <CameraScanner open={camOpen} onOpenChange={setCamOpen} onScan={(code) => lookupBarcode(code)} />
+
+        {/* Código no coincide, pero hay productos con nombre/código parecido: elegir en vez de duplicar */}
+        <Dialog open={!!searchResults} onOpenChange={(v) => !v && setSearchResults(null)}>
+          <DialogContent data-testid="barcode-search-results-dialog">
+            <DialogHeader>
+              <DialogTitle>¿Buscabas alguno de estos?</DialogTitle>
+              <DialogDescription>
+                "{searchResults?.query}" no es un código de barras registrado, pero encontramos productos parecidos.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+              {(searchResults?.items || []).map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => pickSearchResult(p)}
+                  className="w-full text-left flex items-center justify-between gap-2 p-2.5 rounded-lg border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 transition"
+                  data-testid={`barcode-search-result-${p.id}`}
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate">{p.name}</div>
+                    <div className="text-xs text-slate-500 font-mono">{p.barcode || "sin código"} · {p.category}</div>
+                  </div>
+                  <div className="font-mono font-bold text-sm shrink-0">{formatCOP(p.price)}</div>
+                </button>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={createFromSearch} data-testid="none-of-these-create-btn">
+                Ninguno, crear producto nuevo
+              </Button>
+              <Button variant="ghost" onClick={() => setSearchResults(null)}>Cancelar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Crear producto al escanear código desconocido */}
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>

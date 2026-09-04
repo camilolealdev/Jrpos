@@ -102,14 +102,37 @@ async def save_schedule(
     return {"ok": True}
 
 
-# ----------------- General settings (personalización) -----------------
+# ----------------- General settings (personalización & IA) -----------------
 class GeneralSettingsIn(BaseModel):
     store_name: str = "JRPOS"
+    store_slogan: Optional[str] = None
+    store_nit: Optional[str] = None
+    store_address: Optional[str] = None
+    store_city: Optional[str] = None
+    store_department: Optional[str] = None
+    tax_regime: Optional[str] = "No responsable de IVA"
+    currency_symbol: Optional[str] = "$"
+    
     ticket_footer: str = "¡Gracias por su compra!"
+    ticket_header_line1: Optional[str] = None
+    ticket_header_line2: Optional[str] = None
+    ticket_show_barcode: Optional[bool] = True
+    
     iva_default: float = 19
     printer_width: int = 58  # 58 | 80 mm
-    accent: str = "emerald"  # emerald | ocean | terracotta | berry | slate
+    accent: str = "emerald"  # emerald | ocean | terracotta | berry | slate | violet | amber | rose
     support_phone: str = ""
+    
+    # AI & OCR Engine Configuration
+    ai_provider: Optional[str] = "gemini"  # gemini | openrouter | nvidia | groq | custom_openai
+    ai_api_key: Optional[str] = None
+    ai_model: Optional[str] = "gemini-1.5-flash"
+    ai_base_url: Optional[str] = None
+
+    # POS Ergonomics
+    pos_audio_beep: Optional[bool] = True
+    pos_ask_clear_cart: Optional[bool] = True
+    pos_require_credit_customer: Optional[bool] = True
 
 
 def _general_defaults() -> dict:
@@ -150,6 +173,89 @@ async def save_general_settings(
             setattr(row, key, value)
     await session.commit()
     return {"ok": True}
+
+
+# ----------------- Prueba de conexión con proveedor de IA -----------------
+class TestAIIn(BaseModel):
+    provider: str = "gemini"
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+@settings_router.post("/settings/test-ai")
+async def test_ai_connection(
+    payload: TestAIIn,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    provider = (payload.provider or "gemini").lower()
+    api_key = (payload.api_key or "").strip()
+    if not api_key and provider == "gemini":
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+
+    if not api_key:
+        raise HTTPException(status_code=400, detail=f"Debes ingresar una API Key para {provider}")
+
+    import httpx
+
+    if provider == "gemini":
+        from google import genai
+        model_name = payload.model or "gemini-1.5-flash"
+        try:
+            client = genai.Client(api_key=api_key)
+            response = await client.aio.models.generate_content(
+                model=model_name,
+                contents="Di 'OK' para verificar la conexión con JRPOS.",
+            )
+            text_out = response.text or "OK"
+            return {"ok": True, "message": f"Conectado exitosamente con Google Gemini ({model_name})", "response": text_out.strip()}
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Error conectando con Gemini: {str(e)}")
+
+    # Proveedores compatibles con OpenAI (OpenRouter, NVIDIA NIM, Groq, Custom)
+    url_map = {
+        "openrouter": "https://openrouter.ai/api/v1",
+        "nvidia": "https://integrate.api.nvidia.com/v1",
+        "groq": "https://api.groq.com/openai/v1",
+    }
+    base_url = (payload.base_url or "").strip().rstrip("/") or url_map.get(provider, "https://api.openai.com/v1")
+    default_models = {
+        "openrouter": "google/gemini-2.0-flash-exp:free",
+        "nvidia": "meta/llama-3.2-11b-vision-instruct",
+        "groq": "llama-3.2-11b-vision-preview",
+        "custom_openai": "gpt-4o-mini",
+    }
+    model_name = (payload.model or "").strip() or default_models.get(provider, "gpt-4o-mini")
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if provider == "openrouter":
+        headers["HTTP-Referer"] = "https://jrpos.com"
+        headers["X-Title"] = "JRPOS Scanner"
+
+    req_body = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": "Di 'OK' para verificar la conexión con JRPOS."}],
+        "max_tokens": 15,
+        "temperature": 0.1,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as http_client:
+            res = await http_client.post(f"{base_url}/chat/completions", json=req_body, headers=headers)
+            if res.status_code != 200:
+                err_text = res.text
+                raise HTTPException(status_code=res.status_code, detail=f"El proveedor {provider} devolvió status {res.status_code}: {err_text}")
+            data = res.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "OK")
+            return {"ok": True, "message": f"Conectado exitosamente con {provider.upper()} ({model_name})", "response": content.strip()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Fallo de conexión HTTP con {provider}: {str(e)}")
 
 
 # ----------------- Certificado Digital (metadata) -----------------

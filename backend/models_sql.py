@@ -225,12 +225,35 @@ class SettingsGeneral(Base):
     __tablename__ = "settings_general"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    store_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    ticket_footer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    store_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default="JRPOS")
+    store_slogan: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    store_nit: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    store_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    store_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    store_department: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    tax_regime: Mapped[str | None] = mapped_column(String(100), nullable=True, default="No responsable de IVA")
+    currency_symbol: Mapped[str | None] = mapped_column(String(10), nullable=True, default="$")
+    
+    ticket_footer: Mapped[str | None] = mapped_column(Text, nullable=True, default="¡Gracias por su compra!")
+    ticket_header_line1: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ticket_header_line2: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ticket_show_barcode: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
+    
     iva_default: Mapped[int] = mapped_column(Integer, nullable=False, default=19)
     printer_width: Mapped[int] = mapped_column(Integer, nullable=False, default=58)
-    accent: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    accent: Mapped[str | None] = mapped_column(String(20), nullable=True, default="emerald")
     support_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    # AI & OCR Engine Configuration
+    ai_provider: Mapped[str | None] = mapped_column(String(50), nullable=True, default="gemini")
+    ai_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ai_model: Mapped[str | None] = mapped_column(String(100), nullable=True, default="gemini-1.5-flash")
+    ai_base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # POS Ergonomics
+    pos_audio_beep: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
+    pos_ask_clear_cart: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
+    pos_require_credit_customer: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
 
 
 class SettingsCertificate(Base):

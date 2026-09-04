@@ -1,21 +1,38 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, fileToBase64 } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Camera, Upload, Sparkles, Trash2, Plus, Loader2, Save, PenLine } from "lucide-react";
+import { Camera, Upload, Sparkles, Trash2, Plus, Loader2, Save, PenLine, Settings, Bot } from "lucide-react";
 
 export default function InvoiceScanner() {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [model, setModel] = useState("gemini-3-flash-preview");
+  const [model, setModel] = useState("");
+  const [aiSettings, setAiSettings] = useState({ provider: "gemini", model: "gemini-1.5-flash" });
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState({ supplier_name: "", supplier_nit: "", invoice_number: "", date: "", items: [] });
   const fileRef = useRef(null);
+
+  useEffect(() => {
+    api.get("/settings/general")
+      .then((r) => {
+        if (r.data) {
+          setAiSettings({
+            provider: r.data.ai_provider || "gemini",
+            model: r.data.ai_model || "gemini-1.5-flash",
+          });
+          setModel(r.data.ai_model || "gemini-1.5-flash");
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const onPick = async (e) => {
     const f = e.target.files?.[0];
@@ -86,12 +103,27 @@ export default function InvoiceScanner() {
 
   return (
     <div className="p-4 lg:p-6 space-y-4" data-testid="invoice-scanner-page">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
-          <Sparkles className="w-6 h-6 text-amber-600" />
-          Escanear Factura de Compra
-        </h1>
-        <p className="text-sm text-slate-500">Sube la foto de la factura o dígita manualmente. La IA extraerá los productos para agregarlos a tu inventario.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-amber-600" />
+            Escanear Factura de Compra
+          </h1>
+          <p className="text-sm text-slate-500">
+            Sube la foto de la factura o dígita manualmente. La IA extraerá los productos para agregarlos a tu inventario.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300 font-medium py-1 px-2.5 flex items-center gap-1.5">
+            <Bot className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Motor: <strong className="capitalize">{aiSettings.provider}</strong> ({aiSettings.model})</span>
+          </Badge>
+          <Link to="/configuracion">
+            <Button variant="ghost" size="sm" className="text-xs text-slate-600 hover:text-emerald-700" title="Configurar proveedores de IA">
+              <Settings className="w-3.5 h-3.5 mr-1" /> Configurar IA
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Tabs defaultValue="ocr">
@@ -124,21 +156,14 @@ export default function InvoiceScanner() {
                       data-testid="file-input"
                     />
                   </div>
-                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                    <Select value={model} onValueChange={setModel}>
-                      <SelectTrigger className="flex-1" data-testid="model-select"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gemini-3-flash-preview">Gemini 3 Flash (económico)</SelectItem>
-                        <SelectItem value="gemini-3.1-pro-preview">Gemini 3.1 Pro (más preciso)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="mt-3 flex gap-2">
                     <Button
-                      className="bg-emerald-700 hover:bg-emerald-800"
+                      className="w-full bg-emerald-700 hover:bg-emerald-800 font-bold h-11"
                       onClick={runOCR}
                       disabled={loading || !file}
                       data-testid="run-ocr-btn"
                     >
-                      {loading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Procesando...</> : <><Sparkles className="w-4 h-4 mr-1" /> Extraer con IA</>}
+                      {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Procesando con IA ({aiSettings.provider})...</> : <><Sparkles className="w-4 h-4 mr-2" /> Extraer Productos con {aiSettings.provider.toUpperCase()}</>}
                     </Button>
                   </div>
                 </div>

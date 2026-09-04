@@ -19,6 +19,7 @@ from models_sql import (
     Product,
     PurchaseInvoice,
     PurchaseInvoiceItem,
+    SettingsGeneral,
     SupportDoc,
     SupportDocItem,
     User,
@@ -101,24 +102,21 @@ class ImportInvoiceRequest(BaseModel):
 @invoices_router.post("/invoices/ocr", response_model=InvoiceOCR)
 async def ocr_invoice(
     payload: OCRRequest,
+    session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    api_key = os.environ.get("GEMINI_API_KEY", "")
+    # Cargar configuración activa de IA en Settings
+    settings_row = await session.get(SettingsGeneral, 1)
+    provider = (settings_row.ai_provider if settings_row and settings_row.ai_provider else "gemini").lower()
+    api_key = (settings_row.ai_api_key if settings_row and settings_row.ai_api_key else "").strip()
+    if not api_key and provider == "gemini":
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+
     if not api_key:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY no configurada")
-
-    # Call shape verified against an actual `pip install google-genai` resolve
-    # (google-genai==2.22.0, satisfies requirements.txt's >=0.3.0): Client(api_key=...),
-    # client.aio.models.generate_content(model=, contents=, config=), types.Content(role=,
-    # parts=), types.Part.from_text(text=)/from_bytes(data=, mime_type=),
-    # types.GenerateContentConfig(system_instruction=...), response.text (a verified
-    # property on GenerateContentResponse). Still worth a live smoke test with a real
-    # GEMINI_API_KEY before shipping, since this was checked via introspection, not a
-    # live API call.
-    from google import genai
-    from google.genai import types
-
-    model = payload.model or "gemini-3-flash-preview"
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se ha configurado la API Key para {provider.upper()}. Ve a Configuración > Inteligencia Artificial para ingresarla.",
+        )
 
     # Strip data URL prefix if present
     img_b64 = payload.image_base64
@@ -129,26 +127,111 @@ async def ocr_invoice(
     except Exception:
         raise HTTPException(status_code=400, detail="Imagen inválida")
 
-    client = genai.Client(api_key=api_key)
-    try:
-        response = await client.aio.models.generate_content(
-            model=model,
-            contents=[
-                types.Content(
-                    role="user",
-                    parts=[
-                        types.Part.from_text(text=(
-                            "Extrae los datos de esta factura de compra. Devuelve SOLO el JSON con el esquema pedido. "
-                            "Incluye cada línea de producto en 'items'."
-                        )),
-                        types.Part.from_bytes(data=img_bytes, mime_type=payload.mime_type),
-                    ],
-                )
-            ],
-            config=types.GenerateContentConfig(system_instruction=OCR_SYSTEM),
+    response_text = ""
+
+    if provider == "gemini":
+        from google import genai
+        from google.genai import types
+
+        model = (
+            payload.model
+            if payload.model and payload.model != "gemini-3-flash-preview"
+            else (settings_row.ai_model if settings_row and settings_row.ai_model else "gemini-1.5-flash")
         )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Error al procesar imagen: {e}")
+
+        client = genai.Client(api_key=api_key)
+        try:
+            response = await client.aio.models.generate_content(
+                model=model,
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_text(
+                                text=(
+                                    "Extrae los datos de esta factura de compra. Devuelve SOLO el JSON con el esquema pedido. "
+                                    "Incluye cada línea de producto en 'items'."
+                                )
+                            ),
+                            types.Part.from_bytes(data=img_bytes, mime_type=payload.mime_type),
+                        ],
+                    )
+                ],
+                config=types.GenerateContentConfig(system_instruction=OCR_SYSTEM),
+            )
+            response_text = response.text or ""
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Error al procesar imagen con Gemini ({model}): {e}")
+    else:
+        # Proveedores compatibles con OpenAI Vision (OpenRouter, NVIDIA, Groq, Custom)
+        import httpx
+
+        url_map = {
+            "openrouter": "https://openrouter.ai/api/v1",
+            "nvidia": "https://integrate.api.nvidia.com/v1",
+            "groq": "https://api.groq.com/openai/v1",
+        }
+        base_url = (settings_row.ai_base_url if settings_row and settings_row.ai_base_url else "").strip().rstrip("/") or url_map.get(
+            provider, "https://api.openai.com/v1"
+        )
+        default_models = {
+            "openrouter": "google/gemini-2.0-flash-exp:free",
+            "nvidia": "meta/llama-3.2-11b-vision-instruct",
+            "groq": "llama-3.2-11b-vision-preview",
+            "custom_openai": "gpt-4o-mini",
+        }
+        model_name = (
+            payload.model
+            if payload.model and payload.model != "gemini-3-flash-preview"
+            else (settings_row.ai_model if settings_row and settings_row.ai_model else default_models.get(provider, "gpt-4o-mini"))
+        )
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        if provider == "openrouter":
+            headers["HTTP-Referer"] = "https://jrpos.com"
+            headers["X-Title"] = "JRPOS Scanner"
+
+        mime = payload.mime_type or "image/jpeg"
+        image_data_uri = f"data:{mime};base64,{img_b64}"
+
+        messages = [
+            {"role": "system", "content": OCR_SYSTEM},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Extrae los datos de esta factura de compra colombiana. Devuelve SOLO el JSON solicitado.",
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image_data_uri},
+                    },
+                ],
+            },
+        ]
+
+        try:
+            async with httpx.AsyncClient(timeout=45.0) as http_client:
+                res = await http_client.post(
+                    f"{base_url}/chat/completions",
+                    json={"model": model_name, "messages": messages, "temperature": 0.1},
+                    headers=headers,
+                )
+                if res.status_code != 200:
+                    raise HTTPException(
+                        status_code=res.status_code,
+                        detail=f"Error del proveedor {provider.upper()} ({res.status_code}): {res.text}",
+                    )
+                res_data = res.json()
+                response_text = res_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Fallo de conexión OCR con {provider.upper()}: {e}")
 
     response_text = response.text or ""
     parsed = _extract_json(response_text)
