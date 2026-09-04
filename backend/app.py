@@ -69,12 +69,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=_frontend_origins,
-    allow_origin_regex=os.environ.get("FRONTEND_URL_REGEX") or r"^https://.*\.vercel\.app$",
+    allow_origin_regex=os.environ.get("FRONTEND_URL_REGEX") or r"^https://(jrpos[a-z0-9\-]*|localhost:[0-9]+)\.(vercel\.app|local)$",
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+@app.get("/api")
 @app.get("/api/")
 async def root():
     return {"message": "JRPOS API", "status": "ok"}
