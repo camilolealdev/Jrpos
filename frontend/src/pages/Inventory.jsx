@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 import CameraScanner from "@/components/CameraScanner";
+import BarcodeLabelModal from "@/components/BarcodeLabelModal";
 
 const empty = {
   name: "", barcode: "", category: "General", price: 0, cost: 0, stock: 0, unit: "und", tax_rate: 19,
@@ -26,6 +27,7 @@ export default function Inventory() {
   const [useMargin, setUseMargin] = useState(false);
   const [searchCamOpen, setSearchCamOpen] = useState(false);
   const [formCamOpen, setFormCamOpen] = useState(false);
+  const [labelProd, setLabelProd] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -172,6 +174,7 @@ export default function Inventory() {
                     <span className={p.stock <= 5 ? "text-orange-700 font-bold" : ""}>{p.stock} {p.unit}</span>
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
+                    <Button size="icon" variant="ghost" onClick={() => setLabelProd(p)} title="Imprimir etiquetas con código de barras" data-testid={`label-${p.id}`}><Barcode className="w-4 h-4 text-emerald-700" /></Button>
                     <Button size="icon" variant="ghost" onClick={() => edit(p)} data-testid={`edit-${p.id}`}><Edit2 className="w-4 h-4" /></Button>
                     <Button size="icon" variant="ghost" onClick={() => remove(p.id)} data-testid={`del-${p.id}`}><Trash2 className="w-4 h-4 text-red-600" /></Button>
                   </td>
@@ -308,6 +311,13 @@ export default function Inventory() {
           setForm((prev) => ({ ...prev, barcode: code }));
           toast.success(`Código asignado: ${code}`);
         }}
+      />
+
+      {/* Modal para impresión de etiquetas de código de barras */}
+      <BarcodeLabelModal
+        open={!!labelProd}
+        onOpenChange={(v) => !v && setLabelProd(null)}
+        product={labelProd}
       />
     </div>
   );

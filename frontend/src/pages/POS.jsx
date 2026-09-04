@@ -127,7 +127,26 @@ export default function POS() {
     setSelectedCats((prev) => prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]);
   };
 
+  const playScannerBeep = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1400, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.08);
+    } catch { /* Audio not allowed before user interaction */ }
+  };
+
   const addToCart = (p) => {
+    playScannerBeep();
     setCart((prev) => {
       const found = prev.find((x) => x.product_id === p.id);
       if (found) return prev.map((x) => x.product_id === p.id ? { ...x, qty: x.qty + 1 } : x);
@@ -525,14 +544,42 @@ export default function POS() {
               </div>
             )}
             {payment === "efectivo" && (
-              <div>
-                <label className="text-xs uppercase font-semibold tracking-wider text-slate-500">Recibido</label>
-                <Input value={received} onChange={(e) => setReceived(e.target.value.replace(/[^\d.]/g, ""))} className="h-11 font-mono text-lg" data-testid="received-input" />
-                {received && (
-                  <div className={`mt-1 text-sm ${change >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                    Cambio: <span className="font-mono font-bold">{formatCOP(change)}</span>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs uppercase font-semibold tracking-wider text-slate-500">Recibido</label>
+                  <Input value={received} onChange={(e) => setReceived(e.target.value.replace(/[^\d.]/g, ""))} className="h-11 font-mono text-lg" data-testid="received-input" />
+                  {received && (
+                    <div className={`mt-1 text-sm ${change >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                      Cambio: <span className="font-mono font-bold">{formatCOP(change)}</span>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-500 font-medium mb-1">Billetes rápidos</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs font-semibold bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                      onClick={() => setReceived(String(totals.total))}
+                    >
+                      Exacto ({formatCOP(totals.total)})
+                    </Button>
+                    {[10000, 20000, 50000, 100000].map((amt) => (
+                      <Button
+                        key={amt}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs font-mono font-medium"
+                        onClick={() => setReceived(String(amt))}
+                      >
+                        {formatCOP(amt)}
+                      </Button>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
             )}
           </div>
