@@ -28,8 +28,8 @@ export default function Dashboard() {
   const seed = async () => {
     try {
       const { data } = await api.post("/seed");
-      if (data.seeded) toast.success(`Se cargaron ${data.products} productos y ${data.contacts} contactos`);
-      else toast.info(data.message || "Ya hay datos");
+      if (data.seeded) toast.success(data.message || `Se cargaron ${data.products} productos y ${data.contacts} contactos`);
+      else toast.info(data.message || "El sistema ya cuenta con datos cargados.");
       load();
     } catch { toast.error("No se pudo cargar demo"); }
   };

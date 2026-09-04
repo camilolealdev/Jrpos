@@ -7,10 +7,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Settings2, Save, Palette, Bot, Store, Printer, Sliders, Eye, EyeOff,
-  Sparkles, CheckCircle2, AlertCircle, RefreshCw, HelpCircle, ShieldCheck
+  Sparkles, CheckCircle2, AlertCircle, RefreshCw, HelpCircle, ShieldCheck,
+  Database, Trash2, AlertTriangle, ShieldAlert, ShoppingBag, Users, FileText, CheckCircle
 } from "lucide-react";
 
 export const ACCENTS = {
@@ -131,7 +140,29 @@ export default function Settings() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [testingAI, setTestingAI] = useState(false);
   const [aiTestResult, setAiTestResult] = useState(null);
+  
+  // Data Management & Production Wipe
+  const [dataStats, setDataStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [seedingDemo, setSeedingDemo] = useState(false);
+  const [wipeDialogOpen, setWipeDialogOpen] = useState(false);
+  const [wipeScope, setWipeScope] = useState("transactions_only");
+  const [wipeConfirmPhrase, setWipeConfirmPhrase] = useState("");
+  const [wiping, setWiping] = useState(false);
+
   const dirty = useRef(false);
+
+  const loadDataStats = async () => {
+    setLoadingStats(true);
+    try {
+      const { data } = await api.get("/settings/data-stats");
+      setDataStats(data);
+    } catch {
+      // noop
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   useEffect(() => {
     const cached = localStorage.getItem("jrpos_settings");
@@ -144,7 +175,50 @@ export default function Settings() {
         if (r.data.accent) applyAccent(r.data.accent);
       }
     }).catch(() => {});
+    loadDataStats();
   }, []);
+
+  const loadDemoData = async (force = false) => {
+    setSeedingDemo(true);
+    try {
+      const { data } = await api.post(`/seed${force ? "?force=true" : ""}`);
+      if (data.seeded) {
+        toast.success(data.message || `Se cargaron ${data.products} productos demo y ${data.contacts} contactos`);
+      } else {
+        toast.info(data.message || "El sistema ya cuenta con datos cargados");
+      }
+      loadDataStats();
+    } catch (e) {
+      toast.error("Error al cargar datos de demostración");
+    } finally {
+      setSeedingDemo(false);
+    }
+  };
+
+  const handleWipeData = async () => {
+    const normalized = wipeConfirmPhrase.trim().toUpperCase();
+    if (!["BORRAR", "PRODUCCION", "PRODUCCIÓN", "RESET", "LIMPIAR"].includes(normalized)) {
+      toast.error("Debes escribir exactamente 'PRODUCCION' o 'BORRAR' para autorizar el vaciado.");
+      return;
+    }
+    setWiping(true);
+    try {
+      const { data } = await api.post("/settings/wipe-data", {
+        confirm_phrase: normalized,
+        scope: wipeScope,
+        keep_products: wipeScope === "transactions_only",
+        keep_contacts: wipeScope === "transactions_only",
+      });
+      toast.success(data.message || "Base de datos preparada exitosamente para producción.");
+      setWipeDialogOpen(false);
+      setWipeConfirmPhrase("");
+      loadDataStats();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Error durante la limpieza de datos");
+    } finally {
+      setWiping(false);
+    }
+  };
 
   const update = (changes) => {
     dirty.current = true;
@@ -219,7 +293,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="ai" className="space-y-4">
-        <TabsList className="grid grid-cols-2 sm:grid-cols-5 h-auto p-1 bg-slate-100 rounded-lg">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-slate-100 rounded-lg">
           <TabsTrigger value="ai" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
             <Bot className="w-4 h-4" /> IA & OCR
           </TabsTrigger>
@@ -234,6 +308,9 @@ export default function Settings() {
           </TabsTrigger>
           <TabsTrigger value="pos" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
             <Sliders className="w-4 h-4" /> Caja POS
+          </TabsTrigger>
+          <TabsTrigger value="data" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs" data-testid="tab-data-mgmt">
+            <Database className="w-4 h-4" /> Datos & Prod
           </TabsTrigger>
         </TabsList>
 
@@ -539,17 +616,230 @@ export default function Settings() {
                 <Switch checked={form.pos_ask_clear_cart} onCheckedChange={(v) => update({ pos_ask_clear_cart: v })} />
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50/50">
-                <div>
-                  <div className="font-semibold text-sm text-slate-900">Exigir Cliente en Ventas a Crédito (Fiado)</div>
-                  <div className="text-xs text-slate-500">Bloquea el botón de cobro si no se ha asignado un contacto deudor.</div>
+        {/* TAB 6: Gestión de Datos & Producción */}
+        <TabsContent value="data" className="space-y-6">
+          {/* Métricas de Base de Datos */}
+          <Card className="border-slate-200">
+            <CardHeader className="bg-slate-50/70 border-b flex flex-row items-center justify-between pb-3">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2 text-slate-900">
+                  <Database className="w-5 h-5 text-emerald-700" /> Auditoría de Registros en Base de Datos
+                </CardTitle>
+                <CardDescription>
+                  Estado actual de las tablas operativas y transaccionales del sistema.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadDataStats}
+                disabled={loadingStats}
+                className="h-8 text-xs font-semibold"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loadingStats ? "animate-spin" : ""}`} /> Actualizar
+              </Button>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="p-3 rounded-lg border bg-slate-50/60 text-center">
+                  <div className="text-xs font-bold text-slate-500 uppercase">Productos</div>
+                  <div className="text-2xl font-black text-slate-900 mt-1">{dataStats?.products ?? "-"}</div>
                 </div>
-                <Switch checked={form.pos_require_credit_customer} onCheckedChange={(v) => update({ pos_require_credit_customer: v })} />
+                <div className="p-3 rounded-lg border bg-slate-50/60 text-center">
+                  <div className="text-xs font-bold text-slate-500 uppercase">Contactos</div>
+                  <div className="text-2xl font-black text-slate-900 mt-1">{dataStats?.contacts ?? "-"}</div>
+                </div>
+                <div className="p-3 rounded-lg border bg-slate-50/60 text-center">
+                  <div className="text-xs font-bold text-slate-500 uppercase">Ventas</div>
+                  <div className="text-2xl font-black text-emerald-700 mt-1">{dataStats?.sales ?? "-"}</div>
+                </div>
+                <div className="p-3 rounded-lg border bg-slate-50/60 text-center">
+                  <div className="text-xs font-bold text-slate-500 uppercase">Gastos</div>
+                  <div className="text-2xl font-black text-amber-700 mt-1">{dataStats?.expenses ?? "-"}</div>
+                </div>
+                <div className="p-3 rounded-lg border bg-slate-50/60 text-center">
+                  <div className="text-xs font-bold text-slate-500 uppercase">Facturas Compra</div>
+                  <div className="text-2xl font-black text-blue-700 mt-1">{dataStats?.invoices ?? "-"}</div>
+                </div>
+                <div className="p-3 rounded-lg border bg-slate-50/60 text-center">
+                  <div className="text-xs font-bold text-slate-500 uppercase">Sesiones Caja</div>
+                  <div className="text-2xl font-black text-purple-700 mt-1">{dataStats?.cash_sessions ?? "-"}</div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2 p-3 rounded-lg border bg-emerald-50/40 border-emerald-200 text-xs text-emerald-900">
+                <CheckCircle className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  {dataStats?.is_clean_slate
+                    ? "Base de datos en blanco: No hay ventas ni gastos de prueba registrados. El sistema está 100% listo para producción."
+                    : "Base de datos con registros: Contiene movimientos de prueba o transacciones operativas activas."}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Carga de Datos Demo */}
+          <Card className="border-blue-100 shadow-xs">
+            <CardHeader className="bg-blue-50/40 border-b">
+              <CardTitle className="text-base flex items-center gap-2 text-blue-900">
+                <Sparkles className="w-5 h-5 text-blue-700" /> Catálogo de Demostración (Ambientes de Prueba y Capacitación)
+              </CardTitle>
+              <CardDescription>
+                Carga automáticamente 12 productos de abarrotes de alta rotación (con códigos de barra reales EAN-13, costos, precios e impuestos), proveedores mayoristas y clientes estándar.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="text-xs text-slate-600 space-y-1">
+                <div>• Funciona de forma segura en cualquier ambiente (desarrollo, docker o nube).</div>
+                <div>• No altera usuarios ni borra configuraciones preexistentes.</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => loadDemoData(false)}
+                  disabled={seedingDemo}
+                  className="font-bold border-blue-200 text-blue-800 hover:bg-blue-50"
+                  data-testid="load-demo-btn"
+                >
+                  <Sparkles className={`w-4 h-4 mr-1.5 text-blue-700 ${seedingDemo ? "animate-spin" : ""}`} />
+                  Cargar / Reponer Demo
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => loadDemoData(true)}
+                  disabled={seedingDemo}
+                  className="text-xs text-blue-700 hover:bg-blue-100 font-semibold"
+                  title="Fuerza la inserción de cualquier producto o contacto faltante"
+                >
+                  Forzar Regeneración
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Zona de Limpieza para Producción Real */}
+          <Card className="border-red-200 bg-red-50/15 shadow-xs">
+            <CardHeader className="bg-red-50/60 border-b border-red-100">
+              <CardTitle className="text-base flex items-center gap-2 text-red-950">
+                <ShieldAlert className="w-5 h-5 text-red-700" /> Puesta en Marcha: Preparar para Producción Real
+              </CardTitle>
+              <CardDescription className="text-red-900/80">
+                Cuando finalices las pruebas o la capacitación del personal, utiliza esta herramienta para purgar los movimientos de prueba antes de abrir la tienda al público real.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Opción 1 */}
+                <div className="p-4 rounded-lg border border-slate-200 bg-white shadow-xs space-y-3 flex flex-col justify-between">
+                  <div>
+                    <div className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                      <Trash2 className="w-4 h-4 text-amber-700" /> 1. Limpiar Solo Transacciones
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                      Borra todas las ventas de prueba, recibos, gastos, facturas escaneadas, turnos de caja y nóminas.
+                      <strong className="text-slate-700 block mt-1">Conserva intactos: Productos, códigos de barra, precios, categorías y clientes.</strong>
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full font-bold border-amber-300 text-amber-900 hover:bg-amber-50"
+                    onClick={() => {
+                      setWipeScope("transactions_only");
+                      setWipeConfirmPhrase("");
+                      setWipeDialogOpen(true);
+                    }}
+                    data-testid="wipe-transactions-btn"
+                  >
+                    Purgar Solo Movimientos de Prueba
+                  </Button>
+                </div>
+
+                {/* Opción 2 */}
+                <div className="p-4 rounded-lg border border-red-200 bg-white shadow-xs space-y-3 flex flex-col justify-between">
+                  <div>
+                    <div className="font-bold text-sm text-red-900 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-700" /> 2. Limpieza Total a Cero (Clean Slate)
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                      Borra todo el historial operativo y también los productos y contactos de muestra. Deja la base de datos completamente en blanco.
+                      <strong className="text-red-700 block mt-1">Protección: Usuarios administradores y credenciales nunca se eliminan.</strong>
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    className="w-full font-bold bg-red-700 hover:bg-red-800 text-white"
+                    onClick={() => {
+                      setWipeScope("full_clean_slate");
+                      setWipeConfirmPhrase("");
+                      setWipeDialogOpen(true);
+                    }}
+                    data-testid="wipe-full-btn"
+                  >
+                    Limpieza Total a Cero
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* DIÁLOGO DE CONFIRMACIÓN DE LIMPIEZA / VACIADO */}
+      <Dialog open={wipeDialogOpen} onOpenChange={setWipeDialogOpen}>
+        <DialogContent className="max-w-md border-red-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-950 font-extrabold text-lg">
+              <ShieldAlert className="w-5 h-5 text-red-700" /> Confirmación de Seguridad
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-600">
+              {wipeScope === "transactions_only"
+                ? "Esta acción eliminará de forma permanente todas las ventas, pagos, gastos, facturas escaneadas y turnos de caja registrados. Tus productos y clientes se conservarán."
+                : "Esta acción eliminará de forma permanente TODO el catálogo de productos de prueba, contactos y ventas registradas. La base de datos quedará 100% en blanco."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="p-3 bg-red-50 rounded-lg border border-red-200 text-xs text-red-900 font-medium space-y-1">
+              <div>⚠️ Esta operación es <strong>irreversible</strong>.</div>
+              <div>🔒 Tus usuarios administradores y ajustes de tienda permanecerán seguros.</div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Escribe <span className="text-red-700 font-black">PRODUCCION</span> o <span className="text-red-700 font-black">BORRAR</span> para autorizar:
+              </label>
+              <Input
+                value={wipeConfirmPhrase}
+                onChange={(e) => setWipeConfirmPhrase(e.target.value)}
+                placeholder="PRODUCCION"
+                className="font-mono uppercase tracking-wider text-center font-bold border-red-300 focus-visible:ring-red-500"
+                autoFocus
+                data-testid="wipe-confirm-input"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setWipeDialogOpen(false)}
+              disabled={wiping}
+              className="font-semibold"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleWipeData}
+              disabled={wiping || !["BORRAR", "PRODUCCION", "PRODUCCIÓN", "RESET", "LIMPIAR"].includes(wipeConfirmPhrase.trim().toUpperCase())}
+              className="bg-red-700 hover:bg-red-800 font-bold"
+              data-testid="confirm-wipe-btn"
+            >
+              {wiping ? "Limpiando datos..." : "Confirmar y Purgar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

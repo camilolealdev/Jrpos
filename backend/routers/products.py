@@ -403,41 +403,102 @@ async def bulk_update_products(
 
 # ----------------- Seed sample data -----------------
 _SEED_PRODUCTS = [
-    {"name": "Arroz Diana 500g", "barcode": "7702001010011", "category": "Granos", "price": 2500, "cost": 1800, "stock": 40, "unit": "und"},
-    {"name": "Aceite Girasol 1L", "barcode": "7702001010028", "category": "Aceites", "price": 12500, "cost": 9800, "stock": 22, "unit": "und"},
-    {"name": "Panela cuadrada 500g", "barcode": "7702001010035", "category": "Endulzantes", "price": 3800, "cost": 2600, "stock": 30, "unit": "und"},
-    {"name": "Leche Alqueria 1L", "barcode": "7702001010042", "category": "Lácteos", "price": 4800, "cost": 3600, "stock": 25, "unit": "und"},
-    {"name": "Huevos AA x30", "barcode": "7702001010059", "category": "Huevos", "price": 18500, "cost": 14000, "stock": 12, "unit": "und"},
-    {"name": "Pan tajado Bimbo", "barcode": "7702001010066", "category": "Panadería", "price": 6900, "cost": 4900, "stock": 15, "unit": "und"},
-    {"name": "Café Sello Rojo 250g", "barcode": "7702001010073", "category": "Café", "price": 9800, "cost": 7000, "stock": 20, "unit": "und"},
-    {"name": "Frijol rojo 500g", "barcode": "7702001010080", "category": "Granos", "price": 5200, "cost": 3800, "stock": 18, "unit": "und"},
-    {"name": "Coca-Cola 1.5L", "barcode": "7702001010097", "category": "Bebidas", "price": 5500, "cost": 4100, "stock": 30, "unit": "und"},
-    {"name": "Jabón Rey 300g", "barcode": "7702001010103", "category": "Aseo", "price": 4200, "cost": 3000, "stock": 24, "unit": "und"},
-    {"name": "Chocolatina Jet", "barcode": "7702001010110", "category": "Golosinas", "price": 1200, "cost": 800, "stock": 60, "unit": "und"},
-    {"name": "Papas Margarita 105g", "barcode": "7702001010127", "category": "Snacks", "price": 4500, "cost": 3200, "stock": 3, "unit": "und"},
+    {"name": "Arroz Diana 500g", "barcode": "7702001010011", "category": "Granos", "price": 2500, "cost": 1800, "stock": 40, "unit": "und", "tax_rate": 0.0},
+    {"name": "Aceite Girasol 1L", "barcode": "7702001010028", "category": "Aceites", "price": 12500, "cost": 9800, "stock": 22, "unit": "und", "tax_rate": 19.0},
+    {"name": "Panela cuadrada 500g", "barcode": "7702001010035", "category": "Endulzantes", "price": 3800, "cost": 2600, "stock": 30, "unit": "und", "tax_rate": 0.0},
+    {"name": "Leche Alqueria 1L", "barcode": "7702001010042", "category": "Lácteos", "price": 4800, "cost": 3600, "stock": 25, "unit": "und", "tax_rate": 0.0},
+    {"name": "Huevos AA x30", "barcode": "7702001010059", "category": "Huevos", "price": 18500, "cost": 14000, "stock": 12, "unit": "und", "tax_rate": 0.0},
+    {"name": "Pan tajado Bimbo", "barcode": "7702001010066", "category": "Panadería", "price": 6900, "cost": 4900, "stock": 15, "unit": "und", "tax_rate": 0.0},
+    {"name": "Café Sello Rojo 250g", "barcode": "7702001010073", "category": "Café", "price": 9800, "cost": 7000, "stock": 20, "unit": "und", "tax_rate": 19.0},
+    {"name": "Frijol rojo 500g", "barcode": "7702001010080", "category": "Granos", "price": 5200, "cost": 3800, "stock": 18, "unit": "und", "tax_rate": 0.0},
+    {"name": "Coca-Cola 1.5L", "barcode": "7702001010097", "category": "Bebidas", "price": 5500, "cost": 4100, "stock": 30, "unit": "und", "tax_rate": 19.0},
+    {"name": "Jabón Rey 300g", "barcode": "7702001010103", "category": "Aseo", "price": 4200, "cost": 3000, "stock": 24, "unit": "und", "tax_rate": 19.0},
+    {"name": "Chocolatina Jet", "barcode": "7702001010110", "category": "Golosinas", "price": 1200, "cost": 800, "stock": 60, "unit": "und", "tax_rate": 19.0},
+    {"name": "Papas Margarita 105g", "barcode": "7702001010127", "category": "Snacks", "price": 4500, "cost": 3200, "stock": 20, "unit": "und", "tax_rate": 19.0},
 ]
 
 _SEED_CONTACTS = [
-    {"kind": "supplier", "name": "Distribuidora La Cosecha", "document": "900123456-7", "phone": "3001112233", "city": "Bogotá"},
-    {"kind": "supplier", "name": "Nutresa S.A.", "document": "890900608-9", "phone": "6045118111", "city": "Medellín"},
-    {"kind": "customer", "name": "Consumidor Final", "document": "222222222222", "document_type": "NIT"},
-    {"kind": "customer", "name": "María López", "document": "1020304050", "document_type": "CC", "phone": "3113334455"},
+    {"kind": "supplier", "name": "Distribuidora La Cosecha", "document": "900123456-7", "document_type": "NIT", "phone": "3001112233", "city": "Bogotá", "notes": "Distribuidor mayorista de granos y abarrotes"},
+    {"kind": "supplier", "name": "Nutresa S.A.", "document": "890900608-9", "document_type": "NIT", "phone": "6045118111", "city": "Medellín", "notes": "Galletas, chocolates, café y cárnicos"},
+    {"kind": "supplier", "name": "Alquería Colombia", "document": "860002130-1", "document_type": "NIT", "phone": "3108889900", "city": "Cajicá", "notes": "Lácteos y derivados"},
+    {"kind": "customer", "name": "Consumidor Final", "document": "222222222222", "document_type": "NIT", "city": "Colombia", "notes": "Cliente estándar ventas POS"},
+    {"kind": "customer", "name": "María López", "document": "1020304050", "document_type": "CC", "phone": "3113334455", "city": "Bogotá", "notes": "Cliente frecuente crédito/fiado"},
+    {"kind": "customer", "name": "Carlos Rodríguez", "document": "1030405060", "document_type": "CC", "phone": "3124445566", "city": "Medellín", "notes": "Cliente mostrador"},
 ]
+
+_SEED_CATEGORIES = [
+    {"name": "Granos", "emoji": "🍚", "pinned": True, "order": 1},
+    {"name": "Lácteos", "emoji": "🥛", "pinned": True, "order": 2},
+    {"name": "Bebidas", "emoji": "🥤", "pinned": True, "order": 3},
+    {"name": "Panadería", "emoji": "🍞", "pinned": True, "order": 4},
+    {"name": "Huevos", "emoji": "🥚", "pinned": True, "order": 5},
+    {"name": "Café", "emoji": "☕", "pinned": True, "order": 6},
+    {"name": "Aceites", "emoji": "🌻", "pinned": True, "order": 7},
+    {"name": "Snacks", "emoji": "🥔", "pinned": True, "order": 8},
+    {"name": "Golosinas", "emoji": "🍫", "pinned": True, "order": 9},
+    {"name": "Aseo", "emoji": "🧼", "pinned": True, "order": 10},
+    {"name": "Endulzantes", "emoji": "🍯", "pinned": False, "order": 11},
+]
+
+
+class SeedOptionsIn(BaseModel):
+    force: bool = False
 
 
 @products_router.post("/seed")
 async def seed_data(
+    payload: Optional[SeedOptionsIn] = None,
+    force: bool = Query(False),
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    existing = (await session.execute(select(func.count(Product.id)))).scalar_one()
-    if existing > 0:
-        return {"ok": True, "seeded": False, "message": "Ya existen datos"}
+    force_mode = force or (payload.force if payload else False)
+    existing_count = (await session.execute(select(func.count(Product.id)))).scalar_one()
 
+    # Si ya existen productos y no es forzado, informar
+    if existing_count > 0 and not force_mode:
+        return {
+            "ok": True,
+            "seeded": False,
+            "message": f"El sistema ya cuenta con {existing_count} producto(s). Usa el modo 'Forzar Carga' o 'Regenerar' si deseas reponer los productos demo.",
+            "existing_products": existing_count,
+        }
+
+    # Cargar / reponer productos demo sin duplicar barcodes
+    existing_barcodes = set((await session.execute(select(Product.barcode).where(Product.barcode.isnot(None)))).scalars().all())
+    existing_names = set((await session.execute(select(Product.name))).scalars().all())
+    
+    products_added = 0
     for p in _SEED_PRODUCTS:
-        session.add(Product(**p))
+        if p.get("barcode") not in existing_barcodes and p.get("name") not in existing_names:
+            session.add(Product(**p))
+            products_added += 1
+
+    # Cargar contactos demo sin duplicar documentos
+    existing_docs = set((await session.execute(select(Contact.document).where(Contact.document.isnot(None)))).scalars().all())
+    contacts_added = 0
     for c in _SEED_CONTACTS:
-        session.add(Contact(**c))
+        if c.get("document") not in existing_docs:
+            session.add(Contact(**c))
+            contacts_added += 1
+
+    # Cargar categorías con emojis
+    for cat in _SEED_CATEGORIES:
+        cat_row = await session.get(CategoryMeta, cat["name"])
+        if not cat_row:
+            session.add(CategoryMeta(**cat))
+
     await session.commit()
 
-    return {"ok": True, "seeded": True, "products": len(_SEED_PRODUCTS), "contacts": len(_SEED_CONTACTS)}
+    total_products = (await session.execute(select(func.count(Product.id)))).scalar_one()
+    total_contacts = (await session.execute(select(func.count(Contact.id)))).scalar_one()
+
+    return {
+        "ok": True,
+        "seeded": True,
+        "products": products_added,
+        "contacts": contacts_added,
+        "total_products": total_products,
+        "total_contacts": total_contacts,
+        "message": f"Datos demo listos: +{products_added} productos y +{contacts_added} contactos incorporados.",
+    }

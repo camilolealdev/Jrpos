@@ -1,13 +1,45 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user, require_admin
 from db import get_session
-from models_sql import SettingsCertificate, SettingsElectronic, SettingsGeneral, SettingsTimeclockSchedule, User
+from models_sql import (
+    CashPickup,
+    CashSession,
+    CategoryMeta,
+    CommissionRule,
+    Contact,
+    CreditNote,
+    Document,
+    DocumentItem,
+    Expense,
+    HeldSale,
+    HeldSaleItem,
+    Payment,
+    Payroll,
+    Product,
+    Promotion,
+    PurchaseInvoice,
+    PurchaseInvoiceItem,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    Sale,
+    SaleItem,
+    SettingsCertificate,
+    SettingsElectronic,
+    SettingsGeneral,
+    SettingsTimeclockSchedule,
+    SupportDoc,
+    SupportDocItem,
+    Timeclock,
+    User,
+    Warranty,
+)
 
 settings_router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -306,3 +338,122 @@ async def get_certificate(
         "uploaded_by": row.uploaded_by,
         "uploaded_at": row.uploaded_at,
     }
+
+
+# ----------------- Gestión de Datos & Puesta en Producción -----------------
+@settings_router.get("/settings/data-stats")
+async def get_data_stats(
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    """Retorna conteos actuales de la base de datos para auditoría previa a producción."""
+    products = (await session.execute(select(func.count(Product.id)))).scalar_one()
+    contacts = (await session.execute(select(func.count(Contact.id)))).scalar_one()
+    sales = (await session.execute(select(func.count(Sale.id)))).scalar_one()
+    payments = (await session.execute(select(func.count(Payment.id)))).scalar_one()
+    expenses = (await session.execute(select(func.count(Expense.id)))).scalar_one()
+    invoices = (await session.execute(select(func.count(PurchaseInvoice.id)))).scalar_one()
+    cash_sessions = (await session.execute(select(func.count(CashSession.id)))).scalar_one()
+    timeclock = (await session.execute(select(func.count(Timeclock.id)))).scalar_one()
+
+    return {
+        "products": products,
+        "contacts": contacts,
+        "sales": sales,
+        "payments": payments,
+        "expenses": expenses,
+        "invoices": invoices,
+        "cash_sessions": cash_sessions,
+        "timeclock": timeclock,
+        "is_clean_slate": (sales == 0 and expenses == 0 and invoices == 0),
+    }
+
+
+class WipeDataIn(BaseModel):
+    confirm_phrase: str
+    scope: str = "transactions_only"  # "transactions_only" | "full_clean_slate"
+    keep_products: bool = True
+    keep_contacts: bool = True
+
+
+@settings_router.post("/settings/wipe-data")
+async def wipe_data(
+    payload: WipeDataIn,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    """
+    Limpia de forma segura los datos transaccionales o la base de datos completa
+    para iniciar producción real desde cero. Los usuarios y configuraciones se preservan.
+    """
+    valid_phrases = ["BORRAR", "PRODUCCION", "PRODUCCIÓN", "RESET", "LIMPIAR"]
+    if payload.confirm_phrase.strip().upper() not in valid_phrases:
+        raise HTTPException(
+            status_code=400,
+            detail="Frase de confirmación inválida. Escribe 'PRODUCCION' o 'BORRAR' para autorizar el vaciado.",
+        )
+
+    deleted_counts: Dict[str, int] = {}
+
+    # 1. Borrar todas las transacciones operativas y registros auxiliares
+    trans_sequence = [
+        ("sale_items", SaleItem),
+        ("payments", Payment),
+        ("sales", Sale),
+        ("held_sale_items", HeldSaleItem),
+        ("held_sales", HeldSale),
+        ("credit_notes", CreditNote),
+        ("warranties", Warranty),
+        ("document_items", DocumentItem),
+        ("documents", Document),
+        ("purchase_invoice_items", PurchaseInvoiceItem),
+        ("purchase_invoices", PurchaseInvoice),
+        ("purchase_order_items", PurchaseOrderItem),
+        ("purchase_orders", PurchaseOrder),
+        ("support_doc_items", SupportDocItem),
+        ("support_docs", SupportDoc),
+        ("cash_pickups", CashPickup),
+        ("cash_sessions", CashSession),
+        ("expenses", Expense),
+        ("timeclock", Timeclock),
+        ("payroll", Payroll),
+    ]
+
+    for label, model in trans_sequence:
+        res = await session.execute(delete(model))
+        deleted_counts[label] = res.rowcount or 0
+
+    # 2. Manejo de productos y catálogo
+    if payload.scope == "full_clean_slate" or not payload.keep_products:
+        res_p = await session.execute(delete(Product))
+        deleted_counts["products"] = res_p.rowcount or 0
+        res_cat = await session.execute(delete(CategoryMeta))
+        deleted_counts["category_meta"] = res_cat.rowcount or 0
+        res_prom = await session.execute(delete(Promotion))
+        deleted_counts["promotions"] = res_prom.rowcount or 0
+
+    # 3. Manejo de contactos (clientes / proveedores)
+    if payload.scope == "full_clean_slate" or not payload.keep_contacts:
+        res_c = await session.execute(delete(Contact))
+        deleted_counts["contacts"] = res_c.rowcount or 0
+        
+        # Siempre re-sembrar el Consumidor Final estándar para mostrador
+        final_consumer = Contact(
+            kind="customer",
+            name="Consumidor Final",
+            document="222222222222",
+            document_type="NIT",
+            city="Colombia",
+            notes="Cliente genérico estándar para ventas rápidas",
+        )
+        session.add(final_consumer)
+
+    await session.commit()
+
+    return {
+        "ok": True,
+        "message": "Base de datos preparada exitosamente para producción.",
+        "scope": payload.scope,
+        "deleted_counts": deleted_counts,
+    }
+
