@@ -174,6 +174,9 @@ def _general_defaults() -> dict:
     return GeneralSettingsIn().model_dump()
 
 
+ADMIN_ONLY_GENERAL_FIELDS = ("ai_api_key", "ai_base_url")
+
+
 @settings_router.get("/settings/general")
 async def get_general_settings(
     session: AsyncSession = Depends(get_session),
@@ -199,6 +202,9 @@ async def get_general_settings(
                         base[key] = val
         except Exception:
             pass
+    if user.role != "admin":
+        for key in ADMIN_ONLY_GENERAL_FIELDS:
+            base.pop(key, None)
     return base
 
 
