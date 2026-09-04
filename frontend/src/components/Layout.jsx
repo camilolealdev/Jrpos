@@ -175,7 +175,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background grain-bg flex text-slate-800">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 border-r border-slate-200 bg-white/70 backdrop-blur-md sticky top-0 h-screen">
+      <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r border-slate-200 bg-white/70 backdrop-blur-md sticky top-0 h-screen z-30">
         <SidebarContent storeName={storeName} role={user?.role} />
       </aside>
 
@@ -194,8 +194,8 @@ export default function Layout() {
         </div>
       )}
 
-      <main className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-40 backdrop-blur-md bg-white/80 border-b border-slate-200/80">
+      <main className="flex-1 min-w-0 flex flex-col min-h-screen">
+        <header className="sticky top-0 z-40 backdrop-blur-md bg-white/80 border-b border-slate-200/80 shrink-0">
           <div className="flex items-center gap-3 px-4 lg:px-6 h-14">
             <Button
               variant="ghost"

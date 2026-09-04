@@ -282,9 +282,9 @@ export default function POS() {
   const change = Number(received || 0) - totals.total;
 
   return (
-    <div className="h-full grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-0" data-testid="pos-page">
+    <div className="min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)] grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0 lg:overflow-hidden" data-testid="pos-page">
       {/* Left: product grid */}
-      <div className="p-3 lg:p-5 flex flex-col min-h-0">
+      <div className="p-3 lg:p-5 flex flex-col min-h-0 lg:overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-2 mb-1.5">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -431,7 +431,7 @@ export default function POS() {
       </div>
 
       {/* Right: cart */}
-      <aside className="border-l border-slate-200 bg-white flex flex-col h-full min-h-[60vh] lg:min-h-0 lg:h-screen lg:sticky lg:top-0">
+      <aside className="border-t lg:border-t-0 lg:border-l border-slate-200 bg-white flex flex-col h-full min-h-[500px] lg:min-h-0 overflow-hidden">
         <div className="px-4 py-3 border-b">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

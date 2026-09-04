@@ -103,17 +103,19 @@ export default function Inventory() {
 
   return (
     <div className="p-4 lg:p-6" data-testid="inventory-page">
-      <div className="flex flex-col sm:flex-row justify-between gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Inventario</h1>
           <p className="text-sm text-slate-500">Gestiona tus productos, precios y stock.</p>
         </div>
-        <Button onClick={() => { setForm(empty); setEditingId(null); setUseMargin(false); setOpen(true); }} className="bg-emerald-700 hover:bg-emerald-800" data-testid="new-product-btn">
-          <Plus className="w-4 h-4 mr-1" /> Nuevo producto
-        </Button>
-        <Button variant="outline" onClick={() => setCatMgrOpen(true)} data-testid="open-cat-manager-btn">
-          <Tags className="w-4 h-4 mr-1" /> Iconos y categorías
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button onClick={() => { setForm(empty); setEditingId(null); setUseMargin(false); setOpen(true); }} className="bg-emerald-700 hover:bg-emerald-800" data-testid="new-product-btn">
+            <Plus className="w-4 h-4 mr-1" /> Nuevo producto
+          </Button>
+          <Button variant="outline" onClick={() => setCatMgrOpen(true)} data-testid="open-cat-manager-btn">
+            <Tags className="w-4 h-4 mr-1" /> Iconos y categorías
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-3">
