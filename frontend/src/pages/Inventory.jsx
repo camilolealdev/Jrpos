@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode, Download } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 import CameraScanner from "@/components/CameraScanner";
 import BarcodeLabelModal from "@/components/BarcodeLabelModal";
@@ -101,6 +101,38 @@ export default function Inventory() {
     toast.success("Eliminado"); load();
   };
 
+  const exportCSV = () => {
+    if (!Array.isArray(items) || items.length === 0) return toast.error("No hay productos para exportar");
+    try {
+      const headers = ["ID", "Nombre", "Codigo_Barras", "Categoria", "Costo", "Precio", "Utilidad_Porcentaje", "Stock", "Unidad", "IVA"];
+      const rows = items.map((p) => [
+        `"${p.id || ""}"`,
+        `"${(p.name || "").replace(/"/g, '""')}"`,
+        `"${p.barcode || ""}"`,
+        `"${(p.category || "General").replace(/"/g, '""')}"`,
+        Number(p.cost) || 0,
+        Number(p.price) || 0,
+        p.margin_percent != null ? Number(p.margin_percent) : "",
+        Number(p.stock) || 0,
+        `"${p.unit || "und"}"`,
+        Number(p.tax_rate) || 19,
+      ]);
+
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `inventario_jrpos_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Catálogo de inventario exportado con éxito");
+    } catch {
+      toast.error("Error exportando inventario");
+    }
+  };
+
   return (
     <div className="p-4 lg:p-6" data-testid="inventory-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
@@ -109,6 +141,9 @@ export default function Inventory() {
           <p className="text-sm text-slate-500">Gestiona tus productos, precios y stock.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button onClick={exportCSV} variant="outline" data-testid="export-inv-btn">
+            <Download className="w-4 h-4 mr-1" /> Exportar CSV
+          </Button>
           <Button onClick={() => { setForm(empty); setEditingId(null); setUseMargin(false); setOpen(true); }} className="bg-emerald-700 hover:bg-emerald-800" data-testid="new-product-btn">
             <Plus className="w-4 h-4 mr-1" /> Nuevo producto
           </Button>
