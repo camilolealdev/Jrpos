@@ -1,7 +1,8 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API = `${BACKEND_URL}/api`;
+// Si REACT_APP_BACKEND_URL no está definido, usar ruta relativa /api para funcionar en Vercel, proxies y desarrollo local
+const rawBackendUrl = (process.env.REACT_APP_BACKEND_URL || "").trim();
+export const API = rawBackendUrl.replace(/\/$/, "") ? `${rawBackendUrl.replace(/\/$/, "")}/api` : "/api";
 
 export const api = axios.create({
   baseURL: API,

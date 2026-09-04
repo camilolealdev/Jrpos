@@ -23,33 +23,59 @@ export default function CameraScanner({ open, onOpenChange, onScan }) {
         if (tries++ < 30) return requestAnimationFrame(start);
         return setError("No se pudo inicializar el visor de cámara.");
       }
-      const scanner = new Html5Qrcode("camera-reader");
-      scannerRef.current = scanner;
-      scanner
-        .start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 250, height: 150 } },
-          async (text) => {
-            try { await scanner.stop(); } catch { /* noop */ }
-            running.current = false;
-            onOpenChange(false);
-            onScan(text);
+      try {
+        const scanner = new Html5Qrcode("camera-reader", { verbose: false });
+        scannerRef.current = scanner;
+
+        const config = {
+          fps: 10,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+            return {
+              width: Math.max(160, Math.floor(minDim * 0.8)),
+              height: Math.max(120, Math.floor(minDim * 0.55)),
+            };
           },
-          () => {} // per-frame errors ignored
-        )
-        .then(() => { running.current = true; })
-        .catch((e) => {
-          setError("No se pudo acceder a la cámara. Revisa permisos o usa HTTPS. " + (e?.message || e));
-        });
+        };
+
+        scanner
+          .start(
+            { facingMode: { ideal: "environment" } },
+            config,
+            async (text) => {
+              try {
+                if (scannerRef.current) {
+                  await scannerRef.current.stop();
+                }
+              } catch { /* noop */ }
+              running.current = false;
+              onOpenChange(false);
+              onScan(text);
+            },
+            () => {} // per-frame scan failures ignored
+          )
+          .then(() => { running.current = true; })
+          .catch((e) => {
+            setError("No se pudo acceder a la cámara. Asegúrate de otorgar permisos en el navegador y usar HTTPS o localhost. (" + (e?.message || e) + ")");
+          });
+      } catch (err) {
+        setError("Error inicializando el escáner: " + (err?.message || err));
+      }
     };
     const raf = requestAnimationFrame(start);
 
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
-      if (running.current && scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
+      if (scannerRef.current) {
+        try {
+          if (running.current) {
+            scannerRef.current.stop().catch(() => {});
+          }
+          scannerRef.current.clear().catch(() => {});
+        } catch { /* noop */ }
         running.current = false;
+        scannerRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
