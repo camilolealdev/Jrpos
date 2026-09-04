@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Upload, FileSpreadsheet, Download, Loader2 } from "lucide-react";
 
-const TEMPLATE = "name,barcode,category,price,cost,stock,unit,tax_rate\nArroz Diana 500g,7702001010011,Granos,2500,1800,40,und,19\n";
+const TEMPLATE = "name,barcode,category,price,cost,stock,unit,tax_rate,costo_paquete,unidades_paquete,utilidad\nArroz Diana 500g,7702001010011,Granos,2500,1800,40,und,19,,,\nLeche Alqueria 1L,7702001010042,Lácteos,,,24,und,19,48000,24,25\n";
 
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -15,6 +15,12 @@ function parseCSV(text) {
   return lines.slice(1).map((l) => {
     const cols = l.split(sep).map((c) => c.trim());
     const get = (k) => cols[header.indexOf(k)] ?? "";
+    // costo_paquete/unidades_paquete/utilidad son opcionales: si vienen, el backend
+    // calcula costo y precio unitario a partir de ellos (caja→unidad + % de utilidad).
+    // Si no vienen, se usan price/cost directamente, como antes.
+    const packageCost = get("costo_paquete") || get("package_cost");
+    const unitsPerPackage = get("unidades_paquete") || get("units_per_package");
+    const margin = get("utilidad") || get("margin_percent");
     return {
       name: get("name") || get("nombre"),
       barcode: get("barcode") || get("codigo") || null,
@@ -24,6 +30,9 @@ function parseCSV(text) {
       stock: Number(get("stock") || 0),
       unit: get("unit") || get("unidad") || "und",
       tax_rate: Number(get("tax_rate") || get("iva") || 19),
+      package_cost: packageCost !== "" ? Number(packageCost) : null,
+      units_per_package: unitsPerPackage !== "" ? Number(unitsPerPackage) : null,
+      margin_percent: margin !== "" ? Number(margin) : null,
     };
   }).filter((r) => r.name);
 }
@@ -65,7 +74,7 @@ export default function BulkLoad() {
     <div className="p-4 lg:p-6 space-y-4" data-testid="bulk-load-page">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><FileSpreadsheet className="w-6 h-6 text-emerald-700" /> Carga Masiva de Inventario</h1>
-        <p className="text-sm text-slate-500">Sube un CSV con tus productos. Columnas: name, barcode, category, price, cost, stock, unit, tax_rate.</p>
+        <p className="text-sm text-slate-500">Sube un CSV con tus productos. Columnas: name, barcode, category, price, cost, stock, unit, tax_rate. Opcional: costo_paquete, unidades_paquete, utilidad (% de ganancia) — si las llenas, el precio de venta se calcula solo a partir del costo del paquete dividido entre las unidades.</p>
       </div>
       <Card>
         <CardHeader><CardTitle className="text-lg">1. Archivo CSV</CardTitle></CardHeader>
@@ -86,6 +95,7 @@ export default function BulkLoad() {
                 <thead className="bg-slate-50"><tr className="text-left">
                   <th className="p-2">Nombre</th><th className="p-2">Código</th><th className="p-2">Categoría</th>
                   <th className="p-2 text-right">Precio</th><th className="p-2 text-right">Costo</th><th className="p-2 text-right">Stock</th>
+                  <th className="p-2 text-right">Costo paq.</th><th className="p-2 text-right">Unid./paq.</th><th className="p-2 text-right">Utilidad</th>
                 </tr></thead>
                 <tbody>
                   {rows.slice(0, 100).map((r, i) => (
@@ -96,6 +106,9 @@ export default function BulkLoad() {
                       <td className="p-2 text-right font-mono">{r.price}</td>
                       <td className="p-2 text-right font-mono">{r.cost}</td>
                       <td className="p-2 text-right font-mono">{r.stock}</td>
+                      <td className="p-2 text-right font-mono">{r.package_cost ?? "-"}</td>
+                      <td className="p-2 text-right font-mono">{r.units_per_package ?? "-"}</td>
+                      <td className="p-2 text-right font-mono">{r.margin_percent != null ? `${r.margin_percent}%` : "-"}</td>
                     </tr>
                   ))}
                 </tbody>

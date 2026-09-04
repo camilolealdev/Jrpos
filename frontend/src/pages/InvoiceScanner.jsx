@@ -45,7 +45,8 @@ export default function InvoiceScanner() {
         date: data.date || "",
         items: (data.items || []).map((it) => ({
           name: it.name, barcode: it.barcode || "", quantity: it.quantity || 1,
-          unit_price: it.unit_price || 0, selling_price: Math.round((it.unit_price || 0) * 1.3),
+          unit_price: it.unit_price || 0, units_per_package: 1, margin_percent: 30,
+          selling_price: Math.round((it.unit_price || 0) * 1.3),
           category: "General", tax_rate: 19,
         })),
       });
@@ -58,11 +59,19 @@ export default function InvoiceScanner() {
   const updateItem = (i, key, val) => {
     setInvoice((prev) => {
       const items = [...prev.items];
-      items[i] = { ...items[i], [key]: key === "name" || key === "barcode" || key === "category" ? val : Number(val || 0) };
+      const isText = key === "name" || key === "barcode" || key === "category";
+      const row = { ...items[i], [key]: isText ? val : Number(val || 0) };
+      // Recalcula el precio de venta cuando cambia costo/unidades por paquete/% utilidad
+      if (["unit_price", "units_per_package", "margin_percent"].includes(key)) {
+        const upp = row.units_per_package > 0 ? row.units_per_package : 1;
+        const unitCost = (row.unit_price || 0) / upp;
+        row.selling_price = Math.round(unitCost * (1 + (row.margin_percent || 0) / 100));
+      }
+      items[i] = row;
       return { ...prev, items };
     });
   };
-  const addRow = () => setInvoice((p) => ({ ...p, items: [...p.items, { name: "", barcode: "", quantity: 1, unit_price: 0, selling_price: 0, category: "General", tax_rate: 19 }] }));
+  const addRow = () => setInvoice((p) => ({ ...p, items: [...p.items, { name: "", barcode: "", quantity: 1, unit_price: 0, units_per_package: 1, margin_percent: 30, selling_price: 0, category: "General", tax_rate: 19 }] }));
   const removeRow = (i) => setInvoice((p) => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }));
 
   const importInv = async () => {
@@ -175,24 +184,28 @@ export default function InvoiceScanner() {
                   <th className="p-2">Producto</th>
                   <th className="p-2">Código</th>
                   <th className="p-2">Categoría</th>
-                  <th className="p-2 text-right">Cant.</th>
-                  <th className="p-2 text-right">Costo</th>
-                  <th className="p-2 text-right">P. Venta</th>
+                  <th className="p-2 text-right">Cant. paq.</th>
+                  <th className="p-2 text-right">Costo paq.</th>
+                  <th className="p-2 text-right">Unid./paq.</th>
+                  <th className="p-2 text-right">% Utilidad</th>
+                  <th className="p-2 text-right">P. Venta/unid.</th>
                   <th className="p-2 text-right">Total</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {invoice.items.length === 0 ? (
-                  <tr><td colSpan={8} className="p-6 text-center text-slate-400">Sin ítems. Sube una factura o agrega manualmente.</td></tr>
+                  <tr><td colSpan={10} className="p-6 text-center text-slate-400">Sin ítems. Sube una factura o agrega manualmente.</td></tr>
                 ) : invoice.items.map((it, i) => (
                   <tr key={i} className="border-b" data-testid={`item-row-${i}`}>
                     <td className="p-1"><Input value={it.name} onChange={(e) => updateItem(i, "name", e.target.value)} className="h-8" /></td>
                     <td className="p-1"><Input value={it.barcode} onChange={(e) => updateItem(i, "barcode", e.target.value)} className="h-8 font-mono" /></td>
                     <td className="p-1"><Input value={it.category} onChange={(e) => updateItem(i, "category", e.target.value)} className="h-8" /></td>
                     <td className="p-1"><Input type="number" value={it.quantity} onChange={(e) => updateItem(i, "quantity", e.target.value)} className="h-8 text-right font-mono w-20" /></td>
-                    <td className="p-1"><Input type="number" value={it.unit_price} onChange={(e) => updateItem(i, "unit_price", e.target.value)} className="h-8 text-right font-mono w-28" /></td>
-                    <td className="p-1"><Input type="number" value={it.selling_price} onChange={(e) => updateItem(i, "selling_price", e.target.value)} className="h-8 text-right font-mono w-28" /></td>
+                    <td className="p-1"><Input type="number" value={it.unit_price} onChange={(e) => updateItem(i, "unit_price", e.target.value)} className="h-8 text-right font-mono w-28" title="Costo de todo el paquete/caja recibido" /></td>
+                    <td className="p-1"><Input type="number" value={it.units_per_package} onChange={(e) => updateItem(i, "units_per_package", e.target.value)} className="h-8 text-right font-mono w-20" title="Cuántas unidades trae cada paquete/caja" /></td>
+                    <td className="p-1"><Input type="number" value={it.margin_percent} onChange={(e) => updateItem(i, "margin_percent", e.target.value)} className="h-8 text-right font-mono w-24" /></td>
+                    <td className="p-1"><Input type="number" value={it.selling_price} onChange={(e) => updateItem(i, "selling_price", e.target.value)} className="h-8 text-right font-mono w-28" title="Se recalcula solo al cambiar costo/unidades/%; puedes sobrescribirlo" /></td>
                     <td className="p-1 text-right font-mono">{formatCOP(it.quantity * it.unit_price)}</td>
                     <td className="p-1"><Button size="icon" variant="ghost" onClick={() => removeRow(i)}><Trash2 className="w-4 h-4 text-red-600" /></Button></td>
                   </tr>
