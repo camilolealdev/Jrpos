@@ -4,19 +4,21 @@ Sistema POS integral, modular y 100% responsivo (PWA instalable en dispositivos 
 
 ---
 
-## ⚡ Stack Tecnológico
+## ⚡ Stack Tecnológico (v11.3)
 
 | Capa | Tecnologías |
 |---|---|
 | **Frontend** | React 19 + Craco + Tailwind CSS + Radix UI / shadcn + TanStack Query + Sonner + Lucide Icons |
-| **PWA & Offline** | IndexedDB local cache + Cola de sincronización de ventas offline (`offlineSync.js`) |
+| **PWA & Offline-First** | IndexedDB (`jrpos_offline_db`) + Cola de ventas desconectadas + Monitor de red en vivo (`offlineSync.js`) |
+| **Código de Barras** | Escáner de cámara (`html5-qrcode`) + Lector óptico físico + Generador de etiquetas para impresión |
+| **Ergonomía POS** | Atajos <kbd>F2</kbd>, <kbd>F4</kbd>, <kbd>F9</kbd>, <kbd>Esc</kbd> + Audio feedback (Web Audio API) + Billetes rápidos COP |
 | **Backend** | FastAPI (Python) con arquitectura modular de 20 routers (`backend/routers/`) |
 | **Base de Datos Principal** | PostgreSQL 16+ con SQLAlchemy Async (`asyncpg`) + Migraciones Alembic |
 | **Base de Datos Fallback** | MongoDB (Motor Async) en `server.py` |
 | **IA / Visión (OCR Facturas)** | Google Gemini 3 Flash / 1.5 Flash Vision para extracción automática de ítems |
 | **Seguridad & Auth** | JWT con cookies HttpOnly (`SameSite=None/Lax`), bcrypt, limitador de intentos y RBAC (`admin` / `cajero`) |
 | **Facturación Fiscal** | Arquitectura DIAN UBL 2.1 con cálculo CUFE (SHA-384), códigos QR y Web Services SOAP |
-| **Impresión** | Impresión Térmica Web Bluetooth / USB ESC-POS (formato 58mm y 80mm) |
+| **Impresión** | Impresión Térmica Web Bluetooth / USB ESC-POS (58mm y 80mm) + Pliegos de etiquetas adhesivas A4 |
 
 ---
 
