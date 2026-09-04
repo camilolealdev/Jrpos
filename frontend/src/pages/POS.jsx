@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { printThermal } from "@/lib/thermalPrint";
+import { cacheProductsOffline, getCachedProductsOffline, queueOfflineSale } from "@/lib/offlineSync";
 import CameraScanner from "@/components/CameraScanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,8 +61,31 @@ export default function POS() {
     if (selectedCats.length > 0) params.categories = selectedCats.join(",");
     try {
       const { data } = await api.get("/products", { params });
-      setProducts(Array.isArray(data) ? data : []);
-    } catch { setProducts([]); }
+      const items = Array.isArray(data) ? data : [];
+      setProducts(items);
+      if (items.length > 0 && !q && selectedCats.length === 0) {
+        cacheProductsOffline(items);
+      }
+    } catch {
+      try {
+        const cached = await getCachedProductsOffline();
+        if (cached && cached.length > 0) {
+          let filtered = cached;
+          if (q) {
+            const lower = q.toLowerCase();
+            filtered = filtered.filter((p) => (p.name && p.name.toLowerCase().includes(lower)) || (p.barcode && p.barcode.includes(q)));
+          }
+          if (selectedCats.length > 0) {
+            filtered = filtered.filter((p) => selectedCats.includes(p.category));
+          }
+          setProducts(filtered);
+        } else {
+          setProducts([]);
+        }
+      } catch {
+        setProducts([]);
+      }
+    }
   }, [q, selectedCats]);
 
   const loadCats = async () => {
@@ -234,16 +258,18 @@ export default function POS() {
   const checkout = async () => {
     if (cart.length === 0) return;
     if (payment === "credito" && !customerId) return toast.error("Selecciona un cliente para venta a crédito");
+    const items = cart.map((c) => ({ ...c, subtotal: c.qty * c.price }));
+    const customer = customers.find((x) => x.id === customerId);
+    const salePayload = {
+      items,
+      discount: totals.promo,
+      payment_method: payment,
+      customer_id: customerId || undefined,
+      customer_name: customer?.name || undefined,
+    };
+
     try {
-      const items = cart.map((c) => ({ ...c, subtotal: c.qty * c.price }));
-      const customer = customers.find((x) => x.id === customerId);
-      const { data } = await api.post("/sales", {
-        items,
-        discount: totals.promo,
-        payment_method: payment,
-        customer_id: customerId || undefined,
-        customer_name: customer?.name || undefined,
-      });
+      const { data } = await api.post("/sales", salePayload);
       setReceiptSale(data);
       setPayOpen(false);
       setCart([]);
@@ -252,6 +278,31 @@ export default function POS() {
       toast.success(`Venta ${data.number} registrada${data.is_credit ? " a crédito" : ""}`);
       load();
     } catch (e) {
+      if (!navigator.onLine || !e.response || e.code === "ERR_NETWORK" || e.message === "Network Error") {
+        try {
+          const offlineNumber = `OFF-${Date.now().toString().slice(-6)}`;
+          const fallbackSale = {
+            ...salePayload,
+            number: offlineNumber,
+            total: totals.total,
+            subtotal: totals.subtotal,
+            tax: totals.tax,
+            created_at: new Date().toISOString(),
+            is_offline: true,
+          };
+          await queueOfflineSale(fallbackSale);
+          setReceiptSale(fallbackSale);
+          setPayOpen(false);
+          setCart([]);
+          setReceived("");
+          setCustomerId("");
+          toast.success(`Venta ${offlineNumber} guardada localmente (Modo Offline). Se sincronizará automáticamente al volver internet.`);
+          return;
+        } catch {
+          toast.error("Error guardando venta offline");
+          return;
+        }
+      }
       toast.error(e?.response?.data?.detail || "Error registrando venta");
     }
   };
@@ -623,13 +674,25 @@ export default function POS() {
       {/* Receipt */}
       <Dialog open={!!receiptSale} onOpenChange={(v) => !v && setReceiptSale(null)}>
         <DialogContent data-testid="receipt-dialog">
-          <DialogHeader><DialogTitle>Recibo {receiptSale?.number}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-6">
+              <DialogTitle>Recibo {receiptSale?.number}</DialogTitle>
+              {receiptSale?.is_offline && (
+                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-xs">
+                  Modo Offline
+                </Badge>
+              )}
+            </div>
+          </DialogHeader>
           {receiptSale && (
             <div className="receipt p-4 rounded text-sm">
               <div className="text-center mb-2">
                 <div className="font-bold">JRPOS · Tienda</div>
                 <div className="text-xs">{new Date(receiptSale.created_at).toLocaleString("es-CO")}</div>
-                <div className="text-xs">Factura POS: {receiptSale.number}</div>
+                <div className="text-xs">
+                  Factura POS: {receiptSale.number}
+                  {receiptSale.is_offline ? " (Local)" : ""}
+                </div>
               </div>
               <hr className="my-2 border-dashed" />
               {(Array.isArray(receiptSale.items) ? receiptSale.items : []).map((it) => (

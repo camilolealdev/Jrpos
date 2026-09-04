@@ -9,7 +9,10 @@ import {
   FileText, Receipt, ClipboardList, Percent, ShoppingBag, RotateCcw,
   BadgeDollarSign, Wallet, HandCoins, PiggyBank, ShieldCheck, KeyRound,
   BookOpen, Award, FileSignature, Menu, X, Store, Wrench, Boxes, RefreshCw, HelpCircle, LogOut, Settings2, Clock,
+  Wifi, WifiOff,
 } from "lucide-react";
+import { syncOfflineSales } from "@/lib/offlineSync";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -161,6 +164,33 @@ export default function Layout() {
     navigate("/login");
   };
 
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      toast.success("Conexión restablecida. Sincronizando datos...");
+      try {
+        const count = await syncOfflineSales(api);
+        if (count && count > 0) {
+          toast.success(`${count} venta(s) offline sincronizada(s) con éxito.`);
+        }
+      } catch {}
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.warning("Modo sin conexión activado. Las ventas se guardarán localmente.");
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
   // Auto-onboarding en la primera visita (solo escritorio: el tour apunta al sidebar)
   useEffect(() => {
     if (!localStorage.getItem(ONBOARDING_KEY) && window.innerWidth >= 1024) {
@@ -217,6 +247,18 @@ export default function Layout() {
               <div className="text-sm font-semibold capitalize">{pageTitle.replace(/-/g, " ")}</div>
             </div>
             <div className="ml-auto flex items-center gap-2">
+              <div
+                className={cn(
+                  "hidden xs:flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border transition-all",
+                  isOnline
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200 animate-pulse"
+                )}
+                title={isOnline ? "Conectado al servidor" : "Modo sin conexión activo (ventas locales)"}
+              >
+                {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                <span className="hidden sm:inline">{isOnline ? "En línea" : "Offline"}</span>
+              </div>
               <span className="hidden sm:inline text-xs text-slate-500">🇨🇴 COP · IVA 19%</span>
               {user && (
                 <div className="hidden sm:flex items-center gap-1.5 text-xs border rounded-full px-2.5 py-1 bg-slate-50" data-testid="user-chip">
