@@ -1,22 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "frontend": {
-      "root": "frontend/",
-      "framework": "create-react-app",
-      "buildCommand": "yarn build",
-      "outputDirectory": "build",
-      "rewrites": [
-        { "source": "/(.*)", "destination": "/index.html" }
-      ]
-    },
-    "backend": {
-      "root": "backend/",
-      "entrypoint": "app:app"
-    }
-  },
+  "buildCommand": "cd frontend && CI=false yarn build",
+  "outputDirectory": "frontend/build",
+  "framework": "create-react-app",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": { "service": "backend" } },
-    { "source": "/(.*)", "destination": { "service": "frontend" } }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
+

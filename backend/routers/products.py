@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth import get_current_user, require_admin
 from db import get_session
 from models_sql import CategoryMeta, Contact, Product, User, utcnow
+from pricing import compute_unit_pricing
 
 products_router = APIRouter(prefix="/api", tags=["products"])
 
@@ -31,6 +32,8 @@ class ProductOut(BaseModel):
     supplier_id: Optional[str] = None
     image_url: Optional[str] = None
     is_service: bool = False
+    margin_percent: Optional[float] = None
+    units_per_package: float = 1.0
     created_at: datetime
     updated_at: datetime
 
@@ -48,6 +51,13 @@ class ProductCreate(BaseModel):
     supplier_id: Optional[str] = None
     image_url: Optional[str] = None
     is_service: bool = False
+    # Utilidad variable por producto: si vienen package_cost/units_per_package/margin_percent,
+    # el precio/costo unitario se recalcula a partir de ellos (ver pricing.compute_unit_pricing),
+    # ignorando price/cost enviados directamente — así siempre coincide lo mostrado en el
+    # formulario con lo que queda guardado.
+    package_cost: Optional[float] = None
+    units_per_package: Optional[float] = None
+    margin_percent: Optional[float] = None
 
 
 class ProductUpdate(BaseModel):
@@ -63,6 +73,9 @@ class ProductUpdate(BaseModel):
     supplier_id: Optional[str] = None
     image_url: Optional[str] = None
     is_service: Optional[bool] = None
+    package_cost: Optional[float] = None
+    units_per_package: Optional[float] = None
+    margin_percent: Optional[float] = None
 
 
 class CategoryInfo(BaseModel):
@@ -151,19 +164,25 @@ async def create_product(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    unit_cost, unit_price = compute_unit_pricing(
+        payload.package_cost, payload.units_per_package, payload.margin_percent,
+        fallback_cost=float(payload.cost or 0.0), fallback_price=float(payload.price or 0.0),
+    )
     product = Product(
         name=payload.name.strip(),
         barcode=payload.barcode.strip() if payload.barcode else None,
         sku=payload.sku.strip() if payload.sku else None,
         category=payload.category.strip() if payload.category else "General",
-        price=float(payload.price or 0.0),
-        cost=float(payload.cost or 0.0),
+        price=unit_price,
+        cost=unit_cost,
         stock=float(payload.stock or 0.0),
         unit=payload.unit or "und",
         tax_rate=float(payload.tax_rate if payload.tax_rate is not None else 19.0),
         supplier_id=payload.supplier_id,
         image_url=payload.image_url,
         is_service=bool(payload.is_service),
+        margin_percent=payload.margin_percent,
+        units_per_package=payload.units_per_package or 1.0,
     )
     session.add(product)
     await session.commit()
@@ -183,8 +202,25 @@ async def update_product(
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
     data = payload.model_dump(exclude_unset=True)
+    package_cost = data.pop("package_cost", None)
+    units_per_package = data.pop("units_per_package", None)
+    margin_percent = data.pop("margin_percent", None)
+
     for key, value in data.items():
         setattr(product, key, value)
+
+    if package_cost is not None or margin_percent is not None:
+        unit_cost, unit_price = compute_unit_pricing(
+            package_cost, units_per_package or product.units_per_package, margin_percent,
+            fallback_cost=product.cost, fallback_price=product.price,
+        )
+        product.cost = unit_cost
+        product.price = unit_price
+    if margin_percent is not None:
+        product.margin_percent = margin_percent
+    if units_per_package is not None:
+        product.units_per_package = units_per_package
+
     product.updated_at = utcnow()
 
     await session.commit()
@@ -289,11 +325,20 @@ async def bulk_load_products(
             stmt = select(Product).where(Product.name == it.name.strip())
             existing = (await session.execute(stmt)).scalar_one_or_none()
 
+        unit_cost, unit_price = compute_unit_pricing(
+            it.package_cost, it.units_per_package, it.margin_percent,
+            fallback_cost=float(it.cost or 0.0), fallback_price=float(it.price or 0.0),
+        )
+
         if existing:
-            existing.price = float(it.price)
-            existing.cost = float(it.cost)
+            existing.price = unit_price
+            existing.cost = unit_cost
             existing.category = it.category or existing.category
             existing.stock = existing.stock + float(it.stock)
+            if it.margin_percent is not None:
+                existing.margin_percent = it.margin_percent
+            if it.units_per_package is not None:
+                existing.units_per_package = it.units_per_package
             existing.updated_at = utcnow()
             updated += 1
         else:
@@ -302,13 +347,15 @@ async def bulk_load_products(
                 barcode=it.barcode.strip() if it.barcode else None,
                 sku=it.sku.strip() if it.sku else None,
                 category=it.category.strip() if it.category else "General",
-                price=float(it.price or 0.0),
-                cost=float(it.cost or 0.0),
+                price=unit_price,
+                cost=unit_cost,
                 stock=float(it.stock or 0.0),
                 unit=it.unit or "und",
                 tax_rate=float(it.tax_rate if it.tax_rate is not None else 19.0),
                 supplier_id=it.supplier_id,
                 is_service=bool(it.is_service),
+                margin_percent=it.margin_percent,
+                units_per_package=it.units_per_package or 1.0,
             )
             session.add(new_p)
             created += 1

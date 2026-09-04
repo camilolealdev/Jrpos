@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Search, Package, Tags } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 
-const empty = { name: "", barcode: "", category: "General", price: 0, cost: 0, stock: 0, unit: "und", tax_rate: 19 };
+const empty = {
+  name: "", barcode: "", category: "General", price: 0, cost: 0, stock: 0, unit: "und", tax_rate: 19,
+  package_cost: "", units_per_package: 1, margin_percent: "",
+};
 
 export default function Inventory() {
   const [items, setItems] = useState([]);
@@ -19,6 +22,7 @@ export default function Inventory() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editingId, setEditingId] = useState(null);
+  const [useMargin, setUseMargin] = useState(false);
 
   const load = useCallback(async () => {
     const { data } = await api.get("/products", { params: { q: q || undefined } });
@@ -29,21 +33,55 @@ export default function Inventory() {
     load();
   }, [load]);
 
+  // Vista previa en vivo: costo por paquete / unidades por paquete + % utilidad -> costo y precio unitario
+  const preview = useMemo(() => {
+    const upp = Number(form.units_per_package) > 0 ? Number(form.units_per_package) : 1;
+    const pkgCost = Number(form.package_cost) || 0;
+    const margin = Number(form.margin_percent) || 0;
+    const unitCost = upp ? pkgCost / upp : pkgCost;
+    const unitPrice = unitCost * (1 + margin / 100);
+    return { unitCost, unitPrice };
+  }, [form.package_cost, form.units_per_package, form.margin_percent]);
+
   const save = async () => {
     if (!form.name) return toast.error("El nombre es obligatorio");
+    const payload = { ...form };
+    if (useMargin) {
+      payload.package_cost = Number(form.package_cost) || 0;
+      payload.units_per_package = Number(form.units_per_package) || 1;
+      payload.margin_percent = Number(form.margin_percent) || 0;
+      // el backend recalcula cost/price con estos tres; mandamos también el preview
+      // para que la lista se vea correcta de inmediato si algo falla en el cálculo del server.
+      payload.cost = Math.round(preview.unitCost * 100) / 100;
+      payload.price = Math.round(preview.unitPrice * 100) / 100;
+    } else {
+      delete payload.package_cost;
+      delete payload.units_per_package;
+      delete payload.margin_percent;
+      payload.cost = Number(form.cost) || 0;
+      payload.price = Number(form.price) || 0;
+    }
     try {
       if (editingId) {
-        await api.put(`/products/${editingId}`, form);
+        await api.put(`/products/${editingId}`, payload);
         toast.success("Producto actualizado");
       } else {
-        await api.post("/products", form);
+        await api.post("/products", payload);
         toast.success("Producto creado");
       }
-      setOpen(false); setForm(empty); setEditingId(null); load();
+      setOpen(false); setForm(empty); setEditingId(null); setUseMargin(false); load();
     } catch { toast.error("Error guardando"); }
   };
 
-  const edit = (p) => { setForm(p); setEditingId(p.id); setOpen(true); };
+  const edit = (p) => {
+    setForm({
+      ...empty, ...p,
+      package_cost: "", units_per_package: p.units_per_package || 1, margin_percent: p.margin_percent ?? "",
+    });
+    setUseMargin(false);
+    setEditingId(p.id);
+    setOpen(true);
+  };
   const remove = async (id) => {
     if (!window.confirm("¿Eliminar producto?")) return;
     await api.delete(`/products/${id}`);
@@ -57,7 +95,7 @@ export default function Inventory() {
           <h1 className="text-2xl sm:text-3xl font-bold">Inventario</h1>
           <p className="text-sm text-slate-500">Gestiona tus productos, precios y stock.</p>
         </div>
-        <Button onClick={() => { setForm(empty); setEditingId(null); setOpen(true); }} className="bg-emerald-700 hover:bg-emerald-800" data-testid="new-product-btn">
+        <Button onClick={() => { setForm(empty); setEditingId(null); setUseMargin(false); setOpen(true); }} className="bg-emerald-700 hover:bg-emerald-800" data-testid="new-product-btn">
           <Plus className="w-4 h-4 mr-1" /> Nuevo producto
         </Button>
         <Button variant="outline" onClick={() => setCatMgrOpen(true)} data-testid="open-cat-manager-btn">
@@ -80,13 +118,14 @@ export default function Inventory() {
                 <th className="p-3 font-semibold hidden lg:table-cell">Categoría</th>
                 <th className="p-3 font-semibold text-right">Costo</th>
                 <th className="p-3 font-semibold text-right">Precio</th>
+                <th className="p-3 font-semibold hidden lg:table-cell text-right">Utilidad</th>
                 <th className="p-3 font-semibold text-right">Stock</th>
                 <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan={7} className="p-8 text-center text-slate-500">
+                <tr><td colSpan={8} className="p-8 text-center text-slate-500">
                   <Package className="w-8 h-8 mx-auto opacity-40" />
                   <p className="mt-2">Sin productos.</p>
                 </td></tr>
@@ -97,6 +136,9 @@ export default function Inventory() {
                   <td className="p-3 hidden lg:table-cell"><Badge variant="outline">{p.category}</Badge></td>
                   <td className="p-3 text-right font-mono">{formatCOP(p.cost)}</td>
                   <td className="p-3 text-right font-mono font-semibold">{formatCOP(p.price)}</td>
+                  <td className="p-3 text-right font-mono hidden lg:table-cell text-emerald-700">
+                    {p.margin_percent != null ? `${p.margin_percent}%` : "-"}
+                  </td>
                   <td className="p-3 text-right font-mono">
                     <span className={p.stock <= 5 ? "text-orange-700 font-bold" : ""}>{p.stock} {p.unit}</span>
                   </td>
@@ -127,14 +169,51 @@ export default function Inventory() {
               <label className="text-xs font-semibold">Categoría</label>
               <Input value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} data-testid="f-category" />
             </div>
-            <div>
-              <label className="text-xs font-semibold">Costo</label>
-              <Input type="number" value={form.cost} onChange={(e) => setForm({ ...form, cost: Number(e.target.value) })} data-testid="f-cost" />
+
+            <div className="col-span-2 flex items-center justify-between border-t pt-3 mt-1">
+              <span className="text-xs font-semibold flex items-center gap-1"><Calculator className="w-3.5 h-3.5" /> Calcular precio con % de utilidad</span>
+              <Button
+                type="button" size="sm" variant={useMargin ? "default" : "outline"}
+                className={useMargin ? "bg-emerald-700 hover:bg-emerald-800 h-7" : "h-7"}
+                onClick={() => setUseMargin((v) => !v)}
+                data-testid="toggle-margin-calc"
+              >
+                {useMargin ? "Activado" : "Desactivado"}
+              </Button>
             </div>
-            <div>
-              <label className="text-xs font-semibold">Precio venta</label>
-              <Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} data-testid="f-price" />
-            </div>
+
+            {useMargin ? (
+              <>
+                <div>
+                  <label className="text-xs font-semibold">Costo por paquete/caja</label>
+                  <Input type="number" value={form.package_cost} onChange={(e) => setForm({ ...form, package_cost: e.target.value })} data-testid="f-package-cost" placeholder="Ej: 48000" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold">Unidades por paquete</label>
+                  <Input type="number" value={form.units_per_package} onChange={(e) => setForm({ ...form, units_per_package: e.target.value })} data-testid="f-units-per-package" placeholder="Ej: 24" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs font-semibold">% de utilidad</label>
+                  <Input type="number" value={form.margin_percent} onChange={(e) => setForm({ ...form, margin_percent: e.target.value })} data-testid="f-margin-percent" placeholder="Ej: 30" />
+                </div>
+                <div className="col-span-2 rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-sm flex justify-between" data-testid="margin-preview">
+                  <span>Costo unitario: <b className="font-mono">{formatCOP(preview.unitCost)}</b></span>
+                  <span>Precio de venta: <b className="font-mono text-emerald-700">{formatCOP(preview.unitPrice)}</b></span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-xs font-semibold">Costo</label>
+                  <Input type="number" value={form.cost} onChange={(e) => setForm({ ...form, cost: Number(e.target.value) })} data-testid="f-cost" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold">Precio venta</label>
+                  <Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} data-testid="f-price" />
+                </div>
+              </>
+            )}
+
             <div>
               <label className="text-xs font-semibold">Stock</label>
               <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} data-testid="f-stock" />
@@ -147,17 +226,6 @@ export default function Inventory() {
               <label className="text-xs font-semibold">IVA (%)</label>
               <Input type="number" value={form.tax_rate} onChange={(e) => setForm({ ...form, tax_rate: Number(e.target.value) })} data-testid="f-tax" />
             </div>
-            <div className="col-span-2 flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is-service"
-                checked={!!form.is_service}
-                onChange={(e) => setForm({ ...form, is_service: e.target.checked })}
-                className="w-4 h-4 accent-emerald-700"
-                data-testid="f-service"
-              />
-              <label htmlFor="is-service" className="text-sm">Es un servicio (no descuenta stock: recargas, copias, giros)</label>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -165,7 +233,8 @@ export default function Inventory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <CategoryManager open={catMgrOpen} onOpenChange={setCatMgrOpen} />
+
+      <CategoryManager open={catMgrOpen} onOpenChange={setCatMgrOpen} onSaved={load} />
     </div>
   );
 }

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from db import get_session
+from pricing import compute_unit_pricing
 from models_sql import (
     Contact,
     Product,
@@ -88,7 +89,13 @@ class ImportInvoiceRequest(BaseModel):
     supplier_nit: Optional[str] = None
     invoice_number: Optional[str] = None
     date: Optional[str] = None
-    items: List[dict]  # each: {name, barcode, quantity, unit_price, selling_price, category, tax_rate}
+    # each: {name, barcode, quantity, unit_price, selling_price, category, tax_rate,
+    #        units_per_package, margin_percent}
+    # - quantity: cantidad de PAQUETES/CAJAS recibidos si units_per_package > 1; unidades si es 1 (default).
+    # - unit_price: costo del paquete/caja completo si units_per_package > 1; costo unitario si es 1.
+    # - margin_percent: % de utilidad a aplicar sobre el costo unitario ya dividido -> precio final POS
+    #   (se ignora si selling_price viene explícito, que siempre gana).
+    items: List[dict]
 
 
 @invoices_router.post("/invoices/ocr", response_model=InvoiceOCR)
@@ -201,14 +208,29 @@ async def import_invoice_to_inventory(
     for it in payload.items:
         name = (it.get("name") or "").strip()
         barcode = (it.get("barcode") or "").strip() or None
-        qty = float(it.get("quantity", 0) or 0)
-        unit_cost = float(it.get("unit_price", 0) or 0)
-        selling_price = float(it.get("selling_price", 0) or 0)
+        package_qty = float(it.get("quantity", 0) or 0)
+        package_cost = float(it.get("unit_price", 0) or 0)
+        units_per_package = float(it.get("units_per_package") or 1) or 1.0
+        margin_raw = it.get("margin_percent")
+        margin_percent = float(margin_raw) if margin_raw not in (None, "") else None
+        selling_price_raw = float(it.get("selling_price", 0) or 0)
+        selling_price = selling_price_raw if selling_price_raw > 0 else None
         category = (it.get("category") or "General").strip() or "General"
         tax_rate = float(it.get("tax_rate", 19) or 19)
 
         if not name:
             continue
+
+        total_units = package_qty * units_per_package
+        unit_cost, unit_price = compute_unit_pricing(
+            package_cost, units_per_package, margin_percent,
+            fallback_price=selling_price,
+        )
+        # sin selling_price ni margin_percent, conserva el fallback histórico (30% de markup)
+        if unit_price is None:
+            unit_price = round((unit_cost or 0) * 1.3, 2)
+        if selling_price is not None:
+            unit_price = selling_price
 
         existing_p = None
         if barcode:
@@ -221,11 +243,13 @@ async def import_invoice_to_inventory(
             ).scalar_one_or_none()
 
         if existing_p:
-            existing_p.stock = float(existing_p.stock) + qty
-            existing_p.cost = unit_cost or existing_p.cost
+            existing_p.stock = float(existing_p.stock) + total_units
+            existing_p.cost = unit_cost if unit_cost is not None else existing_p.cost
+            existing_p.price = unit_price
+            existing_p.units_per_package = units_per_package
+            if margin_percent is not None:
+                existing_p.margin_percent = margin_percent
             existing_p.updated_at = utcnow()
-            if selling_price > 0:
-                existing_p.price = selling_price
             if supplier_id:
                 existing_p.supplier_id = supplier_id
             updated += 1
@@ -234,11 +258,13 @@ async def import_invoice_to_inventory(
                 name=name,
                 barcode=barcode,
                 category=category,
-                cost=unit_cost,
-                price=selling_price or round(unit_cost * 1.3, 2),
-                stock=qty,
+                cost=unit_cost or 0.0,
+                price=unit_price,
+                stock=total_units,
                 tax_rate=tax_rate,
                 supplier_id=supplier_id,
+                margin_percent=margin_percent,
+                units_per_package=units_per_package,
             ))
             imported += 1
 
@@ -262,6 +288,8 @@ async def import_invoice_to_inventory(
             selling_price=(float(it.get("selling_price", 0) or 0) or None),
             category=(it.get("category") or "General").strip() or "General",
             tax_rate=float(it.get("tax_rate", 19) or 19),
+            units_per_package=(float(it.get("units_per_package")) if it.get("units_per_package") not in (None, "") else None),
+            margin_percent=(float(it.get("margin_percent")) if it.get("margin_percent") not in (None, "") else None),
         ))
 
     await session.commit()
@@ -379,6 +407,7 @@ async def list_purchase_invoices(
                     "name": it.name, "barcode": it.barcode, "quantity": it.quantity,
                     "unit_price": it.unit_price, "selling_price": it.selling_price,
                     "category": it.category, "tax_rate": it.tax_rate,
+                    "units_per_package": it.units_per_package, "margin_percent": it.margin_percent,
                 }
                 for it in items
             ],

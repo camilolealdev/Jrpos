@@ -53,6 +53,8 @@ class Product(Base):
     supplier_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_service: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    margin_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    units_per_package: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -193,6 +195,8 @@ class PurchaseInvoiceItem(Base):
     selling_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     tax_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    units_per_package: Mapped[float | None] = mapped_column(Float, nullable=True)
+    margin_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class SettingsElectronic(Base):
