@@ -582,8 +582,11 @@ export default function Settings() {
                   <button
                     type="button"
                     key={key}
-                    onClick={() => update({ accent: key })}
-                    className={`flex items-center gap-3 p-3 rounded-lg border-2 transition text-left ${form.accent === key ? "border-slate-900 bg-slate-50/80 shadow-xs" : "border-slate-200 hover:border-slate-300"}`}
+                    onClick={() => {
+                      update({ accent: key });
+                      applyAccent(key);
+                    }}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 transition text-left ${form.accent === key ? "border-slate-900 bg-slate-50/80 shadow-xs ring-2 ring-emerald-500/30" : "border-slate-200 hover:border-slate-300"}`}
                     data-testid={`accent-${key}`}
                   >
                     <span className="w-8 h-8 rounded-full shadow-inner shrink-0" style={{ background: a.hex }} />

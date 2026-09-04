@@ -6,6 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from auth import auth_router, seed_admin
 from db import SessionLocal
+from db_migrations import run_auto_migrations
 from routers.products import products_router
 from routers.contacts import contacts_router
 from routers.users import users_router
@@ -31,6 +32,7 @@ from routers.commissions import commissions_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with SessionLocal() as session:
+        await run_auto_migrations(session)
         await seed_admin(session)
     yield
 

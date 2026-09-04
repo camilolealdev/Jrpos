@@ -167,6 +167,9 @@ class GeneralSettingsIn(BaseModel):
     pos_require_credit_customer: Optional[bool] = True
 
 
+from db_migrations import run_auto_migrations
+
+
 def _general_defaults() -> dict:
     return GeneralSettingsIn().model_dump()
 
@@ -176,13 +179,26 @@ async def get_general_settings(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    row = await session.get(SettingsGeneral, 1)
     base = _general_defaults()
-    if row:
-        for key in base:
-            val = getattr(row, key, None)
-            if val is not None:
-                base[key] = val
+    try:
+        row = await session.get(SettingsGeneral, 1)
+        if row:
+            for key in base:
+                val = getattr(row, key, None)
+                if val is not None:
+                    base[key] = val
+    except Exception:
+        await session.rollback()
+        await run_auto_migrations(session)
+        try:
+            row = await session.get(SettingsGeneral, 1)
+            if row:
+                for key in base:
+                    val = getattr(row, key, None)
+                    if val is not None:
+                        base[key] = val
+        except Exception:
+            pass
     return base
 
 
@@ -194,16 +210,38 @@ async def save_general_settings(
 ):
     if payload.printer_width not in (58, 80):
         raise HTTPException(status_code=400, detail="Ancho de impresora debe ser 58 u 80")
-    row = await session.get(SettingsGeneral, 1)
+    
     data = payload.model_dump()
     data["iva_default"] = int(data["iva_default"])
+    
+    try:
+        row = await session.get(SettingsGeneral, 1)
+    except Exception:
+        await session.rollback()
+        await run_auto_migrations(session)
+        row = await session.get(SettingsGeneral, 1)
+
     if row is None:
         row = SettingsGeneral(id=1, **data)
         session.add(row)
     else:
         for key, value in data.items():
             setattr(row, key, value)
-    await session.commit()
+    
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        await run_auto_migrations(session)
+        row = await session.get(SettingsGeneral, 1)
+        if row is None:
+            row = SettingsGeneral(id=1, **data)
+            session.add(row)
+        else:
+            for key, value in data.items():
+                setattr(row, key, value)
+        await session.commit()
+
     return {"ok": True}
 
 
