@@ -12,9 +12,8 @@ Sistema POS integral, modular y 100% responsivo (PWA instalable en dispositivos 
 | **PWA & Offline-First** | IndexedDB (`jrpos_offline_db`) + Cola de ventas desconectadas + Monitor de red en vivo (`offlineSync.js`) |
 | **Código de Barras** | Escáner de cámara (`html5-qrcode`) + Lector óptico físico + Generador de etiquetas para impresión |
 | **Ergonomía POS** | Atajos <kbd>F2</kbd>, <kbd>F4</kbd>, <kbd>F9</kbd>, <kbd>Esc</kbd> + Audio feedback (Web Audio API) + Billetes rápidos COP |
-| **Backend** | FastAPI (Python) con arquitectura modular de 20 routers (`backend/routers/`) |
-| **Base de Datos Principal** | PostgreSQL 16+ con SQLAlchemy Async (`asyncpg`) + Migraciones Alembic |
-| **Base de Datos Fallback** | MongoDB (Motor Async) en `server.py` |
+| **Backend** | FastAPI (Python), entrypoint real `app.py`, arquitectura modular de 20 routers (`backend/routers/`) |
+| **Base de Datos** | PostgreSQL 16+ con SQLAlchemy Async (`asyncpg`) + migraciones automáticas idempotentes (`db_migrations.py`) |
 | **IA / Visión (OCR Facturas)** | Google Gemini 3 Flash / 1.5 Flash Vision para extracción automática de ítems |
 | **Seguridad & Auth** | JWT con cookies HttpOnly (`SameSite=None/Lax`), bcrypt, limitador de intentos y RBAC (`admin` / `cajero`) |
 | **Facturación Fiscal** | Arquitectura DIAN UBL 2.1 con cálculo CUFE (SHA-384), códigos QR y Web Services SOAP |
@@ -79,15 +78,18 @@ mindmap
 - **Proveedores (`/proveedores`)**: Gestión de proveedores de mercancía, NIT y plazos de pago.
 
 ### 3. Facturación DIAN & Documentos Fiscales
-- **Facturación Electrónica (`/facturacion-electronica`)**: Generación de CUFE, XML UBL 2.1 y previsualización de facturas DIAN.
-- **POS Electrónica (`/facturacion-pos-electronica`)**: Configuración de resolución DIAN para punto de venta.
-- **Remisiones (`/remisiones`)**: Guías de entrega y despacho de mercancía.
-- **Nómina Electrónica (`/nomina-electronica`)**: Simulación y cálculo de devengados, deducciones y CUNE.
-- **Documento Soporte (`/documento-soporte`)**: Compras a sujetos no obligados a expedir factura.
-- **RADIAN (`/radian`)**: Registro de eventos de título valor (acuse de recibo y aceptación).
-- **Notas Crédito / Débito (`/notas`)**: Ajustes contables, descuentos y devoluciones vinculadas a facturas.
-- **Cuentas de Cobro (`/cuentas-cobro`)**: Emisión de cuentas de cobro para servicios no gravados.
-- **Certificado Digital (`/certificado-digital`)**: Gestión y carga de certificados `.p12`/`.pfx` para firma digital.
+
+> ⚠️ **Estado real (sep. 2026):** los módulos marcados **(Simulado)** calculan el CUFE con el algoritmo oficial (SHA-384) y generan XML/UI de práctica, pero **no envían nada a los Web Services reales de la DIAN** ni a un proveedor tecnológico autorizado (Factus, Alegra, Siigo, etc.). `dian_client.send_invoice_sync()` retorna siempre una respuesta `ACCEPTED` hardcoded. No usar para facturar legalmente hasta conectar un proveedor autorizado real.
+
+- **Facturación Electrónica (`/facturacion-electronica`) — Simulado**: Generación de CUFE, XML UBL 2.1 y previsualización de facturas DIAN, sin envío real.
+- **POS Electrónica (`/facturacion-pos-electronica`) — Simulado**: Configuración de resolución DIAN para punto de venta.
+- **Remisiones (`/remisiones`)**: Guías de entrega y despacho de mercancía — documento interno real (CRUD contra Postgres), no es un documento DIAN.
+- **Nómina Electrónica (`/nomina-electronica`) — Simulado**: Cálculo de devengados y deducciones; no genera CUNE ni XML válido, guarda `status="simulada"`.
+- **Documento Soporte (`/documento-soporte`)**: Compras a sujetos no obligados a expedir factura — documento interno real.
+- **RADIAN (`/radian`) — Simulado**: Lista ventas con CUFE, sin acuse de recibo/aceptación real ante RADIAN.
+- **Notas Crédito / Débito (`/notas`)**: Ajustes contables, descuentos y devoluciones vinculadas a facturas — CRUD real.
+- **Cuentas de Cobro (`/cuentas-cobro`)**: Emisión de cuentas de cobro para servicios no gravados — CRUD real.
+- **Certificado Digital (`/certificado-digital`) — Simulado**: Gestión y carga de certificados `.p12`/`.pfx`; no se usa aún para firmar XML real.
 
 ### 4. Inventario Avanzado
 - **Carga Masiva (`/carga-masiva`)**: Importador de catálogo desde hojas de cálculo Excel y archivos CSV.
@@ -113,9 +115,11 @@ mindmap
 
 ## 🚀 Despliegue en la Nube
 
-### Despliegue en Vercel (Frontend & Serverless API)
+**Entrypoint real de la API: `app.py` (`uvicorn app:app`), sobre PostgreSQL.** Es el único que registra los 20 routers de `backend/routers/` y todo lo construido desde la migración a Postgres en adelante (incluye el reset de contraseña de admin, RBAC, etc.).
+
+### Despliegue en Vercel (Frontend & Serverless API) — fuente de verdad actual
 1. Conecta el repositorio GitHub en Vercel.
-2. [`vercel.json`](vercel.json) se encargará automáticamente del build (`CI=false yarn build`) y de las reescrituras SPA.
+2. [`vercel.json`](vercel.json) define el servicio `backend` con `"entrypoint": "app:app"` — correcto — y el build del frontend (`CI=false yarn build`) con las reescrituras SPA.
 3. Configura las siguientes Variables de Entorno en el panel de Vercel:
    ```env
    DATABASE_URL=postgresql+asyncpg://usuario:password@host:6543/postgres
@@ -125,12 +129,11 @@ mindmap
    ADMIN_PASSWORD=tu-contraseña-segura
    ```
 
-### Despliegue en Railway (Backend PostgreSQL)
-1. Crea un proyecto en Railway y añade un servicio **PostgreSQL** y un servicio **GitHub Repo**.
-2. Railway utilizará el [`Procfile`](backend/Procfile) o [`railway.json`](backend/railway.json) para ejecutar:
-   ```bash
-   uvicorn app:app --host 0.0.0.0 --port $PORT
-   ```
+### Despliegue en Railway — ⚠️ archivos de config desincronizados
+[`Procfile`](backend/Procfile), [`railway.json`](backend/railway.json) y [`Dockerfile`](backend/Dockerfile) todavía apuntan a `uvicorn server:app`, que es **`server.py`: una app completa alternativa sobre MongoDB, no usada en producción y sin las funcionalidades de los últimos meses** (ver sección de deuda técnica abajo). Si el servicio de Railway está sirviendo tráfico real hoy, es porque alguien sobreescribió el Start Command manualmente en el dashboard de Railway (fuera del repo) apuntando a `app:app` — **no confíes en estos tres archivos tal cual están**; antes de recrear el servicio desde cero, corrígelos primero a:
+```bash
+uvicorn app:app --host 0.0.0.0 --port $PORT
+```
 
 ---
 
@@ -154,3 +157,20 @@ yarn install
 yarn start
 ```
 Accede a `http://localhost:3000` en tu navegador.
+
+---
+
+## 🧭 Brechas y Deuda Técnica Conocidas (actualizado 2026-09-04)
+
+Ranking por severidad, de una auditoría interna del código (no exhaustiva línea por línea):
+
+1. 🔴 **Config de despliegue de Railway apunta a la app muerta.** `backend/Procfile`, `backend/railway.json` y `backend/Dockerfile` ejecutan `server:app` (MongoDB, legado) en vez de `app:app` (Postgres, real). Producción funciona hoy solo si alguien sobreescribió el Start Command manualmente en el dashboard de Railway. Recrear el servicio desde el repo tal cual está lo rompería en silencio.
+2. 🔴 **API keys de IA expuestas a cualquier cajero.** `GET /api/settings/general` (`backend/routers/settings.py`) solo exige sesión válida, no rol admin, y devuelve `ai_api_key` sin filtrar. `Layout.jsx` la cachea en `localStorage` para todo usuario logueado en cada carga de página.
+3. 🟠 **`backend/server.py` (1759 líneas) es una app completa alternativa sobre MongoDB**, no importada por nada activo — duplica toda la lógica de negocio (productos, ventas, créditos, auth, etc.) y crea riesgo real de que alguien la edite pensando que es el backend vigente.
+4. 🟠 **La suite de Facturación DIAN es 100% cosmética** (ver sección de módulos arriba) — el CUFE se calcula correctamente pero nada se envía a la DIAN real. Riesgo si un usuario cree que está facturando legalmente.
+5. 🟡 `backend/tests/backend_test.py` está roto/obsoleto: apunta a una URL externa de la era emergent.sh que ya no existe.
+6. 🟡 El endpoint nuevo `PUT /users/{id}/reset-password` (admin) no tiene test de regresión.
+7. 🟢 Cero tests de frontend pese a tener el runner listo (`craco test` en `package.json`).
+8. 🟢 `AGENTS.md` en la raíz del repo no documenta este proyecto — es un índice global de skills de Claude Code sin relación con JRPOS, probablemente comiteado por error.
+
+**Sin hallazgos relevantes:** ningún router de negocio (productos, ventas, contactos, caja, créditos, garantías, comisiones, etc.) tiene TODOs, stubs o lógica incompleta — es CRUD real y completo contra PostgreSQL. Tampoco se encontraron secretos hardcoded, `eval`, SQL sin parametrizar, ni CORS mal configurado.
