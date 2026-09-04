@@ -615,6 +615,9 @@ export default function Settings() {
                 </div>
                 <Switch checked={form.pos_ask_clear_cart} onCheckedChange={(v) => update({ pos_ask_clear_cart: v })} />
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* TAB 6: Gestión de Datos & Producción */}
         <TabsContent value="data" className="space-y-6">
