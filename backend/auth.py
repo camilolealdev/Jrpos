@@ -47,13 +47,16 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
+def _cookie_flags() -> tuple[bool, str]:
+    is_prod = os.environ.get("ENV") == "production" or os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("VERCEL") == "1"
+    # secure=True y samesite=none para Vercel/Railway cross-origin; samesite=lax para localhost
+    return is_prod, ("none" if is_prod else "lax")
+
+
 def set_auth_cookies(response: Response, user: User) -> None:
     access = create_access_token(user.id, user.email, user.role)
     refresh = create_refresh_token(user.id)
-    is_prod = os.environ.get("ENV") == "production" or os.environ.get("RAILWAY_ENVIRONMENT") is not None
-    # secure=True y samesite=none para Vercel/Railway cross-origin; samesite=lax para localhost
-    same_site = "none" if is_prod else "lax"
-    is_secure = is_prod
+    is_secure, same_site = _cookie_flags()
     response.set_cookie("access_token", access, httponly=True, secure=is_secure, samesite=same_site, max_age=8 * 3600, path="/")
     response.set_cookie("refresh_token", refresh, httponly=True, secure=is_secure, samesite=same_site, max_age=7 * 86400, path="/")
 
@@ -162,7 +165,8 @@ async def refresh(request: Request, response: Response, session: AsyncSession = 
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
     access = create_access_token(user.id, user.email, user.role)
-    response.set_cookie("access_token", access, httponly=True, secure=True, samesite="none", max_age=8 * 3600, path="/")
+    is_secure, same_site = _cookie_flags()
+    response.set_cookie("access_token", access, httponly=True, secure=is_secure, samesite=same_site, max_age=8 * 3600, path="/")
     return {"ok": True}
 
 
