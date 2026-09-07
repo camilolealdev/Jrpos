@@ -52,6 +52,9 @@ class ReportSummaryOut(BaseModel):
     low_stock_count: int
     todays_sales: float
     todays_count: int
+    total_cogs: float = 0.0
+    gross_profit: float = 0.0
+    gross_margin_percent: float = 0.0
     top_products: List[TopProductOut]
     daily_sales: List[DailySaleOut]
     low_stock: List[ProductBrief]
@@ -70,6 +73,16 @@ async def report_summary(
             select(func.count()).select_from(Product).where(Product.stock <= LOW_STOCK_THRESHOLD)
         )
     ).scalar_one()
+
+    # Calculate COGS from SaleItems joined with Product costs
+    cogs_query = (
+        select(func.coalesce(func.sum(SaleItem.qty * Product.cost), 0.0))
+        .select_from(SaleItem)
+        .join(Product, SaleItem.product_id == Product.id, isouter=True)
+    )
+    total_cogs_val = float((await session.execute(cogs_query)).scalar_one() or 0.0)
+    gross_profit_val = max(0.0, float(total_sales) - total_cogs_val)
+    margin_pct = round((gross_profit_val / float(total_sales) * 100), 1) if total_sales > 0 else 0.0
 
     # Today's sales (UTC day boundaries)
     now = datetime.now(timezone.utc)
@@ -120,7 +133,70 @@ async def report_summary(
         "low_stock_count": low_stock_count,
         "todays_sales": round(float(todays_total), 2),
         "todays_count": todays_count,
+        "total_cogs": round(total_cogs_val, 2),
+        "gross_profit": round(gross_profit_val, 2),
+        "gross_margin_percent": margin_pct,
         "top_products": top_products,
         "daily_sales": daily_sales,
         "low_stock": low_stock_rows,
+    }
+
+
+@reports_router.get("/reports/accounting-export")
+async def accounting_export(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    stmt = select(Sale).order_by(Sale.created_at.desc())
+    if start_date:
+        try:
+            s_dt = datetime.fromisoformat(start_date)
+            stmt = stmt.where(Sale.created_at >= s_dt)
+        except Exception:
+            pass
+    if end_date:
+        try:
+            e_dt = datetime.fromisoformat(end_date)
+            stmt = stmt.where(Sale.created_at <= e_dt)
+        except Exception:
+            pass
+
+    sales = (await session.execute(stmt.limit(1000))).scalars().all()
+
+    rows = []
+    for s in sales:
+        items_stmt = select(SaleItem).where(SaleItem.sale_id == s.id)
+        items = (await session.execute(items_stmt)).scalars().all()
+        items_desc = ", ".join(f"{it.name} (x{it.qty})" for it in items)
+        
+        # Calculate approximate taxes by rate
+        tax_0 = sum(it.qty * it.price for it in items if it.tax_rate == 0)
+        tax_5 = sum(it.qty * it.price * 0.05 for it in items if it.tax_rate == 5)
+        tax_19 = sum(it.qty * it.price * 0.19 for it in items if it.tax_rate == 19)
+
+        rows.append({
+            "sale_id": s.id,
+            "number": s.number,
+            "date": s.created_at.isoformat() if s.created_at else "",
+            "customer_name": s.customer_name or "Cliente General",
+            "cashier": s.cashier or "Cajero",
+            "payment_method": s.payment_method,
+            "subtotal": s.subtotal,
+            "tax_total": s.tax_total,
+            "tax_0": round(tax_0, 2),
+            "tax_5": round(tax_5, 2),
+            "tax_19": round(tax_19, 2),
+            "discount": s.discount,
+            "total": s.total,
+            "items_count": len(items),
+            "items_summary": items_desc,
+        })
+
+    return {
+        "count": len(rows),
+        "total_amount": round(sum(r["total"] for r in rows), 2),
+        "total_tax": round(sum(r["tax_total"] for r in rows), 2),
+        "sales": rows,
     }

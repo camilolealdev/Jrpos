@@ -49,7 +49,8 @@ export default function Credits() {
   };
 
   const sendReminder = (customer, balance, salesCount, oldestDate) => {
-    const msg = `Hola ${customer?.name || ""}, te saluda JRPOS 🏪. Tienes un saldo pendiente de ${formatCOP(balance)} por ${salesCount} factura(s) a crédito. La más antigua es del ${formatDate(oldestDate)}. ¡Gracias por ponerte al día! 🙏`;
+    const limitInfo = customer?.credit_limit ? ` de tu cupo autorizado de ${formatCOP(customer.credit_limit)}` : "";
+    const msg = `Hola ${customer?.name || ""}, te saluda JRPOS 🏪. Tu estado de cuenta presenta un saldo pendiente de ${formatCOP(balance)}${limitInfo}, correspondiente a ${salesCount} factura(s) a crédito. La más antigua es del ${formatDate(oldestDate)}. Agradecemos tu oportuno abono o pago. ¡Que tengas un excelente día! 🙏`;
     const url = whatsappUrl(customer?.phone, msg);
     if (!url) return toast.error("Este cliente no tiene un celular válido registrado (10 dígitos). Edítalo en Clientes.");
     window.open(url, "_blank");
@@ -62,23 +63,25 @@ export default function Credits() {
       const { data: pay } = await api.post("/credits/payment", { sale_id: payFor.id, amount: amt, method, notes });
       toast.success(`Abono de ${formatCOP(amt)} registrado`);
       const newBalance = Math.max(0, (payFor.balance_due || 0) - amt);
-      // Try thermal print (opt-in via confirm)
-      if (window.confirm("¿Imprimir recibo del abono en impresora térmica?")) {
-        try {
+      
+      // Intentar impresión térmica Bluetooth si está disponible o avisar
+      try {
+        if (navigator.bluetooth) {
           await printThermal({
-            title: "ABONO",
+            title: "COMPROBANTE DE ABONO",
             subtitle: pay.customer_name || "",
             meta: [
-              `Factura: ${pay.sale_number}`,
+              `Factura POS: ${pay.sale_number}`,
               new Date(pay.created_at).toLocaleString("es-CO"),
               `Método: ${pay.method}`,
             ],
             items: [],
-            totals: [["Abono", formatCOP(pay.amount)], ["Saldo", formatCOP(newBalance)]],
-            footer: "¡Gracias por su pago!",
+            totals: [["Abono Recibido", formatCOP(pay.amount)], ["Nuevo Saldo", formatCOP(newBalance)]],
+            footer: "¡Gracias por su abono!",
           });
-        } catch (e) { toast.error(e.message || "Error de impresión"); }
-      }
+        }
+      } catch { /* continuar si no hay bluetooth */ }
+
       setPayFor(null); setAmount(""); setNotes("");
       loadSummary();
       if (statement?.customer?.id) openStatement(statement.customer.id);
@@ -89,6 +92,10 @@ export default function Credits() {
 
   if (statement) {
     const c = statement.customer;
+    const creditLimit = Number(c?.credit_limit || 0);
+    const balance = Number(statement.balance || 0);
+    const usagePercent = creditLimit > 0 ? Math.min(100, Math.round((balance / creditLimit) * 100)) : 0;
+    const isOverLimit = creditLimit > 0 && balance > creditLimit;
     const statementSales = Array.isArray(statement.sales) ? statement.sales : [];
     const statementPayments = Array.isArray(statement.payments) ? statement.payments : [];
 
@@ -108,7 +115,7 @@ export default function Credits() {
             {statement.balance > 0 && (
               <Button
                 size="sm"
-                className="mt-2 bg-green-600 hover:bg-green-700 text-white"
+                className="mt-2 bg-green-600 hover:bg-green-700 text-white font-semibold"
                 onClick={() => {
                   const oldest = statementSales.filter((s) => s.credit_status !== "paid").map((s) => s.created_at).sort()[0];
                   const pendingCount = statementSales.filter((s) => s.credit_status !== "paid").length;
@@ -121,6 +128,37 @@ export default function Credits() {
             )}
           </div>
         </div>
+
+        {/* Cupo de crédito y utilización */}
+        <Card className="border-slate-200">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 text-sm">
+              <span className="font-semibold text-slate-700">Cupo de crédito asignado:</span>
+              <span className="font-mono font-bold text-slate-900">
+                {creditLimit > 0 ? formatCOP(creditLimit) : "Sin límite fijo"}
+              </span>
+            </div>
+            {creditLimit > 0 && (
+              <>
+                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${isOverLimit ? "bg-red-600" : usagePercent > 80 ? "bg-amber-500" : "bg-emerald-600"}`}
+                    style={{ width: `${Math.min(100, usagePercent)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-slate-500 font-mono">
+                  <span>Utilizado: {usagePercent}%</span>
+                  <span>Disponible: {formatCOP(Math.max(0, creditLimit - balance))}</span>
+                </div>
+                {isOverLimit && (
+                  <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 font-semibold flex items-center gap-1">
+                    <span>⚠️ Cupo sobrepasado en {formatCOP(balance - creditLimit)}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <Card><CardContent className="p-3"><div className="text-[11px] uppercase text-slate-500">Total fiado</div><div className="font-mono font-bold text-lg">{formatCOP(statement.total_credit)}</div></CardContent></Card>

@@ -37,7 +37,9 @@ export default function Dashboard() {
   const stats = [
     { label: "Ventas hoy", value: formatCOP(data?.todays_sales || 0), icon: TrendingUp, color: "text-emerald-700 bg-emerald-50", tid: "stat-todays-sales" },
     { label: "Facturas hoy", value: data?.todays_count ?? 0, icon: ShoppingCart, color: "text-blue-700 bg-blue-50", tid: "stat-todays-count" },
-    { label: "Productos", value: data?.products_count ?? 0, icon: Package, color: "text-amber-700 bg-amber-50", tid: "stat-products" },
+    { label: "Ganancia Bruta Real", value: formatCOP(data?.gross_profit || 0), icon: DollarSign, color: "text-teal-700 bg-teal-50", tid: "stat-gross-profit" },
+    { label: "Margen Bruto %", value: `${data?.gross_margin_percent ?? 0}%`, icon: Sparkles, color: "text-purple-700 bg-purple-50", tid: "stat-gross-margin" },
+    { label: "Productos Activos", value: data?.products_count ?? 0, icon: Package, color: "text-amber-700 bg-amber-50", tid: "stat-products" },
     { label: "Bajo stock", value: data?.low_stock_count ?? 0, icon: AlertTriangle, color: "text-orange-700 bg-orange-50", tid: "stat-low-stock" },
   ];
 
@@ -60,17 +62,17 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {stats.map((s) => (
           <Card key={s.label} data-testid={s.tid}>
-            <CardContent className="p-4 flex items-start gap-3">
-              <div className={`w-10 h-10 rounded-lg grid place-items-center ${s.color}`}>
-                <s.icon className="w-5 h-5" />
+            <CardContent className="p-3.5 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 truncate">{s.label}</span>
+                <div className={`w-8 h-8 rounded-lg grid place-items-center ${s.color}`}>
+                  <s.icon className="w-4 h-4" />
+                </div>
               </div>
-              <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">{s.label}</div>
-                <div className="text-xl sm:text-2xl font-bold mt-0.5 truncate">{s.value}</div>
-              </div>
+              <div className="text-lg sm:text-xl font-bold mt-2 truncate font-mono">{s.value}</div>
             </CardContent>
           </Card>
         ))}

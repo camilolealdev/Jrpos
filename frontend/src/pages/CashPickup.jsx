@@ -3,11 +3,45 @@ import { api } from "@/lib/api";
 import { formatCOP, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { PiggyBank, Lock, Unlock, ArrowDownToLine, History } from "lucide-react";
+import { PiggyBank, Lock, Unlock, ArrowDownToLine, History, Calculator, Printer, CheckCircle2, AlertCircle, Coins, Banknote } from "lucide-react";
+
+const INITIAL_DENOMINATIONS = {
+  "100000": 0,
+  "50000": 0,
+  "20000": 0,
+  "10000": 0,
+  "5000": 0,
+  "2000": 0,
+  "1000": 0,
+  "coin_1000": 0,
+  "500": 0,
+  "200": 0,
+  "100": 0,
+  "50": 0,
+};
+
+const BILL_CONFIG = [
+  { key: "100000", value: 100000, label: "$100.000" },
+  { key: "50000", value: 50000, label: "$50.000" },
+  { key: "20000", value: 20000, label: "$20.000" },
+  { key: "10000", value: 10000, label: "$10.000" },
+  { key: "5000", value: 5000, label: "$5.000" },
+  { key: "2000", value: 2000, label: "$2.000" },
+  { key: "1000", value: 1000, label: "$1.000" },
+];
+
+const COIN_CONFIG = [
+  { key: "coin_1000", value: 1000, label: "$1.000 (Moneda)" },
+  { key: "500", value: 500, label: "$500" },
+  { key: "200", value: 200, label: "$200" },
+  { key: "100", value: 100, label: "$100" },
+  { key: "50", value: 50, label: "$50" },
+];
 
 export default function CashPickup() {
   const [current, setCurrent] = useState(null);
@@ -16,14 +50,29 @@ export default function CashPickup() {
   const [pickupAmt, setPickupAmt] = useState("");
   const [pickupNote, setPickupNote] = useState("");
   const [closeOpen, setCloseOpen] = useState(false);
-  const [counted, setCounted] = useState("");
+  const [calcMode, setCalcMode] = useState("calculator"); // "calculator" | "direct"
+  const [denominations, setDenominations] = useState(INITIAL_DENOMINATIONS);
+  const [directCounted, setDirectCounted] = useState("");
+  const [closeNotes, setCloseNotes] = useState("");
   const [closeResult, setCloseResult] = useState(null);
+
+  const [storeSettings, setStoreSettings] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("jrpos_settings")) || {}; } catch { return {}; }
+  });
 
   const load = useCallback(async () => {
     try {
-      const [c, h] = await Promise.all([api.get("/cash/current"), api.get("/cash/history")]);
+      const [c, h, s] = await Promise.all([
+        api.get("/cash/current"),
+        api.get("/cash/history"),
+        api.get("/settings/general").catch(() => ({ data: null })),
+      ]);
       setCurrent(c.data && typeof c.data === "object" ? c.data : null);
       setHistory(Array.isArray(h.data) ? h.data : []);
+      if (s?.data) {
+        setStoreSettings(s.data);
+        localStorage.setItem("jrpos_settings", JSON.stringify(s.data));
+      }
     } catch {
       setCurrent(null);
       setHistory([]);
@@ -34,12 +83,27 @@ export default function CashPickup() {
 
   const safeHistory = Array.isArray(history) ? history : [];
 
+  // Calcular total de denominaciones
+  const denominationTotal = Object.entries(denominations).reduce((sum, [k, count]) => {
+    const qty = Number(count) || 0;
+    if (k === "coin_1000") return sum + qty * 1000;
+    const val = Number(k) || 0;
+    return sum + qty * val;
+  }, 0);
+
+  const finalCountedAmount = calcMode === "calculator" ? denominationTotal : (Number(directCounted) || 0);
+
+  const updateDenomination = (key, val) => {
+    const num = Math.max(0, parseInt(val, 10) || 0);
+    setDenominations((prev) => ({ ...prev, [key]: num }));
+  };
+
   const open = async () => {
     try {
       await api.post("/cash/open", { base: Number(base) || 0 });
-      toast.success("Caja abierta");
+      toast.success("Caja abierta con éxito");
       setBase(""); load();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
+    } catch (e) { toast.error(e?.response?.data?.detail || "Error abriendo caja"); }
   };
 
   const pickup = async () => {
@@ -47,15 +111,29 @@ export default function CashPickup() {
       await api.post("/cash/pickup", { amount: Number(pickupAmt), notes: pickupNote });
       toast.success(`Recogida de ${formatCOP(pickupAmt)} registrada`);
       setPickupAmt(""); setPickupNote(""); load();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
+    } catch (e) { toast.error(e?.response?.data?.detail || "Error registrando recogida"); }
   };
 
   const close = async () => {
     try {
-      const { data } = await api.post("/cash/close", { counted: Number(counted) });
+      const payload = {
+        counted: finalCountedAmount,
+        denominations: calcMode === "calculator" ? denominations : undefined,
+        close_notes: closeNotes.trim() || undefined,
+      };
+      const { data } = await api.post("/cash/close", payload);
       setCloseResult(data);
-      setCloseOpen(false); setCounted(""); load();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
+      setCloseOpen(false);
+      setDenominations(INITIAL_DENOMINATIONS);
+      setDirectCounted("");
+      setCloseNotes("");
+      load();
+      toast.success("Caja cerrada correctamente");
+    } catch (e) { toast.error(e?.response?.data?.detail || "Error cerrando caja"); }
+  };
+
+  const printClosingTicket = () => {
+    window.print();
   };
 
   const s = current?.session;
@@ -64,7 +142,7 @@ export default function CashPickup() {
     <div className="p-4 lg:p-6 space-y-4 max-w-4xl" data-testid="cash-page">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><PiggyBank className="w-6 h-6 text-emerald-700" /> Caja y Recogidas</h1>
-        <p className="text-sm text-slate-500">Apertura con base, recogidas de dinero durante el día y arqueo de cierre.</p>
+        <p className="text-sm text-slate-500">Apertura con base, recogidas de dinero, calculadora de denominaciones y arqueo ciego.</p>
       </div>
 
       {!current?.open ? (
@@ -108,43 +186,194 @@ export default function CashPickup() {
           )}
 
           <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => setCloseOpen(true)} data-testid="close-cash-btn">
-            <Lock className="w-4 h-4 mr-1" /> Cerrar caja (arqueo)
+            <Lock className="w-4 h-4 mr-1" /> Cerrar caja (Arqueo ciego)
           </Button>
 
+          {/* Modal de Cierre de Caja con Calculadora de Denominaciones de Colombia */}
           <Dialog open={closeOpen} onOpenChange={setCloseOpen}>
-            <DialogContent data-testid="close-dialog">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="close-dialog">
               <DialogHeader>
-                <DialogTitle>Arqueo de cierre</DialogTitle>
-                <DialogDescription>Cuenta el efectivo físico del cajón e ingrésalo. El sistema compara con lo esperado.</DialogDescription>
+                <DialogTitle className="flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-red-600" />
+                  <span>Arqueo Ciego de Cierre de Caja</span>
+                </DialogTitle>
+                <DialogDescription>
+                  Cuenta el efectivo físico en billetes y monedas de Colombia. El sistema contrastará el total con las operaciones del turno.
+                </DialogDescription>
               </DialogHeader>
-              <div>
-                <label className="text-xs font-semibold">Efectivo contado</label>
-                <Input type="number" value={counted} onChange={(e) => setCounted(e.target.value)} className="h-12 font-mono text-xl" data-testid="counted-input" autoFocus />
+
+              <div className="space-y-4 py-2">
+                <div className="flex gap-2 border-b pb-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={calcMode === "calculator" ? "default" : "outline"}
+                    className={calcMode === "calculator" ? "bg-emerald-700 hover:bg-emerald-800 text-xs" : "text-xs"}
+                    onClick={() => setCalcMode("calculator")}
+                  >
+                    <Calculator className="w-3.5 h-3.5 mr-1" /> Conteo por Billetes y Monedas
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={calcMode === "direct" ? "default" : "outline"}
+                    className={calcMode === "direct" ? "bg-emerald-700 hover:bg-emerald-800 text-xs" : "text-xs"}
+                    onClick={() => setCalcMode("direct")}
+                  >
+                    Monto Directo
+                  </Button>
+                </div>
+
+                {calcMode === "calculator" ? (
+                  <div className="space-y-4">
+                    {/* Billetes */}
+                    <div>
+                      <div className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
+                        <Banknote className="w-4 h-4 text-emerald-700" />
+                        <span>Billetes</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {BILL_CONFIG.map((b) => (
+                          <div key={b.key} className="p-2 border rounded-lg bg-slate-50">
+                            <label className="text-xs font-bold text-slate-700">{b.label}</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={denominations[b.key] || ""}
+                              onChange={(e) => updateDenomination(b.key, e.target.value)}
+                              className="mt-1 h-9 font-mono text-sm bg-white"
+                              data-testid={`denom-${b.key}`}
+                            />
+                            <div className="text-[10px] text-right font-mono text-slate-500 mt-0.5">
+                              {formatCOP((denominations[b.key] || 0) * b.value)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Monedas */}
+                    <div>
+                      <div className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
+                        <Coins className="w-4 h-4 text-amber-600" />
+                        <span>Monedas</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {COIN_CONFIG.map((c) => (
+                          <div key={c.key} className="p-2 border rounded-lg bg-amber-50/50">
+                            <label className="text-xs font-bold text-slate-700">{c.label}</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={denominations[c.key] || ""}
+                              onChange={(e) => updateDenomination(c.key, e.target.value)}
+                              className="mt-1 h-9 font-mono text-sm bg-white"
+                              data-testid={`denom-${c.key}`}
+                            />
+                            <div className="text-[10px] text-right font-mono text-slate-500 mt-0.5">
+                              {formatCOP((denominations[c.key] || 0) * c.value)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-semibold">Total en Efectivo Contado</label>
+                    <Input
+                      type="number"
+                      value={directCounted}
+                      onChange={(e) => setDirectCounted(e.target.value)}
+                      className="h-12 font-mono text-xl mt-1"
+                      placeholder="Ej: 450000"
+                      data-testid="counted-input"
+                      autoFocus
+                    />
+                  </div>
+                )}
+
+                <div className="p-3 bg-slate-900 text-white rounded-lg flex justify-between items-center">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">Total Físico Contado:</span>
+                  <span className="font-mono text-xl font-bold text-emerald-400" data-testid="final-counted-preview">
+                    {formatCOP(finalCountedAmount)}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700">Observaciones o Notas de Cierre</label>
+                  <Textarea
+                    placeholder="Ej: Se entregó base al turno de la tarde, cambio exacto..."
+                    value={closeNotes}
+                    onChange={(e) => setCloseNotes(e.target.value)}
+                    className="mt-1 text-xs"
+                    rows={2}
+                    data-testid="close-notes-input"
+                  />
+                </div>
               </div>
+
               <DialogFooter>
                 <Button variant="outline" onClick={() => setCloseOpen(false)}>Cancelar</Button>
-                <Button className="bg-red-600 hover:bg-red-700" onClick={close} data-testid="confirm-close-btn">Cerrar caja</Button>
+                <Button className="bg-red-600 hover:bg-red-700" onClick={close} data-testid="confirm-close-btn">
+                  Cerrar Caja Definitivamente
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
+          {/* Comprobante Térmico de Cierre */}
           <Dialog open={!!closeResult} onOpenChange={(v) => !v && setCloseResult(null)}>
-            <DialogContent data-testid="close-result">
-              <DialogHeader><DialogTitle>Caja cerrada</DialogTitle></DialogHeader>
+            <DialogContent className="max-w-md" data-testid="close-result">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  <span>Comprobante de Cierre de Caja</span>
+                </DialogTitle>
+              </DialogHeader>
               {closeResult && (
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span>Base</span><span className="font-mono">{formatCOP(closeResult.base)}</span></div>
-                  <div className="flex justify-between"><span>Ventas efectivo</span><span className="font-mono">{formatCOP(closeResult.sales_total)}</span></div>
-                  <div className="flex justify-between"><span>Recogidas</span><span className="font-mono">-{formatCOP(closeResult.pickups_total)}</span></div>
-                  <div className="flex justify-between border-t pt-2"><span>Esperado</span><span className="font-mono font-bold">{formatCOP(closeResult.expected)}</span></div>
-                  <div className="flex justify-between"><span>Contado</span><span className="font-mono">{formatCOP(closeResult.counted)}</span></div>
-                  <div className={`flex justify-between border-t pt-2 font-bold ${closeResult.diff === 0 ? "text-emerald-700" : "text-red-600"}`}>
-                    <span>Diferencia</span>
-                    <span className="font-mono" data-testid="close-diff">{closeResult.diff > 0 ? "+" : ""}{formatCOP(closeResult.diff)}</span>
+                <div className="space-y-3">
+                  <div className="receipt p-4 rounded text-xs border bg-slate-50 space-y-2">
+                    <div className="text-center border-b pb-2">
+                      <div className="font-bold text-sm uppercase">{storeSettings?.store_name || "Mi Tienda"}</div>
+                      {storeSettings?.store_nit && <div>NIT: {storeSettings.store_nit}</div>}
+                      <div className="text-[10px] text-slate-500 mt-1 font-bold uppercase tracking-wider">Arqueo de Turno / Cierre de Caja</div>
+                      <div className="text-[10px] text-slate-500">{new Date(closeResult.closed_at).toLocaleString("es-CO")}</div>
+                    </div>
+
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between"><span>Base inicial:</span><span className="font-mono">{formatCOP(closeResult.base)}</span></div>
+                      <div className="flex justify-between"><span>Ventas efectivo ({closeResult.sales_count || 0}):</span><span className="font-mono">{formatCOP(closeResult.sales_total)}</span></div>
+                      <div className="flex justify-between"><span>Recogidas ({closeResult.pickups_count || 0}):</span><span className="font-mono text-orange-700">-{formatCOP(closeResult.pickups_total)}</span></div>
+                      <div className="flex justify-between border-t pt-1 font-semibold"><span>Total Esperado:</span><span className="font-mono">{formatCOP(closeResult.expected)}</span></div>
+                      <div className="flex justify-between font-semibold"><span>Total Físico Contado:</span><span className="font-mono">{formatCOP(closeResult.counted)}</span></div>
+                      
+                      <div className={`flex justify-between border-t pt-2 font-bold text-sm ${closeResult.diff === 0 ? "text-emerald-700" : closeResult.diff > 0 ? "text-blue-700" : "text-red-600"}`}>
+                        <span>Estado / Diferencia:</span>
+                        <span className="font-mono" data-testid="close-diff">
+                          {closeResult.diff === 0 ? "CUADRADA ($0)" : closeResult.diff > 0 ? `SOBRANTE (+${formatCOP(closeResult.diff)})` : `FALTANTE (${formatCOP(closeResult.diff)})`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {closeResult.close_notes && (
+                      <div className="border-t pt-2 text-[11px] text-slate-600">
+                        <span className="font-semibold">Notas: </span>{closeResult.close_notes}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
-              <DialogFooter><Button onClick={() => setCloseResult(null)}>Entendido</Button></DialogFooter>
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                <Button variant="outline" className="w-full sm:w-auto" onClick={printClosingTicket}>
+                  <Printer className="w-4 h-4 mr-1.5" /> Imprimir Comprobante
+                </Button>
+                <Button className="w-full sm:w-auto bg-emerald-700 hover:bg-emerald-800" onClick={() => setCloseResult(null)}>
+                  Finalizar Turno
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </>
@@ -169,8 +398,8 @@ export default function CashPickup() {
                     <td className="p-3 text-right font-mono">{formatCOP(h.expected)}</td>
                     <td className="p-3 text-right font-mono">{formatCOP(h.counted)}</td>
                     <td className="p-3 text-right">
-                      <Badge variant="outline" className={h.diff === 0 ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}>
-                        {h.diff > 0 ? "+" : ""}{formatCOP(h.diff)}
+                      <Badge variant="outline" className={h.diff === 0 ? "bg-emerald-50 text-emerald-800 border-emerald-200" : h.diff > 0 ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-red-50 text-red-700 border-red-200"}>
+                        {h.diff === 0 ? "Cuadrada" : `${h.diff > 0 ? "+" : ""}${formatCOP(h.diff)}`}
                       </Badge>
                     </td>
                   </tr>

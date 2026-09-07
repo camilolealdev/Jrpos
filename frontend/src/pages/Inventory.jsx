@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode, Download, Sparkles, Loader2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode, Download, Upload, Sparkles, Loader2, FileSpreadsheet, AlertTriangle, CheckCircle2 } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 import CameraScanner from "@/components/CameraScanner";
 import BarcodeLabelModal from "@/components/BarcodeLabelModal";
@@ -30,6 +30,13 @@ export default function Inventory() {
   const [formCamOpen, setFormCamOpen] = useState(false);
   const [lookingUpBarcode, setLookingUpBarcode] = useState(false);
   const [labelProd, setLabelProd] = useState(null);
+  const [stockFilter, setStockFilter] = useState("all"); // "all", "low", "out", "ok"
+
+  // Estado para importación masiva CSV
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState([]);
+  const [importErrors, setImportErrors] = useState([]);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Debounce de búsqueda para evitar spam de peticiones
   useEffect(() => {
@@ -138,18 +145,16 @@ export default function Inventory() {
   const exportCSV = () => {
     if (!Array.isArray(items) || items.length === 0) return toast.error("No hay productos para exportar");
     try {
-      const headers = ["ID", "Nombre", "Codigo_Barras", "Categoria", "Costo", "Precio", "Utilidad_Porcentaje", "Stock", "Unidad", "IVA"];
+      const headers = ["Nombre", "Codigo_Barras", "Categoria", "Costo", "Precio", "Stock", "Unidad", "IVA"];
       const rows = items.map((p) => [
-        `"${p.id || ""}"`,
         `"${(p.name || "").replace(/"/g, '""')}"`,
         `"${p.barcode || ""}"`,
         `"${(p.category || "General").replace(/"/g, '""')}"`,
         Number(p.cost) || 0,
         Number(p.price) || 0,
-        p.margin_percent != null ? Number(p.margin_percent) : "",
         Number(p.stock) || 0,
         `"${p.unit || "und"}"`,
-        Number(p.tax_rate) || 19,
+        Number(p.tax_rate) || 0,
       ]);
 
       const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -167,14 +172,175 @@ export default function Inventory() {
     }
   };
 
+  const downloadTemplateCSV = () => {
+    const templateContent =
+      "\uFEFFNombre,Codigo_Barras,Categoria,Costo,Precio,Stock,Unidad,IVA\n" +
+      '"Arroz Diana 1kg","7701234567890","Abarrotes",3500,4500,25,"und",0\n' +
+      '"Aceite Premier 1L","7701234567891","Abarrotes",8200,10500,12,"und",19\n' +
+      '"Leche Entera Alquería 1.1L","7701234567892","Lácteos",3800,4900,18,"und",0\n' +
+      '"Gaseosa Postobón Manzana 1.5L","7701234567893","Bebidas",3200,4500,30,"und",19\n';
+
+    const blob = new Blob([templateContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "plantilla_carga_masiva_jrpos.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Plantilla CSV descargada");
+  };
+
+  const parseCSVText = (text) => {
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (lines.length < 2) {
+      toast.error("El archivo CSV no contiene filas de datos");
+      return;
+    }
+
+    // Detect separator (comma or semicolon)
+    const headerLine = lines[0];
+    const separator = headerLine.includes(";") ? ";" : ",";
+
+    const splitLine = (str) => {
+      const result = [];
+      let current = "";
+      let inQuotes = false;
+      for (let i = 0; i < str.length; i++) {
+        const char = str[i];
+        if (char === '"' || char === "'") {
+          inQuotes = !inQuotes;
+        } else if (char === separator && !inQuotes) {
+          result.push(current.trim().replace(/^["']|["']$/g, ""));
+          current = "";
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim().replace(/^["']|["']$/g, ""));
+      return result;
+    };
+
+    const rawHeaders = splitLine(headerLine).map((h) => h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]/g, "_"));
+
+    // Find column index mappings
+    const getIndex = (aliases) => rawHeaders.findIndex((h) => aliases.some((a) => h.includes(a)));
+
+    const nameIdx = getIndex(["nombre", "name", "producto", "item", "descripcion"]);
+    const barcodeIdx = getIndex(["codigo", "barcode", "barras", "ean", "upc"]);
+    const catIdx = getIndex(["categoria", "category", "depto"]);
+    const costIdx = getIndex(["costo", "cost", "compra"]);
+    const priceIdx = getIndex(["precio", "price", "venta"]);
+    const stockIdx = getIndex(["stock", "cantidad", "inventario", "qty"]);
+    const unitIdx = getIndex(["unidad", "unit", "medida"]);
+    const taxIdx = getIndex(["iva", "tax", "impuesto"]);
+
+    if (nameIdx === -1) {
+      toast.error("No se encontró la columna de Nombre de producto en el encabezado");
+      return;
+    }
+
+    const parsed = [];
+    const errors = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = splitLine(lines[i]);
+      if (cols.length === 0 || cols.every((c) => !c)) continue;
+
+      const name = cols[nameIdx] || "";
+      if (!name) {
+        errors.push(`Fila ${i + 1}: Nombre de producto vacío`);
+        continue;
+      }
+
+      const price = priceIdx !== -1 ? Number(String(cols[priceIdx]).replace(/[^\d.]/g, "")) : 0;
+      const cost = costIdx !== -1 ? Number(String(cols[costIdx]).replace(/[^\d.]/g, "")) : 0;
+      const stock = stockIdx !== -1 ? Number(String(cols[stockIdx]).replace(/[^\d.-]/g, "")) : 0;
+      const barcode = barcodeIdx !== -1 ? String(cols[barcodeIdx] || "").trim() : "";
+      const category = catIdx !== -1 ? String(cols[catIdx] || "General").trim() : "General";
+      const unit = unitIdx !== -1 ? String(cols[unitIdx] || "und").trim() : "und";
+      const tax_rate = taxIdx !== -1 ? Number(String(cols[taxIdx]).replace(/[^\d.]/g, "")) : 19;
+
+      parsed.push({
+        name,
+        barcode: barcode || undefined,
+        category: category || "General",
+        price: isNaN(price) ? 0 : price,
+        cost: isNaN(cost) ? 0 : cost,
+        stock: isNaN(stock) ? 0 : stock,
+        unit: unit || "und",
+        tax_rate: isNaN(tax_rate) ? 19 : tax_rate,
+      });
+    }
+
+    setImportPreview(parsed);
+    setImportErrors(errors);
+    setImportOpen(true);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result;
+      if (typeof text === "string") {
+        parseCSVText(text);
+      }
+    };
+    reader.readAsText(file, "UTF-8");
+    e.target.value = "";
+  };
+
+  const executeBulkImport = async () => {
+    if (!importPreview || importPreview.length === 0) return toast.error("No hay productos válidos para importar");
+    setIsImporting(true);
+    try {
+      const { data } = await api.post("/products/bulk", importPreview);
+      toast.success(`✅ Importación completada: ${data?.created || importPreview.length} creados/actualizados`);
+      setImportOpen(false);
+      setImportPreview([]);
+      setImportErrors([]);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Error en la importación masiva");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Conteo de filtros de stock
+  const lowStockCount = items.filter((p) => p.stock > 0 && p.stock <= 5).length;
+  const outStockCount = items.filter((p) => p.stock <= 0).length;
+  const okStockCount = items.filter((p) => p.stock > 5).length;
+
+  const filteredItems = items.filter((p) => {
+    if (stockFilter === "low") return p.stock > 0 && p.stock <= 5;
+    if (stockFilter === "out") return p.stock <= 0;
+    if (stockFilter === "ok") return p.stock > 5;
+    return true;
+  });
+
   return (
     <div className="p-4 lg:p-6" data-testid="inventory-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Inventario</h1>
-          <p className="text-sm text-slate-500">Gestiona tus productos, precios y stock.</p>
+          <p className="text-sm text-slate-500">Gestiona tus productos, precios, stock e importación masiva.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleFileUpload}
+              className="hidden"
+              data-testid="import-csv-file-input"
+            />
+            <Button variant="outline" asChild data-testid="import-inv-btn">
+              <span><Upload className="w-4 h-4 mr-1 text-emerald-600" /> Importar CSV</span>
+            </Button>
+          </label>
           <Button onClick={exportCSV} variant="outline" data-testid="export-inv-btn">
             <Download className="w-4 h-4 mr-1" /> Exportar CSV
           </Button>
@@ -182,12 +348,12 @@ export default function Inventory() {
             <Plus className="w-4 h-4 mr-1" /> Nuevo producto
           </Button>
           <Button variant="outline" onClick={() => setCatMgrOpen(true)} data-testid="open-cat-manager-btn">
-            <Tags className="w-4 h-4 mr-1" /> Iconos y categorías
+            <Tags className="w-4 h-4 mr-1" /> Categorías
           </Button>
         </div>
       </div>
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex flex-col sm:flex-row gap-2 mb-3">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <Input
@@ -201,12 +367,56 @@ export default function Inventory() {
         <Button
           variant="outline"
           onClick={() => setSearchCamOpen(true)}
-          className="flex items-center gap-1.5 border-emerald-300 hover:bg-emerald-50 text-emerald-800"
+          className="flex items-center gap-1.5 border-emerald-300 hover:bg-emerald-50 text-emerald-800 shrink-0"
           title="Escanear código de barras para buscar producto"
           data-testid="inv-barcode-search-btn"
         >
           <Barcode className="w-4 h-4 text-emerald-700" />
           <span className="hidden sm:inline text-xs font-semibold">Escanear</span>
+        </Button>
+      </div>
+
+      {/* Filtros rápidos por estado de stock */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-3 items-center" data-testid="stock-filter-pills">
+        <Button
+          type="button"
+          size="sm"
+          variant={stockFilter === "all" ? "default" : "outline"}
+          className={stockFilter === "all" ? "bg-emerald-700 hover:bg-emerald-800 text-xs h-8" : "text-xs h-8"}
+          onClick={() => setStockFilter("all")}
+          data-testid="filter-stock-all"
+        >
+          📦 Todos ({items.length})
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={stockFilter === "low" ? "default" : "outline"}
+          className={stockFilter === "low" ? "bg-amber-600 hover:bg-amber-700 text-white text-xs h-8" : "text-amber-700 border-amber-300 hover:bg-amber-50 text-xs h-8"}
+          onClick={() => setStockFilter("low")}
+          data-testid="filter-stock-low"
+        >
+          ⚠️ Stock Bajo ≤ 5 ({lowStockCount})
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={stockFilter === "out" ? "default" : "outline"}
+          className={stockFilter === "out" ? "bg-red-600 hover:bg-red-700 text-white text-xs h-8" : "text-red-700 border-red-300 hover:bg-red-50 text-xs h-8"}
+          onClick={() => setStockFilter("out")}
+          data-testid="filter-stock-out"
+        >
+          🚫 Agotados ({outStockCount})
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={stockFilter === "ok" ? "default" : "outline"}
+          className={stockFilter === "ok" ? "bg-emerald-700 hover:bg-emerald-800 text-xs h-8" : "text-slate-600 text-xs h-8"}
+          onClick={() => setStockFilter("ok")}
+          data-testid="filter-stock-ok"
+        >
+          ✅ En Stock ({okStockCount})
         </Button>
       </div>
 
@@ -226,12 +436,12 @@ export default function Inventory() {
               </tr>
             </thead>
             <tbody>
-              {(!Array.isArray(items) || items.length === 0) ? (
+              {(!Array.isArray(filteredItems) || filteredItems.length === 0) ? (
                 <tr><td colSpan={8} className="p-8 text-center text-slate-500">
                   <Package className="w-8 h-8 mx-auto opacity-40" />
-                  <p className="mt-2">Sin productos.</p>
+                  <p className="mt-2">Sin productos para el filtro seleccionado.</p>
                 </td></tr>
-              ) : items.map((p) => (
+              ) : filteredItems.map((p) => (
                 <tr key={p.id} className="border-b hover:bg-slate-50" data-testid={`row-${p.id}`}>
                   <td className="p-3 font-medium">{p.name}</td>
                   <td className="p-3 font-mono text-xs hidden md:table-cell">{p.barcode || "-"}</td>
@@ -242,7 +452,9 @@ export default function Inventory() {
                     {p.margin_percent != null ? `${p.margin_percent}%` : "-"}
                   </td>
                   <td className="p-3 text-right font-mono">
-                    <span className={p.stock <= 5 ? "text-orange-700 font-bold" : ""}>{p.stock} {p.unit}</span>
+                    <span className={p.stock <= 0 ? "text-red-700 font-bold" : p.stock <= 5 ? "text-amber-700 font-bold" : ""}>
+                      {p.stock} {p.unit}
+                    </span>
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <Button size="icon" variant="ghost" onClick={() => setLabelProd(p)} title="Imprimir etiquetas con código de barras" data-testid={`label-${p.id}`}><Barcode className="w-4 h-4 text-emerald-700" /></Button>
@@ -371,6 +583,107 @@ export default function Inventory() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={save} className="bg-emerald-700 hover:bg-emerald-800" data-testid="save-product-btn">Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Importación Masiva CSV */}
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-2xl" data-testid="import-csv-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-700" />
+              <span>Importación Masiva de Productos (CSV)</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 p-3 bg-slate-50 border rounded-lg">
+              <div>
+                <p className="text-xs text-slate-600 font-medium">¿No tienes el formato adecuado? Descarga nuestra plantilla lista para Excel.</p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={downloadTemplateCSV} className="shrink-0 text-xs">
+                <Download className="w-3.5 h-3.5 mr-1" /> Descargar Plantilla
+              </Button>
+            </div>
+
+            {importErrors.length > 0 && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-1 text-amber-800">
+                <div className="font-semibold flex items-center gap-1">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <span>Advertencias en {importErrors.length} filas (se omitirán):</span>
+                </div>
+                <div className="max-h-20 overflow-y-auto pl-5 list-disc space-y-0.5 font-mono text-[11px]">
+                  {importErrors.slice(0, 5).map((err, i) => (
+                    <div key={i}>{err}</div>
+                  ))}
+                  {importErrors.length > 5 && <div>...y {importErrors.length - 5} filas más</div>}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-700">
+                  Vista Previa ({importPreview.length} productos válidos detectados)
+                </span>
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">
+                  <CheckCircle2 className="w-3 h-3 mr-1" /> Listo para procesar
+                </Badge>
+              </div>
+
+              <div className="max-h-56 overflow-y-auto border rounded-lg">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-100 border-b sticky top-0">
+                    <tr className="text-left font-semibold text-slate-700">
+                      <th className="p-2">Producto</th>
+                      <th className="p-2">Código</th>
+                      <th className="p-2">Categoría</th>
+                      <th className="p-2 text-right">Costo</th>
+                      <th className="p-2 text-right">Precio</th>
+                      <th className="p-2 text-right">Stock</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.slice(0, 15).map((p, idx) => (
+                      <tr key={idx} className="border-b hover:bg-slate-50">
+                        <td className="p-2 font-medium truncate max-w-[150px]">{p.name}</td>
+                        <td className="p-2 font-mono text-slate-500">{p.barcode || "-"}</td>
+                        <td className="p-2">{p.category}</td>
+                        <td className="p-2 text-right font-mono">{formatCOP(p.cost)}</td>
+                        <td className="p-2 text-right font-mono font-semibold">{formatCOP(p.price)}</td>
+                        <td className="p-2 text-right font-mono">{p.stock}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {importPreview.length > 15 && (
+                <p className="text-[11px] text-slate-400 text-center">
+                  Mostrando primeros 15 de {importPreview.length} productos
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportOpen(false)} disabled={isImporting}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={executeBulkImport}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
+              disabled={isImporting || importPreview.length === 0}
+              data-testid="confirm-bulk-import-btn"
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Importando...
+                </>
+              ) : (
+                `Importar ${importPreview.length} Productos`
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

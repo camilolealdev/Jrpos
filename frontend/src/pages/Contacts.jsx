@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { Plus, Edit2, Trash2, Users } from "lucide-react";
 
-const empty = { kind: "customer", name: "", document: "", document_type: "CC", email: "", phone: "", address: "", city: "" };
+const empty = { kind: "customer", name: "", document: "", document_type: "CC", email: "", phone: "", address: "", city: "", credit_limit: "" };
 
 export default function Contacts({ kind = "customer", title = "Clientes" }) {
   const [items, setItems] = useState([]);
@@ -33,7 +33,11 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
   const save = async () => {
     if (!form.name) return toast.error("El nombre es obligatorio");
     try {
-      const payload = { ...form, kind };
+      const payload = {
+        ...form,
+        kind,
+        credit_limit: form.credit_limit !== "" && form.credit_limit != null ? Number(form.credit_limit) : undefined,
+      };
       if (editingId) await api.put(`/contacts/${editingId}`, payload);
       else await api.post("/contacts", payload);
       toast.success("Guardado");
@@ -41,7 +45,7 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
     } catch { toast.error("Error"); }
   };
 
-  const edit = (c) => { setForm(c); setEditingId(c.id); setOpen(true); };
+  const edit = (c) => { setForm({ ...c, credit_limit: c.credit_limit ?? "" }); setEditingId(c.id); setOpen(true); };
   const remove = async (id) => {
     if (!window.confirm("¿Eliminar?")) return;
     await api.delete(`/contacts/${id}`);
@@ -66,12 +70,13 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
               <th className="p-3">Nombre</th>
               <th className="p-3">Documento</th>
               <th className="p-3 hidden md:table-cell">Teléfono</th>
+              {kind === "customer" && <th className="p-3 text-right hidden lg:table-cell">Cupo Crédito</th>}
               <th className="p-3 hidden lg:table-cell">Ciudad</th>
               <th></th>
             </tr></thead>
             <tbody>
               {safeItems.length === 0 ? (
-                <tr><td colSpan={5} className="p-8 text-center text-slate-500">
+                <tr><td colSpan={6} className="p-8 text-center text-slate-500">
                   <Users className="w-8 h-8 mx-auto opacity-40" /><p className="mt-2">Sin registros.</p>
                 </td></tr>
               ) : safeItems.map((c) => (
@@ -79,6 +84,11 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
                   <td className="p-3 font-medium">{c.name}</td>
                   <td className="p-3 font-mono text-xs">{c.document_type} {c.document || "-"}</td>
                   <td className="p-3 hidden md:table-cell">{c.phone || "-"}</td>
+                  {kind === "customer" && (
+                    <td className="p-3 text-right font-mono text-xs hidden lg:table-cell text-emerald-800 font-semibold">
+                      {c.credit_limit ? `$${Number(c.credit_limit).toLocaleString("es-CO")}` : "Sin cupo"}
+                    </td>
+                  )}
                   <td className="p-3 hidden lg:table-cell">{c.city || "-"}</td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <Button size="icon" variant="ghost" onClick={() => edit(c)}><Edit2 className="w-4 h-4" /></Button>
@@ -105,6 +115,19 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
               <Input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div><label className="text-xs font-semibold">Email</label>
               <Input value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+            {kind === "customer" && (
+              <div className="col-span-2">
+                <label className="text-xs font-semibold">Cupo límite de crédito (COP)</label>
+                <Input
+                  type="number"
+                  placeholder="Ej: 500000 (Dejar vacío para sin límite)"
+                  value={form.credit_limit ?? ""}
+                  onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
+                  className="font-mono"
+                  data-testid="c-credit-limit"
+                />
+              </div>
+            )}
             <div className="col-span-2"><label className="text-xs font-semibold">Dirección</label>
               <Input value={form.address || ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
             <div><label className="text-xs font-semibold">Ciudad</label>

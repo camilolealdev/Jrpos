@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, X, Package as PackageIcon, Pause, Play, Users, Camera } from "lucide-react";
+import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, X, Package as PackageIcon, Pause, Play, Users, Camera, Scale } from "lucide-react";
 
 export default function POS() {
   const [products, setProducts] = useState([]);
@@ -38,6 +38,12 @@ export default function POS() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newProd, setNewProd] = useState({ barcode: "", name: "", price: 0, cost: 0, stock: 1, category: "General" });
   const [searchResults, setSearchResults] = useState(null); // null=cerrado; [] o [items] = abierto con resultados de búsqueda por nombre
+  const [weighOpen, setWeighOpen] = useState(false);
+  const [weighProdId, setWeighProdId] = useState("");
+  const [weighName, setWeighName] = useState("");
+  const [weighPriceKg, setWeighPriceKg] = useState("");
+  const [weighWeight, setWeighWeight] = useState("");
+  const [weighUnit, setWeighUnit] = useState("g"); // "g", "kg", "lb"
   const barcodeRef = useRef(null);
 
   useEffect(() => {
@@ -192,6 +198,54 @@ export default function POS() {
       return [...prev, { product_id: p.id, name: p.name, barcode: p.barcode, qty: 1, price: p.price, tax_rate: p.tax_rate }];
     });
   };
+
+  const addWeighedItemToCart = (prodOrName, pricePerKg, weightInput, unit = "g") => {
+    const rawWeight = Number(weightInput);
+    if (!rawWeight || rawWeight <= 0) {
+      toast.error("Ingresa un peso válido mayor a 0");
+      return;
+    }
+    const unitPrice = Number(pricePerKg);
+    if (!unitPrice || unitPrice <= 0) {
+      toast.error("Ingresa un precio por kilo válido");
+      return;
+    }
+
+    let qtyInKg = rawWeight;
+    let labelUnit = `${rawWeight} kg`;
+    if (unit === "g") {
+      qtyInKg = rawWeight / 1000.0;
+      labelUnit = `${rawWeight} g`;
+    } else if (unit === "lb") {
+      qtyInKg = rawWeight * 0.5;
+      labelUnit = `${rawWeight} lb`;
+    }
+
+    const prodId = typeof prodOrName === "object" && prodOrName?.id ? prodOrName.id : `weighed_${Date.now()}`;
+    const prodName = typeof prodOrName === "object" && prodOrName?.name ? prodOrName.name : String(prodOrName);
+    const displayName = `${prodName} (${labelUnit})`;
+
+    playScannerBeep();
+    setCart((prev) => [
+      ...prev,
+      {
+        product_id: `${prodId}_${Date.now()}`,
+        name: displayName,
+        barcode: "",
+        qty: Math.round(qtyInKg * 1000) / 1000,
+        price: unitPrice,
+        tax_rate: 0,
+      }
+    ]);
+
+    setWeighOpen(false);
+    setWeighName("");
+    setWeighPriceKg("");
+    setWeighWeight("");
+    setWeighProdId("");
+    toast.success(`Agregado: ${displayName} · ${formatCOP(qtyInKg * unitPrice)}`);
+  };
+
   const changeQty = (id, d) => {
     setCart((prev) => prev.map((x) => x.product_id === id ? { ...x, qty: Math.max(0, x.qty + d) } : x).filter(x => x.qty > 0));
   };
@@ -390,16 +444,37 @@ export default function POS() {
         setCamOpen((prev) => !prev);
         return;
       }
-      // F4: Vaciar carrito
-      if (e.key === "F4" && cart.length > 0) {
+      // F4: Abrir cobro directo
+      if (e.key === "F4" && cart.length > 0 && !payOpen) {
+        e.preventDefault();
+        setPayOpen(true);
+        return;
+      }
+      // F7: Abrir pesaje / granel
+      if (e.key === "F7") {
+        e.preventDefault();
+        setWeighOpen(true);
+        return;
+      }
+      // F8: Retener venta
+      if (e.key === "F8" && cart.length > 0) {
+        e.preventDefault();
+        holdCurrent();
+        return;
+      }
+      // F9: Vaciar carrito
+      if (e.key === "F9" && cart.length > 0) {
         e.preventDefault();
         if (window.confirm("¿Vaciar carrito de compras?")) clearCart();
         return;
       }
-      // F9: Abrir cobro
-      if (e.key === "F9" && cart.length > 0 && !payOpen) {
-        e.preventDefault();
-        setPayOpen(true);
+      // Escape: Cerrar modales
+      if (e.key === "Escape") {
+        if (payOpen) setPayOpen(false);
+        else if (camOpen) setCamOpen(false);
+        else if (createOpen) setCreateOpen(false);
+        else if (weighOpen) setWeighOpen(false);
+        else if (searchResults !== null) setSearchResults(null);
         return;
       }
 
@@ -425,7 +500,7 @@ export default function POS() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cart, payOpen]);
+  }, [cart, payOpen, camOpen, createOpen, weighOpen, searchResults]);
 
   const change = Number(received || 0) - totals.total;
 
@@ -464,6 +539,17 @@ export default function POS() {
           >
             <Camera className="w-4 h-4 mr-1 text-emerald-600 dark:text-emerald-400" />
             <span>Cámara (F3)</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 shrink-0 border-teal-300 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/50 font-medium"
+            onClick={() => setWeighOpen(true)}
+            data-testid="open-scale-modal-btn"
+            title="Venta a granel / balanza por peso (F7)"
+          >
+            <Scale className="w-4 h-4 mr-1 text-teal-600 dark:text-teal-400" />
+            <span>Pesaje (F7)</span>
           </Button>
         </div>
         <CameraScanner
@@ -545,6 +631,129 @@ export default function POS() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
               <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={createScannedProduct} data-testid="create-scanned-btn">Crear y agregar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Venta por peso / Balanza / Granel */}
+        <Dialog open={weighOpen} onOpenChange={setWeighOpen}>
+          <DialogContent data-testid="weigh-scale-dialog">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Scale className="w-5 h-5 text-teal-600" />
+                <span>Venta por Peso / Granel (Balanza)</span>
+              </DialogTitle>
+              <DialogDescription>
+                Digita el peso o conecta tu balanza para calcular el valor exacto según el precio por kilo.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Seleccionar producto existente</label>
+                <Select
+                  value={weighProdId}
+                  onValueChange={(val) => {
+                    setWeighProdId(val);
+                    const found = (products || []).find((p) => p.id === val);
+                    if (found) {
+                      setWeighName(found.name);
+                      setWeighPriceKg(String(found.price));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-10" data-testid="weigh-product-select">
+                    <SelectValue placeholder="Elegir producto del catálogo (o ingresar manual)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(products || []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({formatCOP(p.price)}/kg)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600">Nombre del producto</label>
+                <Input
+                  placeholder="Ej: Tomate chonto, Pechuga de pollo, Queso campesino..."
+                  value={weighName}
+                  onChange={(e) => setWeighName(e.target.value)}
+                  className="h-10"
+                  data-testid="weigh-name-input"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Precio por Kilo ($/kg)</label>
+                  <Input
+                    type="number"
+                    placeholder="Ej: 12000"
+                    value={weighPriceKg}
+                    onChange={(e) => setWeighPriceKg(e.target.value)}
+                    className="h-10 font-mono"
+                    data-testid="weigh-price-kg-input"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600">Unidad de pesaje</label>
+                  <Select value={weighUnit} onValueChange={setWeighUnit}>
+                    <SelectTrigger className="h-10" data-testid="weigh-unit-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="g">Gramos (g)</SelectItem>
+                      <SelectItem value="kg">Kilogramos (kg)</SelectItem>
+                      <SelectItem value="lb">Libras (lb)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600">
+                  Peso ingresado {weighUnit === "g" ? "(en gramos)" : weighUnit === "kg" ? "(en kilos)" : "(en libras)"}
+                </label>
+                <Input
+                  type="number"
+                  step="any"
+                  placeholder={weighUnit === "g" ? "Ej: 350" : "Ej: 1.5"}
+                  value={weighWeight}
+                  onChange={(e) => setWeighWeight(e.target.value)}
+                  className="h-12 font-mono text-xl text-teal-700 font-bold"
+                  autoFocus
+                  data-testid="weigh-weight-input"
+                />
+              </div>
+
+              {Number(weighWeight) > 0 && Number(weighPriceKg) > 0 && (
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-teal-700 font-medium">Subtotal calculado:</div>
+                    <div className="text-xs text-slate-500 font-mono">
+                      {weighWeight} {weighUnit} × {formatCOP(Number(weighPriceKg))}/kg
+                    </div>
+                  </div>
+                  <div className="font-mono font-bold text-xl text-teal-800" data-testid="weigh-calculated-subtotal">
+                    {formatCOP(
+                      (weighUnit === "g" ? Number(weighWeight) / 1000 : weighUnit === "lb" ? Number(weighWeight) * 0.5 : Number(weighWeight)) * Number(weighPriceKg)
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setWeighOpen(false)}>Cancelar</Button>
+              <Button
+                className="bg-teal-700 hover:bg-teal-800 text-white font-bold"
+                onClick={() => addWeighedItemToCart(weighName, weighPriceKg, weighWeight, weighUnit)}
+                disabled={!weighName || !weighPriceKg || !weighWeight}
+                data-testid="confirm-weigh-btn"
+              >
+                Agregar al Carrito
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -719,9 +928,12 @@ export default function POS() {
             <span>Cobrar</span>
             <span className="text-xs bg-emerald-800/80 px-1.5 py-0.5 rounded font-mono font-normal">F9</span>
           </Button>
-          <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono pt-1">
+          <div className="flex flex-wrap justify-between items-center text-[10px] text-slate-400 font-mono pt-1 gap-1">
             <span><kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-600">F2</kbd> Lector</span>
+            <span><kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-600">F3</kbd> Cámara</span>
+            <span><kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-600">F7</kbd> Balanza</span>
             <span><kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-600">F4</kbd> Vaciar</span>
+            <span><kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-600">F8</kbd> Retener</span>
             <span><kbd className="bg-white px-1 py-0.5 rounded border border-slate-200 text-slate-600">F9</kbd> Cobrar</span>
           </div>
         </div>
@@ -747,20 +959,54 @@ export default function POS() {
                 ))}
               </div>
             </div>
-            {payment === "credito" && (
-              <div>
-                <label className="text-xs uppercase font-semibold tracking-wider text-slate-500">Cliente (fiado)</label>
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger className="h-11" data-testid="credit-customer-select"><SelectValue placeholder="Selecciona cliente" /></SelectTrigger>
-                  <SelectContent>
-                    {(Array.isArray(customers) ? customers : []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}{c.document ? ` · ${c.document}` : ""}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="text-xs text-amber-700 mt-1">💡 La venta quedará con saldo pendiente y aparecerá en Créditos.</div>
-              </div>
-            )}
+            {payment === "credito" && (() => {
+              const selectedCustomer = customers.find((x) => x.id === customerId);
+              const currentDebt = Number(selectedCustomer?.current_debt || 0);
+              const creditLimit = Number(selectedCustomer?.credit_limit || 0);
+              const projectedDebt = currentDebt + totals.total;
+              const isOverLimit = creditLimit > 0 && projectedDebt > creditLimit;
+              return (
+                <div className="space-y-2">
+                  <label className="text-xs uppercase font-semibold tracking-wider text-slate-500">Cliente (fiado)</label>
+                  <Select value={customerId} onValueChange={setCustomerId}>
+                    <SelectTrigger className="h-11" data-testid="credit-customer-select"><SelectValue placeholder="Selecciona cliente" /></SelectTrigger>
+                    <SelectContent>
+                      {(Array.isArray(customers) ? customers : []).map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}{c.document ? ` · ${c.document}` : ""}{c.credit_limit ? ` (Cupo: ${formatCOP(c.credit_limit)})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedCustomer && (
+                    <div className="p-2.5 rounded-lg border bg-slate-50 text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Deuda actual:</span>
+                        <span className="font-mono font-semibold text-slate-900">{formatCOP(currentDebt)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Cupo autorizado:</span>
+                        <span className="font-mono font-semibold text-slate-900">
+                          {creditLimit > 0 ? formatCOP(creditLimit) : "Sin límite"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1 font-semibold">
+                        <span className="text-slate-700">Deuda con esta venta:</span>
+                        <span className={`font-mono ${isOverLimit ? "text-red-700 font-bold" : "text-emerald-700"}`}>
+                          {formatCOP(projectedDebt)}
+                        </span>
+                      </div>
+                      {isOverLimit && (
+                        <div className="mt-1 p-1.5 rounded bg-red-100 border border-red-300 text-red-800 text-[11px] font-semibold flex items-center gap-1.5" data-testid="credit-limit-exceeded-alert">
+                          <span>⚠️ Alerta: Esta venta supera el cupo de crédito fijado ({formatCOP(creditLimit)}) por {formatCOP(projectedDebt - creditLimit)}.</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="text-xs text-amber-700 mt-1">💡 La venta quedará registrada a crédito y aparecerá en el módulo de Créditos.</div>
+                </div>
+              );
+            })()}
             {payment === "efectivo" && (
               <div className="space-y-2">
                 <div>

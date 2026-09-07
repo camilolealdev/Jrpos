@@ -26,6 +26,8 @@ class PickupIn(BaseModel):
 
 class CloseRequest(BaseModel):
     counted: float = 0.0
+    denominations: Optional[str] = None
+    close_notes: Optional[str] = None
 
 
 def _pickup_dict(p: CashPickup) -> dict:
@@ -41,7 +43,10 @@ def _session_dict(cs: CashSession, pickups: List[CashPickup]) -> dict:
         "opened_at": cs.opened_at, "base": cs.base, "status": cs.status,
         "closed_at": cs.closed_at, "counted": cs.counted, "expected": cs.expected,
         "diff": cs.diff, "sales_total": cs.sales_total, "sales_count": cs.sales_count,
-        "pickups_total": cs.pickups_total, "pickups": [_pickup_dict(p) for p in pickups],
+        "pickups_total": cs.pickups_total,
+        "denominations": cs.denominations,
+        "close_notes": cs.close_notes,
+        "pickups": [_pickup_dict(p) for p in pickups],
     }
 
 
@@ -163,6 +168,8 @@ async def close_cash(
     cs.sales_total = totals["sales_total"]
     cs.sales_count = totals["sales_count"]
     cs.pickups_total = totals["pickups_total"]
+    cs.denominations = payload.denominations
+    cs.close_notes = payload.close_notes
 
     await session.commit()
     await session.refresh(cs)

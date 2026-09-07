@@ -80,6 +80,7 @@ class Contact(Base):
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    credit_limit: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -296,6 +297,8 @@ class CashSession(Base):
     sales_total: Mapped[float | None] = mapped_column(Float, nullable=True)
     sales_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     pickups_total: Mapped[float | None] = mapped_column(Float, nullable=True)
+    denominations: Mapped[str | None] = mapped_column(Text, nullable=True)
+    close_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class CashPickup(Base):

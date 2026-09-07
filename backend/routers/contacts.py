@@ -24,6 +24,7 @@ class ContactOut(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
+    credit_limit: Optional[float] = 0.0
     notes: Optional[str] = None
 
 
@@ -36,6 +37,7 @@ class ContactCreate(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
+    credit_limit: Optional[float] = 0.0
     notes: Optional[str] = None
 
 
