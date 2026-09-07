@@ -19,6 +19,7 @@ JRPOS cuenta con un núcleo operativo robusto para comercio minorista y mayorist
 | **Modo Contingencia / Offline** | Dependiente 100% de backend | ⚪ No iniciado | 🟡 Media |
 | **Impresión Térmica** | Formato fijo 58mm | 🟡 Funcional | 🟢 Baja |
 | **Notificaciones WhatsApp** | Manual | ⚪ No iniciado | 🟢 Baja |
+| **Multi-Tenant / SaaS** | Mono-tenant (1 DB por despliegue, sin `tenant_id`) | ⚪ No iniciado | 🟡 Media (post Fase 2) |
 
 ---
 
@@ -58,6 +59,17 @@ JRPOS cuenta con un núcleo operativo robusto para comercio minorista y mayorist
   1. Configuración de Service Worker con almacenamiento en `IndexedDB` para almacenar productos e indexar códigos de barra localmente.
   2. Cola de sincronización (*Background Sync*) para emitir ventas locales con consecutivo de contingencia y sincronizar con el backend al recuperar señal.
 
+### 2.6 Escalabilidad como Plataforma SaaS Multi-Tienda (Visión a Futuro)
+- **Brecha Actual**: JRPOS es hoy **mono-tenant**: cada despliegue apunta a una sola base de datos Postgres/Supabase sin columna `tenant_id`/`store_id` en ninguna tabla (`users`, `products`, `sales`, etc. — ver `backend/models_sql.py`), autenticación sin noción de organización, y sin capa de suscripción o facturación del propio SaaS. Escalar a "una instancia, muchas tiendas" hoy exigiría clonar el despliegue completo (DB + backend + env vars) por cada cliente, lo cual no es sostenible más allá de un puñado de comercios.
+- **Acciones Requeridas** (orden sugerido, incremental y sin reescritura completa):
+  1. **Modelo de datos multi-tenant**: añadir `tenant_id` (o `store_id`) a todas las tablas de negocio y aplicar **Row-Level Security (RLS)** en Supabase/Postgres para aislar datos por tienda a nivel de base de datos, no solo a nivel de aplicación.
+  2. **Identidad y sesión con contexto de tenant**: el JWT (`backend/auth.py`) debe portar `tenant_id` además de `role`; todo query de `SessionLocal` debe filtrar por tenant automáticamente (vía middleware/dependency de FastAPI) para evitar fugas de datos entre comercios.
+  3. **Aprovisionamiento de tiendas (onboarding self-service)**: flujo de registro que cree tenant + usuario admin inicial + datos semilla (reutilizando el endpoint `/seed` ya existente en `Dashboard.jsx`) sin intervención manual.
+  4. **Planes, límites y facturación del SaaS**: capa de suscripción (ej. Stripe) con planes por número de cajas/usuarios/facturas DIAN emitidas al mes, *feature flags* por plan (p. ej. Facturación Electrónica DIAN o Multi-Caja solo en planes pagos) y bloqueo suave al vencer el periodo.
+  5. **Aislamiento de secretos por tenant**: cada tienda que active DIAN necesita su propio certificado digital `.p12`/`.pfx` y credenciales de Proveedor Tecnológico — el almacenamiento seguro (ver 2.1) debe ser por-tenant, no global.
+  6. **Observabilidad y cuotas**: métricas y rate-limiting por tenant (evitar que una tienda con alto tráfico degrade a las demás en la infraestructura compartida).
+- **Nota de secuenciación**: este es un cambio estructural transversal — conviene abordarlo **después** de cerrar las Fases 1–2 del cronograma (Sesiones de Caja, Permisos Granulares, DIAN real), ya que esas features deben nacer ya conscientes de `tenant_id` para no requerir una migración doble. Introducirlo a mitad de esas fases duplicaría trabajo.
+
 ---
 
 ## 3. Plan de Mitigación y Cronograma Sugerido
@@ -75,4 +87,7 @@ gantt
     section Fase 3 - Resiliencia
     Impresión Dual (58mm/80mm)          :c1, 2026-09-15, 5d
     PWA & Modo Offline Contingencia     :c2, after b2, 12d
+    section Fase 4 - SaaS Multi-Tienda
+    Modelo Multi-Tenant + RLS           :d1, after c2, 14d
+    Onboarding Self-Service + Planes    :d2, after d1, 10d
 ```
