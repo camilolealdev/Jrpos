@@ -4,7 +4,7 @@ import time
 import requests
 import pytest
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://digital-commerce-hub-24.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://jrpos-api.vercel.app").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN = {"email": "admin@jrpos.com", "password": "jrpos2026"}
@@ -26,7 +26,17 @@ def admin_session():
 
 
 @pytest.fixture(scope="module")
-def cajero_session():
+def cajero_session(admin_session):
+    users_res = admin_session.get(f"{API}/users")
+    if users_res.status_code == 200:
+        users = users_res.json()
+        if not any(u.get("email") == CAJERO["email"] for u in users):
+            admin_session.post(f"{API}/users", json={
+                "name": "Cajero Test",
+                "email": CAJERO["email"],
+                "password": CAJERO["password"],
+                "role": "cajero",
+            })
     s, r = _login(CAJERO)
     assert r.status_code == 200, f"Cajero login failed: {r.status_code} {r.text}"
     return s
