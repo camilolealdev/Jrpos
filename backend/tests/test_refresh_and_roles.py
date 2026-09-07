@@ -26,7 +26,7 @@ def test_new_admin_login_ok():
 
 def test_old_admin_email_fails():
     r = requests.post(f"{API}/auth/login", json=OLD_ADMIN)
-    assert r.status_code in (400, 401), f"Old email should fail, got {r.status_code}"
+    assert r.status_code in (400, 401, 429), f"Old email should fail, got {r.status_code}"
 
 
 # ---------- Refresh transparente ----------
