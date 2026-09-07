@@ -82,7 +82,8 @@ function ProtectedApp() {
     );
   }
   if (user === null) {
-    return <Navigate to="/login" state={{ from: loc.pathname }} replace />;
+    const dest = loc.pathname === "/" || loc.pathname === "/welcome" ? "/welcome" : "/login";
+    return <Navigate to={dest} state={{ from: loc.pathname }} replace />;
   }
   return (
     <Suspense fallback={<PageLoader />}>

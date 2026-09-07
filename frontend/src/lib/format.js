@@ -7,6 +7,14 @@ export const formatCOP = (n) => {
   }).format(v);
 };
 
+// Normaliza teléfono colombiano a formato wa.me (solo dígitos, código país 57)
+export function whatsappUrl(phone, text) {
+  let digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length === 10 && digits.startsWith("3")) digits = "57" + digits;
+  if (digits.length < 12) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
 export const formatDate = (iso) => {
   if (!iso) return "-";
   try {

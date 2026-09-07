@@ -14,7 +14,9 @@ export default function Login() {
   const location = useLocation();
 
   // Si el usuario viene redirigido explícitamente desde una ruta protegida, mostrar directamente el formulario
-  const isDirectLogin = Boolean(location.state?.from);
+  const isDirectLogin = Boolean(
+    location.state?.from && location.state.from !== "/" && location.state.from !== "/welcome"
+  );
   const [view, setView] = useState(isDirectLogin ? "login" : "welcome"); // 'welcome' | 'login'
 
   const [email, setEmail] = useState("");
@@ -38,7 +40,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 relative overflow-x-hidden">
+    <div className="min-h-screen w-full bg-[#07100c] text-slate-100 relative overflow-x-hidden">
       <AnimatePresence mode="wait">
         {view === "welcome" ? (
           <motion.div
@@ -71,7 +73,7 @@ export default function Login() {
               <Button
                 variant="ghost"
                 onClick={() => setView("welcome")}
-                className="text-slate-400 hover:text-white hover:bg-slate-900/80 gap-2 text-xs"
+                className="text-slate-400 hover:text-white bg-white/[0.03] backdrop-blur-md border border-white/10 hover:bg-white/[0.07] gap-2 text-xs shadow-[2px_2px_6px_rgba(0,0,0,0.3)]"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Volver a la Bienvenida</span>
@@ -79,7 +81,8 @@ export default function Login() {
             </div>
 
             {/* Login Card */}
-            <Card className="w-full max-w-md bg-slate-900/90 border-slate-800 backdrop-blur-xl shadow-2xl relative z-10">
+            <Card className="w-full max-w-md bg-white/[0.04] border-white/10 backdrop-blur-2xl rounded-2xl shadow-[10px_10px_30px_rgba(0,0,0,0.55),-6px_-6px_20px_rgba(255,255,255,0.02)] relative z-10 overflow-hidden">
+              <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-amber-400 to-orange-500" />
               <CardContent className="p-8 space-y-6">
                 <div className="text-center space-y-2">
                   <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white grid place-items-center shadow-lg shadow-emerald-950/60 border border-emerald-400/30">
@@ -107,7 +110,7 @@ export default function Login() {
                       required
                       autoFocus
                       placeholder="admin@jrpos.com"
-                      className="bg-slate-950 border-slate-800 focus:border-emerald-500 text-white placeholder:text-slate-600 h-10"
+                      className="bg-slate-950/60 border-white/5 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.5),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] focus:border-emerald-500/50 text-white placeholder:text-slate-600 h-10 rounded-xl"
                       data-testid="login-email"
                     />
                   </div>
@@ -124,7 +127,7 @@ export default function Login() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       placeholder="••••••••"
-                      className="bg-slate-950 border-slate-800 focus:border-emerald-500 text-white placeholder:text-slate-600 h-10"
+                      className="bg-slate-950/60 border-white/5 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.5),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] focus:border-emerald-500/50 text-white placeholder:text-slate-600 h-10 rounded-xl"
                       data-testid="login-password"
                     />
                   </div>
@@ -142,7 +145,7 @@ export default function Login() {
 
                   <Button
                     type="submit"
-                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-950/60 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.98]"
+                    className="w-full h-11 bg-emerald-600/90 backdrop-blur-sm hover:bg-emerald-500 text-white font-bold text-sm rounded-xl shadow-[4px_4px_12px_rgba(0,0,0,0.4),-2px_-2px_8px_rgba(16,185,129,0.06)] hover:shadow-[5px_5px_14px_rgba(0,0,0,0.45)] active:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.4)] transition-all"
                     disabled={loading}
                     data-testid="login-submit"
                   >
@@ -157,7 +160,7 @@ export default function Login() {
                   </Button>
                 </form>
 
-                <div className="pt-2 border-t border-slate-800 text-center space-y-2">
+                <div className="pt-2 border-t border-white/10 text-center space-y-2">
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     ¿Olvidaste tu contraseña? Solicita el restablecimiento al administrador de la tienda desde el módulo de Usuarios.
                   </p>

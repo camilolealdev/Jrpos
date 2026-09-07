@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { formatCOP, formatDate } from "@/lib/format";
+import { formatCOP, formatDate, whatsappUrl } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,13 +11,7 @@ import { toast } from "sonner";
 import { HandCoins, User, Wallet, ChevronRight, ArrowLeft, Printer, MessageCircle } from "lucide-react";
 import { printThermal } from "@/lib/thermalPrint";
 
-// Normaliza teléfono colombiano a formato wa.me (solo dígitos, código país 57)
-export function whatsappUrl(phone, text) {
-  let digits = String(phone || "").replace(/\D/g, "");
-  if (digits.length === 10 && digits.startsWith("3")) digits = "57" + digits;
-  if (digits.length < 12) return null;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
-}
+export { whatsappUrl };
 
 export default function Credits() {
   const [summary, setSummary] = useState({ customers: [], total_due: 0 });
