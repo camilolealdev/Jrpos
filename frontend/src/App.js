@@ -5,32 +5,49 @@ import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import Layout from "@/components/Layout";
 
-// Carga perezosa (Code Splitting) para reducir el bundle inicial
-const Login = lazy(() => import("@/pages/Login"));
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const POS = lazy(() => import("@/pages/POS"));
-const Inventory = lazy(() => import("@/pages/Inventory"));
-const InvoiceScanner = lazy(() => import("@/pages/InvoiceScanner"));
-const Customers = lazy(() => import("@/pages/Customers"));
-const Suppliers = lazy(() => import("@/pages/Suppliers"));
-const Reports = lazy(() => import("@/pages/Reports"));
-const Credits = lazy(() => import("@/pages/Credits"));
-const BulkLoad = lazy(() => import("@/pages/BulkLoad"));
-const BulkUpdate = lazy(() => import("@/pages/BulkUpdate"));
-const Expenses = lazy(() => import("@/pages/Expenses"));
-const ElectronicPOS = lazy(() => import("@/pages/ElectronicPOS"));
-const Users = lazy(() => import("@/pages/Users"));
-const Settings = lazy(() => import("@/pages/Settings"));
-const Support = lazy(() => import("@/pages/Support"));
-const Timeclock = lazy(() => import("@/pages/Timeclock"));
-const CashPickup = lazy(() => import("@/pages/CashPickup"));
-const Promotions = lazy(() => import("@/pages/Promotions"));
-const SalesDocs = lazy(() => import("@/pages/SalesDocs"));
-const Purchases = lazy(() => import("@/pages/Purchases"));
-const Dian = lazy(() => import("@/pages/Dian"));
-const Commissions = lazy(() => import("@/pages/Commissions"));
-const Services = lazy(() => import("@/pages/Services"));
-const Placeholder = lazy(() => import("@/pages/Placeholder"));
+// Carga perezosa con auto-recuperación ante nuevos despliegues (evita ChunkLoadError)
+const lazyWithRetry = (componentImport) =>
+  lazy(async () => {
+    try {
+      return await componentImport();
+    } catch (error) {
+      // Si el chunk cambió por un nuevo deploy de Vercel, refrescar la página automáticamente una vez
+      const isRefreshed = sessionStorage.getItem("jrpos_chunk_refreshed") === "true";
+      if (!isRefreshed) {
+        sessionStorage.setItem("jrpos_chunk_refreshed", "true");
+        window.location.reload();
+        return new Promise(() => {}); // suspende mientras recarga
+      }
+      sessionStorage.removeItem("jrpos_chunk_refreshed");
+      throw error;
+    }
+  });
+
+const Login = lazyWithRetry(() => import("@/pages/Login"));
+const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
+const POS = lazyWithRetry(() => import("@/pages/POS"));
+const Inventory = lazyWithRetry(() => import("@/pages/Inventory"));
+const InvoiceScanner = lazyWithRetry(() => import("@/pages/InvoiceScanner"));
+const Customers = lazyWithRetry(() => import("@/pages/Customers"));
+const Suppliers = lazyWithRetry(() => import("@/pages/Suppliers"));
+const Reports = lazyWithRetry(() => import("@/pages/Reports"));
+const Credits = lazyWithRetry(() => import("@/pages/Credits"));
+const BulkLoad = lazyWithRetry(() => import("@/pages/BulkLoad"));
+const BulkUpdate = lazyWithRetry(() => import("@/pages/BulkUpdate"));
+const Expenses = lazyWithRetry(() => import("@/pages/Expenses"));
+const ElectronicPOS = lazyWithRetry(() => import("@/pages/ElectronicPOS"));
+const Users = lazyWithRetry(() => import("@/pages/Users"));
+const Settings = lazyWithRetry(() => import("@/pages/Settings"));
+const Support = lazyWithRetry(() => import("@/pages/Support"));
+const Timeclock = lazyWithRetry(() => import("@/pages/Timeclock"));
+const CashPickup = lazyWithRetry(() => import("@/pages/CashPickup"));
+const Promotions = lazyWithRetry(() => import("@/pages/Promotions"));
+const SalesDocs = lazyWithRetry(() => import("@/pages/SalesDocs"));
+const Purchases = lazyWithRetry(() => import("@/pages/Purchases"));
+const Dian = lazyWithRetry(() => import("@/pages/Dian"));
+const Commissions = lazyWithRetry(() => import("@/pages/Commissions"));
+const Services = lazyWithRetry(() => import("@/pages/Services"));
+const Placeholder = lazyWithRetry(() => import("@/pages/Placeholder"));
 
 const soonModules = [];
 
