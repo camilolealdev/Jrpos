@@ -2,14 +2,32 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Camera, Barcode, X } from "lucide-react";
+import { Camera, Barcode, X, Volume2, Sparkles } from "lucide-react";
 
 // Max time to wait for the Radix Dialog portal to mount the reader div
-// (and for it to acquire a non-zero size) before giving up.
 const MOUNT_TIMEOUT_MS = 3000;
 
+// Reproducir beep estilo POS al detectar código
+const playScanBeep = () => {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(1850, ctx.currentTime);
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.14);
+  } catch { /* noop */ }
+};
+
 // Todos los formatos de códigos de barra 1D y códigos 2D/QR soportados
-const SUPPORTED_FORMATS = [
+const ALL_FORMATS = [
   Html5QrcodeSupportedFormats.EAN_13,
   Html5QrcodeSupportedFormats.EAN_8,
   Html5QrcodeSupportedFormats.CODE_128,
@@ -31,6 +49,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
   const [lastCode, setLastCode] = useState("");
   const [flash, setFlash] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [manualCode, setManualCode] = useState("");
   const lastScanTimeRef = useRef(0);
   const lastScannedCodeRef = useRef("");
   const scannerRef = useRef(null);
@@ -40,23 +59,27 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
 
   const handleDetectedText = useCallback((text) => {
     if (!text) return;
+    const cleanText = String(text).trim();
+    if (!cleanText) return;
     const now = performance.now();
+
+    playScanBeep();
 
     if (continuous) {
       // Cooldown para evitar lecturas duplicadas en ráfaga
-      if (text === lastScannedCodeRef.current && now - lastScanTimeRef.current < 1600) {
+      if (cleanText === lastScannedCodeRef.current && now - lastScanTimeRef.current < 1500) {
         return;
       }
-      if (now - lastScanTimeRef.current < 700) {
+      if (now - lastScanTimeRef.current < 600) {
         return;
       }
       lastScanTimeRef.current = now;
-      lastScannedCodeRef.current = text;
-      setLastCode(text);
+      lastScannedCodeRef.current = cleanText;
+      setLastCode(cleanText);
       setScannedCount((prev) => prev + 1);
       setFlash(true);
       setTimeout(() => setFlash(false), 350);
-      onScan(text);
+      onScan(cleanText);
     } else {
       try {
         if (scannerRef.current && running.current) {
@@ -65,7 +88,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       } catch { /* noop */ }
       running.current = false;
       onOpenChange(false);
-      onScan(text);
+      onScan(cleanText);
     }
   }, [continuous, onOpenChange, onScan]);
 
@@ -96,33 +119,32 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     try {
       await stopScanner();
 
+      // Usar ZXing nativo integrado para máxima compatibilidad con códigos 1D (EAN/UPC/128)
       const scanner = new Html5Qrcode(readerId, {
-        formatsToSupport: SUPPORTED_FORMATS,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true,
-        },
+        formatsToSupport: ALL_FORMATS,
         verbose: false,
       });
       scannerRef.current = scanner;
 
       const config = {
-        fps: 15,
+        fps: 20,
         qrbox: (viewfinderWidth, viewfinderHeight) => {
-          const minDim = Math.min(viewfinderWidth, viewfinderHeight);
-          const boxWidth = Math.min(Math.floor(viewfinderWidth * 0.88), 320);
-          const boxHeight = Math.min(Math.floor(minDim * 0.72), 220);
+          // Área de escaneo amplia optimizada para códigos de barra horizontales y QR
+          const width = Math.min(Math.floor(viewfinderWidth * 0.92), 400);
+          const height = Math.min(Math.floor(viewfinderHeight * 0.75), 260);
           return {
-            width: Math.max(200, boxWidth),
-            height: Math.max(140, boxHeight),
+            width: Math.max(220, width),
+            height: Math.max(140, height),
           };
         },
+        aspectRatio: 1.333333,
       };
 
       await scanner.start(
         camSource,
         config,
         (text) => handleDetectedText(text),
-        () => {} // frame ignored
+        () => {} // frame descartado
       );
       running.current = true;
     } catch (err) {
@@ -135,12 +157,12 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       } else if (errName === "NotReadableError" || msg.includes("Could not start video source")) {
         setError("La cámara está siendo usada por otra aplicación (Zoom, Meet, Teams, etc.). Ciérrala y reintenta.");
       } else {
-        // Si falló con ID específico, intentar con constraints genéricas
+        // Fallback a constraints generales si el ID falló
         if (typeof camSource === "string") {
           try {
-            const scanner = new Html5Qrcode(readerId, { formatsToSupport: SUPPORTED_FORMATS, verbose: false });
+            const scanner = new Html5Qrcode(readerId, { formatsToSupport: ALL_FORMATS, verbose: false });
             scannerRef.current = scanner;
-            await scanner.start({ facingMode: "user" }, { fps: 15 }, (t) => handleDetectedText(t), () => {});
+            await scanner.start({ facingMode: "user" }, { fps: 20 }, (t) => handleDetectedText(t), () => {});
             running.current = true;
             setError("");
             setStarting(false);
@@ -296,13 +318,40 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
           )}
         </div>
 
-        {/* Formatos admitidos */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-muted-foreground pt-1">
-          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-mono">EAN-13 / 8</span>
-          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-mono">UPC-A / E</span>
-          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-mono">Code 128 / 39</span>
-          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-mono">QR Code</span>
-        </div>
+        {/* Consejos de iluminación y distancia */}
+        <p className="text-[11px] text-center text-slate-500 dark:text-slate-400">
+          💡 <strong>Tip:</strong> Sostén el código firme a unos <strong>15–20 cm</strong> de la cámara con buena iluminación.
+        </p>
+
+        {/* Entrada manual de respaldo si la cámara no enfoca */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (manualCode.trim()) {
+              handleDetectedText(manualCode.trim());
+              setManualCode("");
+            }
+          }}
+          className="flex gap-2"
+        >
+          <input
+            type="text"
+            placeholder="O escribe/pega el código aquí..."
+            value={manualCode}
+            onChange={(e) => setManualCode(e.target.value)}
+            className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+            data-testid="manual-barcode-input-dialog"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            variant="outline"
+            className="text-xs h-auto py-1 px-3 border-emerald-500 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+            disabled={!manualCode.trim()}
+          >
+            Ingresar
+          </Button>
+        </form>
 
         {error && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5 space-y-1" data-testid="camera-error">
