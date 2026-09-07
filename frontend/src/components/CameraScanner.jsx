@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Camera, Barcode, X, Volume2, Sparkles } from "lucide-react";
+import { Camera, Barcode, X } from "lucide-react";
 
 // Max time to wait for the Radix Dialog portal to mount the reader div
 const MOUNT_TIMEOUT_MS = 3000;
@@ -25,21 +25,6 @@ const playScanBeep = () => {
     osc.stop(ctx.currentTime + 0.14);
   } catch { /* noop */ }
 };
-
-// Todos los formatos de códigos de barra 1D y códigos 2D/QR soportados
-const ALL_FORMATS = [
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.CODE_93,
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.UPC_E,
-  Html5QrcodeSupportedFormats.ITF,
-  Html5QrcodeSupportedFormats.CODABAR,
-  Html5QrcodeSupportedFormats.QR_CODE,
-  Html5QrcodeSupportedFormats.DATA_MATRIX,
-];
 
 export default function CameraScanner({ open, onOpenChange, onScan, continuous = false }) {
   const [error, setError] = useState("");
@@ -119,29 +104,17 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     try {
       await stopScanner();
 
-      // Usar ZXing nativo integrado para máxima compatibilidad con códigos 1D (EAN/UPC/128)
+      // Por defecto html5-qrcode activa todos los formatos 1D y 2D (EAN, UPC, Code128, QR, etc.)
       const scanner = new Html5Qrcode(readerId, {
-        formatsToSupport: ALL_FORMATS,
         verbose: false,
       });
       scannerRef.current = scanner;
 
       const config = {
         fps: 25,
-        qrbox: (viewfinderWidth, viewfinderHeight) => {
-          // Área de escaneo amplia de alta precisión para códigos lineales y 2D
-          const width = Math.min(Math.floor(viewfinderWidth * 0.94), 450);
-          const height = Math.min(Math.floor(viewfinderHeight * 0.80), 280);
-          return {
-            width: Math.max(220, width),
-            height: Math.max(140, height),
-          };
-        },
-        aspectRatio: 1.333333,
         videoConstraints: {
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
-          focusMode: "continuous",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
         },
       };
 
@@ -165,7 +138,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
         // Fallback a constraints generales si el ID falló
         if (typeof camSource === "string") {
           try {
-            const scanner = new Html5Qrcode(readerId, { formatsToSupport: ALL_FORMATS, verbose: false });
+            const scanner = new Html5Qrcode(readerId, { verbose: false });
             scannerRef.current = scanner;
             await scanner.start({ facingMode: "user" }, { fps: 20 }, (t) => handleDetectedText(t), () => {});
             running.current = true;
