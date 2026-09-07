@@ -1,100 +1,48 @@
-# JRPOS — Estado de módulos (documento interno)
+# JRPOS — Matriz de Módulos y Estado del Sistema
 
-> Última actualización: Septiembre 2026 · v1.4
-> Leyenda: ✅ activo · 🧪 simulado · ⬜ pendiente
-
----
-
-## ✅ Módulos construidos y probados
-
-| Módulo | Ruta | Backend | Notas |
-|---|---|---|---|
-| Dashboard | `/dashboard` | `/api/reports/summary` | Ventas hoy, top productos, stock bajo, gráfica 7 días |
-| POS Venta | `/pos` | `/api/sales`, `/api/products/barcode/{code}`, `/api/held` | Carrito, 6 métodos de pago, cuentas retenidas multi-cliente, cámara + pistola/Play Store, recibo térmico 58mm |
-| Inventario | `/inventario` | CRUD `/api/products` | CRUD completo, gestor de iconos/pin de categorías |
-| Escanear Factura (IA) | `/facturas` | `/api/invoices/ocr`, `/api/invoices/import` | Gemini 3 Flash (económico) / 3.1 Pro; fallback manual |
-| Clientes | `/clientes` | `/api/contacts?kind=customer` | CRUD |
-| Proveedores | `/proveedores` | `/api/contacts?kind=supplier` | CRUD, auto-creado al importar factura |
-| Créditos (Fiado) | `/creditos` | `/api/credits/*` | Abonos, estado de cuenta, cartera total |
-| Carga Masiva | `/carga-masiva` | `/api/products/bulk` | CSV con plantilla descargable |
-| Actualización Masiva | `/actualizacion-masiva` | `/api/products/bulk-update` | % precio/costo, IVA, stock por categoría |
-| Gastos/Pagos | `/gastos` | `/api/expenses` | Totales hoy/mes/general |
-| POS Electrónica 🧪 | `/facturacion-pos-electronica` | `/api/electronic/*` | CUFE sha256 + XML UBL **SIMULADO** |
-| Reportes | `/reportes` | `/api/sales` | Historial + reimpresión térmica |
+> Última actualización: Septiembre 2026
+> Leyenda: ✅ Construido y Probado · 🧪 Simulado (Sandbox) · 🔄 En Evolución
 
 ---
 
-## ⬜ Módulos NO construidos — características necesarias
+## 📦 Matriz de los 28 Módulos del Sistema
 
-### 1. Facturación Electrónica DIAN (real)
-- **Hoy**: solo POS Electrónica simulada (XML/CUFE de prueba).
-- **Necesario**: integración con proveedor tecnológico autorizado (Facture, Alegra API, The Factory HKA), envío a DIAN vía servicio web, manejo de respuesta (CUFE/CUDE válidos, trackId), reintentos, eventos (reclamo, recibo del bien, aceptación expresa), representación gráfica PDF con QR.
-- **Dependencias**: cuenta con PT, certificado digital (.p12), resolución DIAN vigente, modo habilitación → producción.
-
-### 2. Remisiones
-- **Necesario**: documento sin efecto fiscal para traslados/entregas; conversión de remisión → factura; control de mercancía entregada sin cobrar; consecutivo propio.
-- **Modelo sugerido**: `remissions {number, customer_id, items[], status(pendiente|facturada|anulada), sale_id?}`.
-
-### 3. Nómina Electrónica
-- **Necesario**: soportes de pago de nómina y notas de ajuste según resolución DIAN 000013; empleados con contratos, devengados (sueldo, horas extra, recargos), deducciones (salud, pensión, libranzas), periodos quincenales/mensuales.
-- **Dependencias**: mismo PT que facturación electrónica; **no** incluye dispersión de pagos bancarios.
-
-### 4. Documento Soporte Electrónico
-- **Necesario**: compras a personas no obligadas a facturar (ej. compra de cosechas a campesinos); CUDE propio; equivalente a factura pero emitido por el comprador.
-- **Dependencias**: PT autorizado, resolución de documento soporte.
-
-### 5. RADIAN
-- **Necesario**: registro de facturas como título valor, consulta de eventos, circulación (endoso, cesión). Hoy no hay ningún componente.
-- **Dependencias**: PT con integración RADIAN.
-
-### 6. Notas Crédito / Notas Débito
-- **Necesario**: desde una venta existente, generar nota con concepto DIAN (devolución, anulación, descuento, error en precio); afecta inventario (re-ingreso de stock en devolución); ajusta fiado si la venta era a crédito; XML/CUFE simulado primero, real después.
-- **Modelo sugerido**: `credit_notes {sale_id, type(credito|debito), concept_code, items[], total, cufe?}`.
-
-### 7. Cuentas de Cobro
-- **Necesario**: documento equivalente para no obligados; numeración propia; relación con clientes; conversión a venta.
-- **Bajo esfuerzo**: clon del flujo de venta POS con numeración `CC-XXXXXX`.
-
-### 8. Promociones / Ofertas / Descuentos
-- **Necesario**: reglas (2x1, % por categoría, combo A+B, precio especial por cantidad, fecha vigencia, cliente específico); motor de evaluación en el checkout del POS; exclusividad/acumulación.
-- **Modelo sugerido**: `promotions {type, params, category_id?, product_ids[], start, end, active}`.
-
-### 9. Órdenes de Venta / Cotizaciones
-- **Necesario**: cotización con validez (días), envío por WhatsApp/PDF, conversión a venta con 1 clic (cargar al carrito POS), estados (borrador, enviada, aceptada, vencida).
-- **Cercano a implementar**: reutiliza estructura de `held_sales`.
-
-### 10. Garantías y Devoluciones
-- **Necesario**: registro de caso vinculado a venta, motivo, resolución (cambio físico, nota crédito, reparación, rechazo), seguimiento con proveedor, re-ingreso de stock si aplica.
-
-### 11. Órdenes de Compra
-- **Necesario**: OC a proveedor con ítems y cantidades, recepción parcial/total que alimenta inventario (conecta con `/api/invoices/import`), estado (enviada, recibida parcial, recibida, anulada), costo esperado vs real.
-
-### 12. Prestación de Servicios
-- **Necesario**: ítems tipo servicio (sin stock), agenda/entrega, facturación de servicios con IVA. Para abarrotes aplica poco (ej. recargas, giros).
-- **Bajo esfuerzo**: flag `is_service` en productos que omita control de stock.
-
-### 13. Recogidas de Dinero (arqueo de caja)
-- **Necesario**: apertura/cierre de caja con base inicial, retiros ("recogidas") con responsable y valor, conteo ciego de efectivo, diferencias, Z-report del día.
-- **Modelo sugerido**: `cash_sessions {opened_at, base, pickups[], closed_at, expected, counted, diff}`.
-
-### 14. Comisiones por Productos
-- **Necesario**: % o valor por producto/categoría, reporte por vendedor, liquidación por periodo. Requiere usuarios/vendedores (depende de Permisos).
-
-### 15. Permisos de Usuarios / Usuarios ilimitados
-- **Estado**: ✅ implementado — auth JWT (cookies httpOnly) con roles admin/cajero, bloqueo de cuenta tras intentos fallidos.
-- **Pendiente**: rol bodeguero, permisos granulares por módulo, PIN rápido de cajero en POS, auditoría de acciones. **Bloquea**: comisiones, recogidas por cajero, multi-caja.
-
-### 16. Cajas ilimitadas
-- **Necesario**: registro de cajas (punto físico), asignación de ventas/recogidas a caja, consecutivos por caja. Depende de usuarios.
-
-### 17. Certificado Digital
-- **Necesario**: carga de .p12 con contraseña, validación de vigencia, uso para firma XML-DSig en facturación real. Solo aplica cuando se conecte PT DIAN.
-
-### 18. Soporte y Capacitación
-- **Necesario**: centro de ayuda in-app, videos cortos por módulo, chat/tickets.
-- **Bajo esfuerzo**: página estática con guías + link WhatsApp.
+| Módulo | Ruta | Backend | Estado | Descripción & Capacidades |
+|---|---|---|:---:|---|
+| **Dashboard** | `/dashboard` | `/api/reports/summary` | ✅ Activo | Métricas hoy, ganancias brutas, margen %, productos activos, stock bajo |
+| **POS Venta** | `/pos` | `/api/sales`, `/api/products/barcode/{code}`, `/api/held` | ✅ Activo | Carrito multitarea, retención de cuentas, escáner cámara + pistola, 58mm/80mm, audio feedback |
+| **Inventario** | `/inventario` | `/api/products` | ✅ Activo | CRUD, cálculo costo/precio por sixpack/paquete, margen %, código de barras |
+| **Escanear Factura (IA)** | `/facturas` | `/api/invoices/ocr`, `/api/invoices/import` | ✅ Activo | OCR con Gemini / Groq / OpenRouter / NVIDIA; detecta ítems, costos e importa a inventario |
+| **Clientes** | `/clientes` | `/api/contacts?kind=customer` | ✅ Activo | Directorio de clientes, CC/NIT, direcciones, teléfono y crédito |
+| **Proveedores** | `/proveedores` | `/api/contacts?kind=supplier` | ✅ Activo | Directorio de proveedores, plazos de pago y compras |
+| **Créditos (Fiado)** | `/creditos` | `/api/credits/*` | ✅ Activo | Cartera de fiados, abonos parciales, estado de cuenta y recordatorios por WhatsApp en COP |
+| **Marcación** | `/marcacion` | `/api/timeclock/*` | ✅ Activo | Control de asistencia, horarios programables, detección automática de retardos |
+| **Facturación Electrónica** | `/facturacion-electronica` | `/api/electronic/*`, `dian_client.py` | 🧪 Simulado | Algoritmo CUFE SHA-384, estructura UBL 2.1 y visor de documentos DIAN en Sandbox |
+| **POS Electrónica** | `/facturacion-pos-electronica` | `/api/electronic/settings` | 🧪 Simulado | Configuración de resolución DIAN para POS electrónico |
+| **Remisiones** | `/remisiones` | `/api/documents?type=remisiones` | ✅ Activo | Guías de entrega y despacho sin efecto fiscal |
+| **Nómina Electrónica** | `/nomina-electronica` | `/api/payroll/*` | 🧪 Simulado | Liquidación de devengados y deducciones para nómina |
+| **Documento Soporte** | `/documento-soporte` | `/api/support-docs/*` | ✅ Activo | Compras a no obligados a facturar |
+| **RADIAN** | `/radian` | `/api/electronic/radian` | 🧪 Simulado | Registro y eventos de facturas electrónicas como título valor |
+| **Notas Crédito / Débito** | `/notas` | `/api/credit-notes/*` | ✅ Activo | Devoluciones, descuentos y ajustes contables |
+| **Cuentas de Cobro** | `/cuentas-cobro` | `/api/documents?type=cuentas` | ✅ Activo | Emisión de cuentas de cobro para personas naturales / servicios |
+| **Certificado Digital** | `/certificado-digital` | `/api/settings/certificate` | 🧪 Simulado | Carga y verificación de vigencia de certificados `.p12`/`.pfx` |
+| **Carga Masiva** | `/carga-masiva` | `/api/products/bulk` | ✅ Activo | Importador masivo de catálogo desde Excel y CSV |
+| **Actualización Masiva** | `/actualizacion-masiva` | `/api/products/bulk-update` | ✅ Activo | Ajuste porcentual de precios, costos e IVA por categorías |
+| **Promociones y Ofertas** | `/promociones` | `/api/promotions` | ✅ Activo | Descuentos globales y combos por categoría con vigencia |
+| **Órdenes y Cotizaciones** | `/ordenes-venta` | `/api/documents?type=cotizaciones` | ✅ Activo | Cotizaciones comerciales para clientes |
+| **Garantías y Devoluciones** | `/garantias` | `/api/warranties` | ✅ Activo | Gestión de cambios de mercancía y productos defectuosos |
+| **Órdenes de Compra** | `/ordenes-compra` | `/api/purchase-orders` | ✅ Activo | Pedidos a proveedores y recepción de mercancía |
+| **Servicios y Corresponsal** | `/servicios` | `/api/services/*` | ✅ Activo | Recargas, corresponsal bancario y pago de servicios públicos |
+| **Caja y Recogidas** | `/recogidas` | `/api/cash-sessions`, `/api/cash-pickups` | ✅ Activo | Base inicial, retiros parciales y Arqueo Cierre Z |
+| **Comisiones** | `/comisiones` | `/api/commissions/*` | ✅ Activo | Reglas de comisión por vendedor y liquidación |
+| **Gastos / Pagos** | `/gastos` | `/api/expenses` | ✅ Activo | Registro de egresos operacionales (arriendo, servicios, insumos) |
+| **Reportes & Exportación** | `/reportes` | `/api/reports/accounting-export` | ✅ Activo | Historial de ventas, reimpresión térmica y exportación fiscal contable (Base + IVA 0/5/19%) |
+| **Permisos de Usuarios** | `/usuarios` | `/api/users/*` | ✅ Activo | Roles Admin / Cajero, reseteo seguro de contraseña y bloqueo por fuerza bruta |
+| **Configuración** | `/configuracion` | `/api/settings/general` | ✅ Activo | Datos comerciales, NIT, tema de color, ancho de ticket, credenciales IA seguras |
+| **Soporte** | `/soporte` | `/api/support` | ✅ Activo | Preguntas frecuentes, atajos de teclado y canales de atención |
 
 ---
 
-## Características transversales pendientes
-- **Permisos granulares por módulo** (auth básica ya implementada) · **Ancho 80mm** en impresión térmica · **Recordatorio WhatsApp de fiado** · **Facturación DIAN real** (reemplazar simulado) · **Modo offline** para ventas sin internet (PWA + sync)
+## 🎯 Próximo Paso para Producción DIAN
+- Conexión del conector SOAP y firma digital XAdES-BES con Proveedor Tecnológico (PT) habilitado ante la DIAN para emisión de facturas electrónicas reales con valor legal.
+

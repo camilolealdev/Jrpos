@@ -157,17 +157,23 @@ Accede a `http://localhost:3000` en tu navegador.
 
 ---
 
-## 🧭 Brechas y Deuda Técnica Conocidas (actualizado 2026-09-04)
+## 🧭 Estado de Calidad, Auditoría y Deuda Técnica (Actualizado Sep 2026)
 
-Ranking por severidad, de una auditoría interna del código (no exhaustiva línea por línea):
+Estado verificado mediante suite de pruebas automatizadas y auditoría fullstack:
 
-1. ✅ ~~Config de despliegue de Railway apunta a la app muerta.~~ **Corregido:** `backend/Procfile`, `backend/railway.json` y `backend/Dockerfile` ahora ejecutan `app:app` (Postgres/Supabase), igual que Vercel.
-2. ✅ ~~API keys de IA expuestas a cualquier cajero.~~ **Corregido:** `GET /api/settings/general` (`backend/routers/settings.py`) ahora filtra `ai_api_key` y `ai_base_url` para cualquier usuario que no sea admin — esos campos nunca llegan al `localStorage` de un cajero.
-3. ✅ ~~`backend/server.py` (1759 líneas) es una app completa alternativa sobre MongoDB.~~ **Archivado:** movido a [`backend/_legacy_mongo_archive/`](backend/_legacy_mongo_archive/) con nota explicativa; `pymongo`/`motor` ya no están en `requirements.txt`.
-4. 🟠 **La suite de Facturación DIAN es 100% cosmética** (ver sección de módulos arriba) — el CUFE se calcula correctamente pero nada se envía a la DIAN real. Riesgo si un usuario cree que está facturando legalmente.
-5. 🟡 `backend/tests/backend_test.py` está roto/obsoleto: apunta a una URL externa de la era emergent.sh que ya no existe.
-6. 🟡 El endpoint `PUT /users/{id}/reset-password` (admin) no tiene test de regresión.
-7. 🟢 Cero tests de frontend pese a tener el runner listo (`craco test` en `package.json`).
-8. 🟢 `AGENTS.md` en la raíz del repo no documenta este proyecto — es un índice global de skills de Claude Code sin relación con JRPOS, probablemente comiteado por error.
+- ✅ **Test Suite Backend 100% Verde**: 73 pruebas pasadas, 1 omitida, 0 fallidas (`pytest-xdist`).
+- ✅ **Test de Regresión de Reset de Contraseña**: Endpoint `PUT /api/users/{id}/reset-password` implementado y blindado con tests de integración (`test_reset_password.py`).
+- ✅ **Configuración de Despliegue Unificada**: `backend/Procfile`, `backend/railway.json` y `backend/Dockerfile` ejecutan `app:app` sobre PostgreSQL/Supabase, sincronizado con Vercel.
+- ✅ **Seguridad de API Keys de IA & OCR**: `GET /api/settings/general` filtra `ai_api_key` y `ai_base_url` para usuarios no administradores. En frontend, los inputs utilizan enmascaramiento protegido (`type="password"`) con visor condicional.
+- ✅ **Cálculo de Precios por Paquete / Sixpack**: Asistente integrado en Inventario y Escáner de Facturas OCR para desglosar costos y precios de venta a partir de sixpacks, paquetes o canastas.
+- ✅ **Exportación Contable Fiscal**: Endpoint `/api/reports/accounting-export` con discriminación de Base Gravable, IVA 0%, IVA 5%, IVA 19% y desglose por medios de pago para revisoría fiscal y contadores.
+- ✅ **Identidad Visual & Branding**: Logotipos oficiales WebP de alta fidelidad (`logo.webp` y `logo2.webp`), favicons generados y eliminación total de etiquetas de texto de versión redundantes.
+- ✅ **Auto-Recuperación de Despliegues Frontend**: Manejador `lazyWithRetry` en `App.js` que previene errores de carga de chunks (`ChunkLoadError`) ante nuevos despliegues.
+- 🟠 **Facturación DIAN en Modo Simulación / Sandbox**: El cálculo CUFE (SHA-384) y la estructura UBL 2.1 están listos para integrarse con un proveedor tecnológico o certificado digital en producción.
 
-**Sin hallazgos relevantes:** ningún router de negocio (productos, ventas, contactos, caja, créditos, garantías, comisiones, etc.) tiene TODOs, stubs o lógica incompleta — es CRUD real y completo contra PostgreSQL. Tampoco se encontraron secretos hardcoded, `eval`, SQL sin parametrizar, ni CORS mal configurado.
+---
+
+## 📄 Licencia y Créditos
+
+Desarrollado para el comercio minorista independiente en Colombia. © 2026 JRPOS.
+

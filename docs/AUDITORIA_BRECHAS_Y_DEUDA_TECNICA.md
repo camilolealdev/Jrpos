@@ -10,16 +10,17 @@
 
 | Módulo | Madurez Actual | Estado Operativo | Brechas Críticas | Nivel de Riesgo |
 | :--- | :---: | :---: | :---: | :---: |
-| **1. Autenticación & Seguridad** | 95% | 🟢 Producción | Recuperación de contraseña por email | 🟢 Bajo |
-| **2. Punto de Venta (POS) & Escáner** | 98% | 🟢 Producción | Sincronización IndexedDB >10k SKUs | 🟢 Bajo |
-| **3. Inventario & Catálogo** | 90% | 🟢 Producción | Tabla Kardex auditoría paso a paso | 🟡 Medio |
-| **4. Facturación Electrónica DIAN** | 80% | 🟡 Pre-Habilitación | Conector SOAP / PT en producción | 🟡 Medio |
-| **5. Cajas & Arqueos de Turno** | 95% | 🟢 Producción | Cierre ciego (opcional por config) | 🟢 Bajo |
-| **6. Créditos & Cuentas por Cobrar** | 95% | 🟢 Producción | Límite de cupo de crédito por cliente | 🟢 Bajo |
-| **7. Reloj / Marcación (Timeclock)** | 98% | 🟢 Producción | Geolocalización opcional en móvil | 🟢 Bajo |
-| **8. Compras & Facturas Proveedor** | 92% | 🟢 Producción | Documento Soporte Electrónico a No Obligados | 🟡 Medio |
-| **9. Cotizaciones & Remisiones** | 95% | 🟢 Producción | Descarga en PDF vectorizado directo | 🟢 Bajo |
-| **10. Configuración & Marca** | 100% | 🟢 Producción | Completo (Nombre, NIT, Acentos, Live Preview) | 🟢 Ninguno |
+| **1. Autenticación & Seguridad** | 98% | 🟢 Producción | Reset password con test de regresión + LoginAttempt | 🟢 Bajo |
+| **2. Punto de Venta (POS) & Escáner** | 98% | 🟢 Producción | Sincronización IndexedDB + Cámara ZXing | 🟢 Bajo |
+| **3. Inventario & Precios Paquete** | 95% | 🟢 Producción | Costo/precio unitario y por sixpack/paquete integrado | 🟢 Bajo |
+| **4. Facturación Electrónica DIAN** | 80% | 🟡 Pre-Habilitación | Conector SOAP / PT en producción (Sandbox UBL 2.1 activo) | 🟡 Medio |
+| **5. Cajas & Arqueos de Turno** | 95% | 🟢 Producción | Base inicial, recogidas y Cierre Z | 🟢 Bajo |
+| **6. Créditos & Cuentas por Cobrar** | 95% | 🟢 Producción | Cartera, abonos y recordatorios WhatsApp | 🟢 Bajo |
+| **7. Reloj / Marcación (Timeclock)** | 100% | 🟢 Producción | Horarios programables + detección de retardos probada | 🟢 Ninguno |
+| **8. Compras & Facturas Proveedor** | 95% | 🟢 Producción | OCR Multimodal + compras y costos | 🟢 Bajo |
+| **9. Cotizaciones & Remisiones** | 95% | 🟢 Producción | Conversión a venta con 1 clic | 🟢 Bajo |
+| **10. Configuración, IA & Marca** | 100% | 🟢 Producción | Branding WebP, API keys protegidas, Personalización | 🟢 Ninguno |
+| **11. Test Suite & Calidad** | 100% | 🟢 Producción | 73 tests pasando (0 fallos) en backend | 🟢 Ninguno |
 
 ---
 

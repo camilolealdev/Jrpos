@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,27 +42,24 @@ export default function Login() {
 
   return (
     <div className="min-h-screen w-full bg-[#07100c] text-slate-100 relative overflow-x-hidden">
-      <AnimatePresence mode="wait">
-        {view === "welcome" ? (
-          <motion.div
-            key="welcome-view"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
-            className="w-full"
-          >
-            <WelcomeHero onProceedToLogin={() => setView("login")} />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="login-view"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
-            className="min-h-screen w-full flex flex-col justify-center items-center p-4 relative"
-          >
+      {view === "welcome" ? (
+        <motion.div
+          key="welcome-view"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.35, ease: "easeInOut" }}
+          className="w-full"
+        >
+          <WelcomeHero onProceedToLogin={() => setView("login")} />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="login-view"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeInOut" }}
+          className="min-h-screen w-full flex flex-col justify-center items-center p-4 relative"
+        >
             {/* Background lighting */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
               <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-600/15 rounded-full blur-[128px]" />
@@ -174,9 +171,8 @@ export default function Login() {
                 </div>
               </CardContent>
             </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </motion.div>
+      )}
     </div>
   );
 }

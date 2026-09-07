@@ -97,14 +97,18 @@ Aplicativo POS para tienda de abarrotes en Colombia con manejo de inventario, su
 ## Implemented (Sep 2026 - v1.4: Escáner por cámara)
 - ✅ Componente CameraScanner (html5-qrcode): lee EAN-13/Code128/QR con cámara trasera del celular
 - ✅ Botón "📷 Cámara" en POS junto al input de código; al leer un código válido busca el producto y lo agrega al carrito con toast
-- ✅ Flujo keyboard-wedge (pistola USB/BT y apps Play Store) intacto y refactorizado a lookupBarcode compartido
-- ✅ Carga Masiva: /api/products/bulk (upsert por barcode/nombre) + UI /carga-masiva con plantilla CSV descargable y vista previa
-- ✅ Actualización Masiva: /api/products/bulk-update (% precio/costo, fijar IVA, sumar stock por categoría) + UI /actualizacion-masiva con conteo de afectados
-- ✅ POS Electrónica SIMULADA: /api/electronic/settings + /api/electronic/invoice/{sale_id} (CUFE sha256 + XML UBL con marca SIMULACIÓN) + UI con datos del emisor
-- ✅ Gastos: /api/expenses CRUD con totales hoy/mes/general + UI /gastos
-- ✅ POS multi-cliente: cuentas retenidas /api/held (Retener/Recuperar con protección anti-mezcla de carritos); barra "Abiertas" con chips por cuenta
-- ✅ Métodos de pago soportados en checkout y abonos: efectivo, nequi, daviplata, tarjeta, transferencia, crédito (fiado)
-- ✅ Base de datos: MongoDB (MONGO_URL gestionada por el entorno de la plataforma)
+## Implemented (Sep 2026 - v3.2: Branding Oficial, Auditoría Fullstack & Precios por Paquete)
+- ✅ **Branding Oficial**: Logotipos vectoriales/WebP optimizados (`logo.webp` negro y `logo2.webp` blanco con transparencia), favicons multi-resolución y eliminación de badges de versión redundantes en el sitio y app.
+- ✅ **Costo y Precio por Paquete / Sixpack**: Asistente en Inventario y Facturas OCR para desglosar unidades por empaque (6, 12, 24, 30) y calcular costo y precio unitario con margen comercial.
+- ✅ **Seguridad de Claves IA/OCR**: Ocultamiento de API Keys en Configuración (`type="password"` con alternador de visibilidad) y filtrado en backend para usuarios no administradores.
+- ✅ **Exportación Fiscal y Contable**: Endpoint `/api/reports/accounting-export` con desglose de Base Gravable, IVA 0/5/19% y métodos de pago.
+- ✅ **Test Suite 100% Verde**: 73 pruebas automatizadas pasando con éxito en backend (auth, roles, reset password, timeclock, ventas, inventario).
+- ✅ **Resiliencia Frontend**: `lazyWithRetry` en `App.js` para auto-recuperar sesiones ante nuevos despliegues de Vercel sin ChunkLoadError.
+
+---
+
+## 🎯 Next Steps
+- Conexión del conector de emisión real DIAN con Proveedor Tecnológico (PT) mediante certificado digital en producción.
 - ✅ Testing iteration_3: 9/9 backend pytest + UI e2e 100%
 
 ## P0 Backlog (siguiente fase)
