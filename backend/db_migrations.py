@@ -37,6 +37,14 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS pos_audio_beep BOOLEAN DEFAULT TRUE;
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS pos_ask_clear_cart BOOLEAN DEFAULT TRUE;
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS pos_require_credit_customer BOOLEAN DEFAULT TRUE;
+    CREATE TABLE IF NOT EXISTS settings_certificate (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        filename VARCHAR(255),
+        size INTEGER,
+        expires VARCHAR(20),
+        uploaded_by VARCHAR(255),
+        uploaded_at VARCHAR(30)
+    );
     CREATE TABLE IF NOT EXISTS category_meta (
         name VARCHAR(100) PRIMARY KEY,
         emoji VARCHAR(20),
