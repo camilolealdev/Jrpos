@@ -269,8 +269,8 @@ export default function Settings() {
       });
       applyAccent(form.accent);
       localStorage.setItem("jrpos_settings", JSON.stringify(form));
-      toast.success("Configuración guardada exitosamente");
-      setTimeout(() => window.location.reload(), 600);
+      window.dispatchEvent(new CustomEvent("jrpos_settings_updated", { detail: form }));
+      toast.success("¡Datos de la tienda y configuración guardados con éxito!");
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Error guardando configuración");
     }
@@ -281,10 +281,10 @@ export default function Settings() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
-            <Settings2 className="w-7 h-7 text-emerald-700" /> Centro de Configuración
+            <Store className="w-7 h-7 text-emerald-700" /> Configuración de la Tienda & Sistema
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Personaliza la identidad de tu tienda, motores de Inteligencia Artificial (OCR), impresión térmica y preferencias de caja.
+            Personaliza el nombre de tu establecimiento, NIT, dirección, teléfono, temas visuales y motores de IA.
           </p>
         </div>
         <Button className="bg-emerald-700 hover:bg-emerald-800 h-11 px-6 font-bold shrink-0 shadow-sm" onClick={save} data-testid="save-settings-btn">
@@ -292,19 +292,19 @@ export default function Settings() {
         </Button>
       </div>
 
-      <Tabs defaultValue="ai" className="space-y-4">
+      <Tabs defaultValue="store" className="space-y-4">
         <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-slate-100 rounded-lg">
-          <TabsTrigger value="ai" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
-            <Bot className="w-4 h-4" /> IA & OCR
-          </TabsTrigger>
           <TabsTrigger value="store" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
-            <Store className="w-4 h-4" /> Tienda
+            <Store className="w-4 h-4" /> Datos Tienda
+          </TabsTrigger>
+          <TabsTrigger value="theme" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
+            <Palette className="w-4 h-4" /> Temas
           </TabsTrigger>
           <TabsTrigger value="printer" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
             <Printer className="w-4 h-4" /> Recibo
           </TabsTrigger>
-          <TabsTrigger value="theme" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
-            <Palette className="w-4 h-4" /> Temas
+          <TabsTrigger value="ai" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
+            <Bot className="w-4 h-4" /> IA & OCR
           </TabsTrigger>
           <TabsTrigger value="pos" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
             <Sliders className="w-4 h-4" /> Caja POS
@@ -480,60 +480,108 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* TAB 2: Identidad & Tienda */}
+        {/* TAB 1: Identidad & Tienda */}
         <TabsContent value="store" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Datos Comerciales & Tributarios</CardTitle></CardHeader>
-            <CardContent className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Nombre Comercial de la Tienda</label>
-                <Input value={form.store_name} onChange={(e) => update({ store_name: e.target.value })} data-testid="s-store-name" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Slogan / Subtítulo</label>
-                <Input value={form.store_slogan || ""} onChange={(e) => update({ store_slogan: e.target.value })} placeholder="Ej: Tienda y Droguería de Barrio" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">NIT / Cédula / RUT</label>
-                <Input value={form.store_nit || ""} onChange={(e) => update({ store_nit: e.target.value })} placeholder="900.123.456-7" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Régimen Tributario</label>
-                <Select value={form.tax_regime || "No responsable de IVA"} onValueChange={(v) => update({ tax_regime: v })}>
-                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="No responsable de IVA">No responsable de IVA</SelectItem>
-                    <SelectItem value="Responsable de IVA">Responsable de IVA</SelectItem>
-                    <SelectItem value="Régimen Simple de Tributación">Régimen Simple de Tributación</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Dirección del Establecimiento</label>
-                <Input value={form.store_address || ""} onChange={(e) => update({ store_address: e.target.value })} placeholder="Calle 10 # 5-20" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Ciudad / Municipio</label>
-                <Input value={form.store_city || ""} onChange={(e) => update({ store_city: e.target.value })} placeholder="Bogotá D.C." />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Departamento</label>
-                <Input value={form.store_department || ""} onChange={(e) => update({ store_department: e.target.value })} placeholder="Cundinamarca" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Teléfono / WhatsApp de Soporte</label>
-                <Input value={form.support_phone} onChange={(e) => update({ support_phone: e.target.value })} placeholder="3001234567" data-testid="s-support" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">IVA por defecto (%)</label>
-                <Input type="number" value={form.iva_default} onChange={(e) => update({ iva_default: e.target.value })} data-testid="s-iva" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Símbolo de Moneda</label>
-                <Input value={form.currency_symbol || "$"} onChange={(e) => update({ currency_symbol: e.target.value })} placeholder="$" className="w-24" />
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid lg:grid-cols-3 gap-4">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Store className="w-5 h-5 text-emerald-700" /> Datos Comerciales & Tributarios
+                </CardTitle>
+                <CardDescription>
+                  Estos datos aparecerán en la barra lateral del sistema, en los recibos impresos y en las facturas de venta.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Nombre Comercial del Establecimiento *</label>
+                  <Input value={form.store_name} onChange={(e) => update({ store_name: e.target.value })} placeholder="Ej: Minimarket La Esquina" data-testid="s-store-name" className="text-base font-semibold" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Slogan / Actividad</label>
+                  <Input value={form.store_slogan || ""} onChange={(e) => update({ store_slogan: e.target.value })} placeholder="Ej: Víveres, Abarrotes y Droguería" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">NIT / RUT / Cédula</label>
+                  <Input value={form.store_nit || ""} onChange={(e) => update({ store_nit: e.target.value })} placeholder="900.123.456-7" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Régimen Tributario</label>
+                  <Select value={form.tax_regime || "No responsable de IVA"} onValueChange={(v) => update({ tax_regime: v })}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="No responsable de IVA">No responsable de IVA</SelectItem>
+                      <SelectItem value="Responsable de IVA">Responsable de IVA</SelectItem>
+                      <SelectItem value="Régimen Simple de Tributación">Régimen Simple de Tributación</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Teléfono / WhatsApp de Atención</label>
+                  <Input value={form.support_phone} onChange={(e) => update({ support_phone: e.target.value })} placeholder="300 123 4567" data-testid="s-support" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Dirección del Establecimiento</label>
+                  <Input value={form.store_address || ""} onChange={(e) => update({ store_address: e.target.value })} placeholder="Calle 10 # 5-20" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Ciudad / Municipio</label>
+                  <Input value={form.store_city || ""} onChange={(e) => update({ store_city: e.target.value })} placeholder="Medellín" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Departamento</label>
+                  <Input value={form.store_department || ""} onChange={(e) => update({ store_department: e.target.value })} placeholder="Antioquia" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">IVA por defecto (%)</label>
+                  <Input type="number" value={form.iva_default} onChange={(e) => update({ iva_default: e.target.value })} data-testid="s-iva" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Vista previa en vivo */}
+            <Card className="bg-slate-50 dark:bg-slate-900 border-dashed border-2">
+              <CardHeader>
+                <CardTitle className="text-sm text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-500" /> Vista Previa en Vivo
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Así se verá el encabezado de tu tienda en el menú y tickets:
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Preview barra lateral */}
+                <div className="p-3 bg-white dark:bg-slate-950 rounded-lg border shadow-xs">
+                  <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">En el Menú:</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-700 text-white grid place-items-center shadow-xs shrink-0">
+                      <Store className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-sm text-slate-900 dark:text-white truncate">{form.store_name || "Mi Tienda"}</div>
+                      <div className="text-[10px] text-slate-500 truncate">{form.store_nit ? `NIT: ${form.store_nit}` : (form.store_slogan || "Punto de Venta")}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview ticket */}
+                <div className="p-3.5 bg-white dark:bg-slate-950 rounded-lg border font-mono text-xs shadow-xs text-center space-y-1">
+                  <div className="text-[10px] text-slate-400 font-sans font-bold uppercase mb-2">En el Ticket de Venta:</div>
+                  <div className="font-bold text-sm tracking-tight">{form.store_name || "MI TIENDA"}</div>
+                  {form.store_slogan && <div className="text-[11px] text-slate-500 italic">{form.store_slogan}</div>}
+                  {form.store_nit && <div className="text-[11px]">NIT: {form.store_nit}</div>}
+                  {form.store_address && <div className="text-[10px]">{form.store_address}{form.store_city ? `, ${form.store_city}` : ""}</div>}
+                  {form.support_phone && <div className="text-[10px]">Tel: {form.support_phone}</div>}
+                  <div className="text-[10px] text-slate-400 pt-1 border-t border-dashed my-1">
+                    {form.tax_regime}
+                  </div>
+                  <div className="text-[10px] text-emerald-600 font-semibold pt-1">
+                    {form.ticket_footer || "¡Gracias por su compra!"}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* TAB 3: Impresión & Recibo */}

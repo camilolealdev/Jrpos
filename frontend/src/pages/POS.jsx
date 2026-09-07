@@ -103,12 +103,26 @@ export default function POS() {
     } catch { setCustomers([]); }
   };
 
+  const [storeSettings, setStoreSettings] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("jrpos_settings")) || {};
+    } catch { return {}; }
+  });
+
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     loadCats(); loadCustomers(); loadHeld();
     api.get("/promotions/active")
       .then((r) => setPromos(Array.isArray(r.data) ? r.data : []))
       .catch(() => setPromos([]));
+    api.get("/settings/general")
+      .then((r) => {
+        if (r.data) {
+          setStoreSettings(r.data);
+          localStorage.setItem("jrpos_settings", JSON.stringify(r.data));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const holdCurrent = async () => {
@@ -808,29 +822,42 @@ export default function POS() {
             </div>
           </DialogHeader>
           {receiptSale && (
-            <div className="receipt p-4 rounded text-sm">
-              <div className="text-center mb-2">
-                <div className="font-bold">JRPOS · Tienda</div>
-                <div className="text-xs">{new Date(receiptSale.created_at).toLocaleString("es-CO")}</div>
-                <div className="text-xs">
+            <div className="receipt p-4 rounded text-sm text-center">
+              <div className="mb-2">
+                <div className="font-bold text-base uppercase tracking-tight">{storeSettings?.store_name || "Mi Tienda"}</div>
+                {storeSettings?.store_slogan && <div className="text-xs text-slate-500 italic">{storeSettings.store_slogan}</div>}
+                {storeSettings?.store_nit && <div className="text-xs font-semibold">NIT: {storeSettings.store_nit}</div>}
+                {storeSettings?.store_address && (
+                  <div className="text-[11px] text-slate-600">
+                    {storeSettings.store_address}{storeSettings.store_city ? ` · ${storeSettings.store_city}` : ""}
+                  </div>
+                )}
+                {storeSettings?.support_phone && <div className="text-[11px] text-slate-600">Tel: {storeSettings.support_phone}</div>}
+                {storeSettings?.tax_regime && <div className="text-[10px] text-slate-500">{storeSettings.tax_regime}</div>}
+                {storeSettings?.ticket_header_line1 && <div className="text-[10px] text-slate-500">{storeSettings.ticket_header_line1}</div>}
+                {storeSettings?.ticket_header_line2 && <div className="text-[10px] text-slate-500">{storeSettings.ticket_header_line2}</div>}
+                <div className="text-xs mt-1.5">{new Date(receiptSale.created_at).toLocaleString("es-CO")}</div>
+                <div className="text-xs font-mono font-semibold">
                   Factura POS: {receiptSale.number}
                   {receiptSale.is_offline ? " (Local)" : ""}
                 </div>
               </div>
               <hr className="my-2 border-dashed" />
               {(Array.isArray(receiptSale.items) ? receiptSale.items : []).map((it) => (
-                <div key={it.product_id} className="flex justify-between">
-                  <span className="truncate">{it.qty}x {it.name}</span>
-                  <span>{formatCOP(it.subtotal)}</span>
+                <div key={it.product_id} className="flex justify-between text-left">
+                  <span className="truncate flex-1 pr-2">{it.qty}x {it.name}</span>
+                  <span className="font-mono">{formatCOP(it.subtotal)}</span>
                 </div>
               ))}
               <hr className="my-2 border-dashed" />
-              <div className="flex justify-between font-bold">
+              <div className="flex justify-between font-bold text-sm">
                 <span>TOTAL</span>
-                <span>{formatCOP(receiptSale.total)}</span>
+                <span className="font-mono">{formatCOP(receiptSale.total)}</span>
               </div>
-              <div className="text-xs mt-1">Pago: {receiptSale.payment_method}</div>
-              <div className="text-center text-xs mt-3">¡Gracias por su compra!</div>
+              <div className="text-xs mt-1 text-left">Método de Pago: <span className="font-semibold">{receiptSale.payment_method}</span></div>
+              <div className="text-center text-xs mt-3 text-slate-600 font-medium">
+                {storeSettings?.ticket_footer || "¡Gracias por su compra!"}
+              </div>
             </div>
           )}
           <DialogFooter className="flex-wrap gap-1.5">
@@ -847,19 +874,24 @@ export default function POS() {
               variant="outline"
               onClick={async () => {
                 try {
+                  const metaList = [
+                    storeSettings?.store_nit ? `NIT: ${storeSettings.store_nit}` : "",
+                    storeSettings?.store_address ? `${storeSettings.store_address}${storeSettings.store_city ? `, ${storeSettings.store_city}` : ""}` : "",
+                    storeSettings?.support_phone ? `Tel: ${storeSettings.support_phone}` : "",
+                    `Factura: ${receiptSale.number}`,
+                    new Date(receiptSale.created_at).toLocaleString("es-CO"),
+                    `Pago: ${receiptSale.payment_method}`,
+                  ].filter(Boolean);
+
                   await printThermal({
-                    title: "JRPOS",
-                    subtitle: "Tienda",
-                    meta: [
-                      `Factura: ${receiptSale.number}`,
-                      new Date(receiptSale.created_at).toLocaleString("es-CO"),
-                      `Pago: ${receiptSale.payment_method}`,
-                    ],
+                    title: storeSettings?.store_name || "Mi Tienda",
+                    subtitle: storeSettings?.store_slogan || "Ticket de Venta",
+                    meta: metaList,
                     items: receiptSale.items.map((it) => ({
                       name: it.name, qty: it.qty, price: formatCOP(it.price), total: formatCOP(it.subtotal),
                     })),
                     totals: [["TOTAL", formatCOP(receiptSale.total)]],
-                    footer: "¡Gracias por su compra!",
+                    footer: storeSettings?.ticket_footer || "¡Gracias por su compra!",
                   });
                   toast.success("Enviado a la impresora");
                 } catch (e) {

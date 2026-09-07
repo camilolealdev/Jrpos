@@ -81,7 +81,7 @@ const groups = [
   },
 ];
 
-function SidebarContent({ onNavigate, storeName = "JRPOS", role = "admin" }) {
+function SidebarContent({ onNavigate, storeName = "Mi Tienda", storeSub = "Punto de Venta", role = "admin" }) {
   const visibleGroups = groups
     .map((g) => ({ ...g, items: g.items.filter((it) => !it.adminOnly || role === "admin") }))
     .filter((g) => g.items.length > 0);
@@ -89,12 +89,12 @@ function SidebarContent({ onNavigate, storeName = "JRPOS", role = "admin" }) {
     <ScrollArea className="h-full">
       <div className="px-4 py-5 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-lg bg-emerald-700 text-white grid place-items-center shadow-sm">
+          <div className="w-10 h-10 rounded-lg bg-emerald-700 text-white grid place-items-center shadow-sm shrink-0">
             <Store className="w-5 h-5" />
           </div>
-          <div>
-            <div className="text-base font-bold tracking-tight" data-testid="sidebar-store-name">{storeName}</div>
-            <div className="text-[11px] text-slate-500 uppercase tracking-widest">Tienda Colombia</div>
+          <div className="min-w-0">
+            <div className="text-base font-bold tracking-tight truncate" data-testid="sidebar-store-name">{storeName}</div>
+            <div className="text-[11px] text-slate-500 uppercase tracking-wider truncate">{storeSub}</div>
           </div>
         </div>
       </div>
@@ -151,7 +151,18 @@ function SidebarContent({ onNavigate, storeName = "JRPOS", role = "admin" }) {
 
 export default function Layout() {
   const [open, setOpen] = useState(false);
-  const [storeName, setStoreName] = useState("JRPOS");
+  const [storeName, setStoreName] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem("jrpos_settings"));
+      return cached?.store_name || "Mi Tienda";
+    } catch { return "Mi Tienda"; }
+  });
+  const [storeSub, setStoreSub] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem("jrpos_settings"));
+      return cached?.store_nit ? `NIT: ${cached.store_nit}` : (cached?.store_slogan || "Punto de Venta");
+    } catch { return "Punto de Venta"; }
+  });
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const loc = useLocation();
@@ -159,13 +170,28 @@ export default function Layout() {
 
   // Personalización: nombre de tienda + color de acento
   useEffect(() => {
+    const applyData = (data) => {
+      if (!data) return;
+      const name = data.store_name || "Mi Tienda";
+      setStoreName(name);
+      const sub = data.store_nit ? `NIT: ${data.store_nit}` : (data.store_slogan || "Punto de Venta");
+      setStoreSub(sub);
+      if (data.accent) applyAccent(data.accent);
+    };
+
     const cached = localStorage.getItem("jrpos_accent");
     if (cached) applyAccent(cached);
+
     api.get("/settings/general").then((r) => {
-      setStoreName(r.data.store_name || "JRPOS");
-      applyAccent(r.data.accent);
+      applyData(r.data);
       localStorage.setItem("jrpos_settings", JSON.stringify(r.data));
     }).catch(() => {});
+
+    const handleSettingsUpdate = (e) => {
+      if (e.detail) applyData(e.detail);
+    };
+    window.addEventListener("jrpos_settings_updated", handleSettingsUpdate);
+    return () => window.removeEventListener("jrpos_settings_updated", handleSettingsUpdate);
   }, []);
 
   const doLogout = async () => {
@@ -215,7 +241,7 @@ export default function Layout() {
     <div className="min-h-screen bg-background grain-bg flex text-slate-800">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r border-slate-200 bg-white/70 backdrop-blur-md sticky top-0 h-screen z-30">
-        <SidebarContent storeName={storeName} role={user?.role} />
+        <SidebarContent storeName={storeName} storeSub={storeSub} role={user?.role} />
       </aside>
 
       {/* Mobile drawer */}
@@ -227,7 +253,7 @@ export default function Layout() {
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            <SidebarContent onNavigate={() => setOpen(false)} storeName={storeName} role={user?.role} />
+            <SidebarContent onNavigate={() => setOpen(false)} storeName={storeName} storeSub={storeSub} role={user?.role} />
           </div>
           <div className="flex-1 bg-slate-900/40" onClick={() => setOpen(false)} />
         </div>
