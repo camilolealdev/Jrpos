@@ -81,7 +81,7 @@ function ProtectedApp() {
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <div className="w-3.5 h-3.5 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-            <span>Iniciando sesión segura JRPOS...</span>
+            <span>Iniciando sesión segura...</span>
           </div>
         </div>
       </div>

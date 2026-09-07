@@ -145,20 +145,9 @@ export default function WelcomeHero({ onProceedToLogin }) {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
-          className="flex items-center gap-3"
+          className="flex items-center"
         >
-          <div className="h-10 px-2 rounded-xl bg-white/[0.06] backdrop-blur-md flex items-center justify-center shadow-lg shadow-black/40 border border-white/10">
-            <img src={logoWhite} alt="JRPOS" className="h-7 w-auto object-contain" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-xl tracking-tight text-white font-['Outfit']">JRPOS</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-['JetBrains_Mono']">
-                v1.4
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 hidden sm:block">Sistema POS &amp; Gestión Comercial Inteligente</p>
-          </div>
+          <img src={logoWhite} alt="Logo" className="h-10 sm:h-12 w-auto object-contain drop-shadow-md" />
         </motion.div>
 
         <motion.div
@@ -400,21 +389,19 @@ export default function WelcomeHero({ onProceedToLogin }) {
       {/* Footer */}
       <footer className="relative z-10 w-full max-w-[90rem] mx-auto px-6 lg:px-10 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/[0.06] text-xs text-slate-600">
         <div className="flex items-center gap-2.5">
-          <img src={logoWhite} alt="JRPOS" className="h-5 w-auto object-contain opacity-80" />
-          <span>© {new Date().getFullYear()} JRPOS System</span>
+          <img src={logoWhite} alt="Logo" className="h-6 w-auto object-contain opacity-85" />
           <span>·</span>
           <span>Desarrollado para comercios en Colombia</span>
         </div>
         <div className="flex items-center gap-3 text-slate-500">
           <a
-            href={whatsappUrl(DEMO_WHATSAPP, "Hola, necesito ayuda con JRPOS 🏪")}
+            href={whatsappUrl(DEMO_WHATSAPP, "Hola, necesito ayuda con el sistema 🏪")}
             target="_blank"
             rel="noreferrer"
             className="rounded-full bg-white/[0.03] backdrop-blur-md border border-white/10 px-3 py-1.5 shadow-[2px_2px_6px_rgba(0,0,0,0.3)] hover:bg-white/[0.06] hover:text-emerald-300 transition-colors"
           >
             Contacto y Soporte
           </a>
-          <span className="text-emerald-500 font-['JetBrains_Mono']">v1.4</span>
         </div>
       </footer>
     </div>

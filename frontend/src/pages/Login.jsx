@@ -86,15 +86,15 @@ export default function Login() {
               <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-amber-400 to-orange-500" />
               <CardContent className="p-8 space-y-6">
                 <div className="text-center space-y-3">
-                  <div className="w-20 h-20 mx-auto rounded-2xl bg-white/[0.06] backdrop-blur-xl border border-white/15 p-2.5 flex items-center justify-center shadow-2xl shadow-emerald-950/60 ring-1 ring-white/20">
-                    <img src={logoWhite} alt="JRPOS" className="w-full h-full object-contain" />
+                  <div className="mx-auto flex justify-center items-center">
+                    <img src={logoWhite} alt="Logo" className="h-16 w-auto object-contain drop-shadow-lg" />
                   </div>
                   <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-white font-['Outfit']">
+                    <h1 className="text-xl font-extrabold tracking-tight text-white font-['Outfit']">
                       Iniciar Sesión
                     </h1>
                     <p className="text-xs text-slate-400 mt-1">
-                      Ingresa tus credenciales para acceder al terminal JRPOS
+                      Ingresa tus credenciales para acceder al terminal de venta
                     </p>
                   </div>
                 </div>
