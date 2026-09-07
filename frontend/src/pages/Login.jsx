@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Store, ArrowLeft, ShieldCheck, Lock, User, KeyRound, Sparkles } from "lucide-react";
 import WelcomeHero from "@/components/WelcomeHero";
 import logoWhite from "@/assets/logo2.webp";
+import heroBanner from "@/assets/hero-banner.webp";
 
 export default function Login() {
   const { login } = useAuth();
@@ -60,9 +61,13 @@ export default function Login() {
           transition={{ duration: 0.35, ease: "easeInOut" }}
           className="min-h-screen w-full flex flex-col justify-center items-center p-4 relative"
         >
-            {/* Background lighting */}
+            {/* Ambient background with hero banner watermark */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-600/15 rounded-full blur-[128px]" />
+              <div 
+                className="absolute inset-0 opacity-[0.09] bg-cover bg-center mix-blend-luminosity filter blur-[2px] scale-105"
+                style={{ backgroundImage: `url(${heroBanner})` }}
+              />
+              <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-600/20 rounded-full blur-[128px]" />
               <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-600/15 rounded-full blur-[128px]" />
             </div>
 
