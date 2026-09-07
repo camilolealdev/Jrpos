@@ -435,17 +435,11 @@ export default function POS() {
       if (e.key === "F2") {
         e.preventDefault();
         barcodeRef.current?.focus();
-        barcodeRef.current?.select();
+        setCamOpen(true);
         return;
       }
-      // F3: Abrir / Cerrar lector de cámara
-      if (e.key === "F3") {
-        e.preventDefault();
-        setCamOpen((prev) => !prev);
-        return;
-      }
-      // F4: Abrir cobro directo
-      if (e.key === "F4" && cart.length > 0 && !payOpen) {
+      // F4: Proceder al pago
+      if (e.key === "F4" && cart.length > 0) {
         e.preventDefault();
         setPayOpen(true);
         return;
@@ -493,7 +487,7 @@ export default function POS() {
         return;
       }
 
-      if (e.key.length === 1 && !isInput && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (e.key && e.key.length === 1 && !isInput && !e.ctrlKey && !e.altKey && !e.metaKey) {
         barcodeBuffer += e.key;
       }
     };
