@@ -146,6 +146,98 @@ async def get_by_barcode(
     return product
 
 
+@products_router.get("/products/lookup-external/{barcode}")
+async def lookup_external_barcode(
+    barcode: str,
+    user: User = Depends(get_current_user),
+):
+    """
+    Consulta bases de datos de catálogo global (Open Food Facts / Open Beauty / etc.)
+    para autocompletar nombre, marca, categoría e imagen de un producto por su código de barras.
+    """
+    clean_code = barcode.strip()
+    if not clean_code:
+        return {"found": False, "barcode": barcode}
+
+    import httpx
+
+    # 1. Consulta Open Food Facts (alimentos, bebidas, abarrotes, golosinas)
+    try:
+        url = f"https://world.openfoodfacts.org/api/v0/product/{clean_code}.json"
+        async with httpx.AsyncClient(timeout=4.0, headers={"User-Agent": "Jrpos - Retail POS - Support/1.0"}) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == 1 and "product" in data:
+                    prod = data["product"]
+                    name = (
+                        prod.get("product_name_es")
+                        or prod.get("product_name")
+                        or prod.get("generic_name_es")
+                        or prod.get("generic_name")
+                        or ""
+                    )
+                    brands = prod.get("brands") or ""
+                    if brands and brands.lower() not in name.lower() and name:
+                        name = f"{brands} {name}".strip()
+                    elif not name and brands:
+                        name = brands
+
+                    quantity = prod.get("quantity") or ""
+                    if quantity and quantity not in name and name:
+                        name = f"{name} {quantity}".strip()
+
+                    categories_tags = prod.get("categories_tags", [])
+                    category = "General"
+                    if categories_tags:
+                        raw_cat = categories_tags[0].replace("en:", "").replace("es:", "").replace("-", " ")
+                        category = raw_cat.strip().capitalize()
+
+                    image_url = prod.get("image_front_small_url") or prod.get("image_url") or ""
+
+                    if name:
+                        return {
+                            "found": True,
+                            "barcode": clean_code,
+                            "name": name,
+                            "brand": brands,
+                            "category": category,
+                            "image_url": image_url,
+                            "source": "Open Food Facts",
+                        }
+    except Exception:
+        pass
+
+    # 2. Consulta Open Beauty Facts (aseo, cuidado personal, cosméticos)
+    try:
+        url = f"https://world.openbeautyfacts.org/api/v0/product/{clean_code}.json"
+        async with httpx.AsyncClient(timeout=3.0, headers={"User-Agent": "Jrpos - Retail POS - Support/1.0"}) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == 1 and "product" in data:
+                    prod = data["product"]
+                    name = prod.get("product_name_es") or prod.get("product_name") or ""
+                    brands = prod.get("brands") or ""
+                    if brands and brands.lower() not in name.lower() and name:
+                        name = f"{brands} {name}".strip()
+                    image_url = prod.get("image_front_small_url") or prod.get("image_url") or ""
+                    if name:
+                        return {
+                            "found": True,
+                            "barcode": clean_code,
+                            "name": name,
+                            "brand": brands,
+                            "category": "Aseo y Cuidado Personal",
+                            "image_url": image_url,
+                            "source": "Open Beauty Facts",
+                        }
+    except Exception:
+        pass
+
+    return {"found": False, "barcode": clean_code}
+
+
 @products_router.get("/products/{product_id}", response_model=ProductOut)
 async def get_product(
     product_id: str,

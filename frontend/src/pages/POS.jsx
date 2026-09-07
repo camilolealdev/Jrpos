@@ -233,7 +233,19 @@ export default function POS() {
         }
       } catch { /* si la búsqueda falla, cae a crear producto igual */ }
       const looksLikeBarcode = /^\d+$/.test(code);
-      setNewProd({ barcode: looksLikeBarcode ? code : "", name: looksLikeBarcode ? "" : code, price: 0, cost: 0, stock: 1, category: "General" });
+      let autoName = looksLikeBarcode ? "" : code;
+      let autoCategory = "General";
+      if (looksLikeBarcode) {
+        try {
+          const { data: ext } = await api.get(`/products/lookup-external/${encodeURIComponent(code)}`);
+          if (ext?.found) {
+            autoName = ext.name || "";
+            autoCategory = ext.category || "General";
+            toast.info(`✨ Producto identificado: ${ext.name}`);
+          }
+        } catch { /* si falla, continúa con campos en blanco */ }
+      }
+      setNewProd({ barcode: looksLikeBarcode ? code : "", name: autoName, price: 0, cost: 0, stock: 1, category: autoCategory });
       setCreateOpen(true);
     }
   };
@@ -244,10 +256,21 @@ export default function POS() {
     setSearchResults(null);
   };
 
-  const createFromSearch = () => {
+  const createFromSearch = async () => {
     const code = searchResults?.query || "";
     const looksLikeBarcode = /^\d+$/.test(code);
-    setNewProd({ barcode: looksLikeBarcode ? code : "", name: looksLikeBarcode ? "" : code, price: 0, cost: 0, stock: 1, category: "General" });
+    let autoName = looksLikeBarcode ? "" : code;
+    let autoCategory = "General";
+    if (looksLikeBarcode) {
+      try {
+        const { data: ext } = await api.get(`/products/lookup-external/${encodeURIComponent(code)}`);
+        if (ext?.found) {
+          autoName = ext.name || "";
+          autoCategory = ext.category || "General";
+        }
+      } catch { /* ignore */ }
+    }
+    setNewProd({ barcode: looksLikeBarcode ? code : "", name: autoName, price: 0, cost: 0, stock: 1, category: autoCategory });
     setSearchResults(null);
     setCreateOpen(true);
   };

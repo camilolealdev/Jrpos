@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode, Download } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode, Download, Sparkles, Loader2 } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 import CameraScanner from "@/components/CameraScanner";
 import BarcodeLabelModal from "@/components/BarcodeLabelModal";
@@ -28,6 +28,7 @@ export default function Inventory() {
   const [useMargin, setUseMargin] = useState(false);
   const [searchCamOpen, setSearchCamOpen] = useState(false);
   const [formCamOpen, setFormCamOpen] = useState(false);
+  const [lookingUpBarcode, setLookingUpBarcode] = useState(false);
   const [labelProd, setLabelProd] = useState(null);
 
   // Debounce de búsqueda para evitar spam de peticiones
@@ -91,6 +92,32 @@ export default function Inventory() {
       }
       setOpen(false); setForm(empty); setEditingId(null); setUseMargin(false); load();
     } catch { toast.error("Error guardando"); }
+  };
+
+  const lookupBarcodeInfo = async (codeToLookup) => {
+    const code = (codeToLookup || form.barcode || "").trim();
+    if (!code) {
+      return toast.info("Ingresa o escanea un código de barras primero");
+    }
+    setLookingUpBarcode(true);
+    try {
+      const { data } = await api.get(`/products/lookup-external/${encodeURIComponent(code)}`);
+      if (data?.found) {
+        setForm((prev) => ({
+          ...prev,
+          barcode: code,
+          name: prev.name && prev.name.trim() ? prev.name : data.name || "",
+          category: prev.category && prev.category !== "General" ? prev.category : data.category || "General",
+        }));
+        toast.success(`✨ Info encontrada: ${data.name}`);
+      } else {
+        toast.info("Código no encontrado en catálogo global. Puedes ingresar los datos manualmente.");
+      }
+    } catch {
+      toast.error("No se pudo consultar el catálogo externo");
+    } finally {
+      setLookingUpBarcode(false);
+    }
   };
 
   const edit = (p) => {
@@ -238,7 +265,20 @@ export default function Inventory() {
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} data-testid="f-name" />
             </div>
             <div>
-              <label className="text-xs font-semibold">Código de barras</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold">Código de barras</label>
+                {form.barcode && (
+                  <button
+                    type="button"
+                    onClick={() => lookupBarcodeInfo(form.barcode)}
+                    disabled={lookingUpBarcode}
+                    className="text-[11px] text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 font-medium disabled:opacity-50"
+                  >
+                    {lookingUpBarcode ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-amber-500" />}
+                    Autocompletar
+                  </button>
+                )}
+              </div>
               <div className="flex gap-1.5 mt-1">
                 <Input
                   value={form.barcode || ""}
@@ -352,8 +392,7 @@ export default function Inventory() {
         open={formCamOpen}
         onOpenChange={setFormCamOpen}
         onScan={(code) => {
-          setForm((prev) => ({ ...prev, barcode: code }));
-          toast.success(`Código asignado: ${code}`);
+          lookupBarcodeInfo(code);
         }}
       />
 
