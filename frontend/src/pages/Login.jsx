@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Store, ArrowLeft, ShieldCheck, Lock, User, KeyRound, Sparkles } from "lucide-react";
 import WelcomeHero from "@/components/WelcomeHero";
+import logoWhite from "@/assets/logo2.webp";
 
 export default function Login() {
   const { login } = useAuth();
@@ -84,16 +85,18 @@ export default function Login() {
             <Card className="w-full max-w-md bg-white/[0.04] border-white/10 backdrop-blur-2xl rounded-2xl shadow-[10px_10px_30px_rgba(0,0,0,0.55),-6px_-6px_20px_rgba(255,255,255,0.02)] relative z-10 overflow-hidden">
               <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-amber-400 to-orange-500" />
               <CardContent className="p-8 space-y-6">
-                <div className="text-center space-y-2">
-                  <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white grid place-items-center shadow-lg shadow-emerald-950/60 border border-emerald-400/30">
-                    <Store className="w-7 h-7" />
+                <div className="text-center space-y-3">
+                  <div className="w-20 h-20 mx-auto rounded-2xl bg-white/[0.06] backdrop-blur-xl border border-white/15 p-2.5 flex items-center justify-center shadow-2xl shadow-emerald-950/60 ring-1 ring-white/20">
+                    <img src={logoWhite} alt="JRPOS" className="w-full h-full object-contain" />
                   </div>
-                  <h1 className="text-2xl font-extrabold tracking-tight text-white font-['Outfit']">
-                    Iniciar Sesión
-                  </h1>
-                  <p className="text-xs text-slate-400">
-                    Ingresa tus credenciales para acceder al terminal JRPOS
-                  </p>
+                  <div>
+                    <h1 className="text-2xl font-extrabold tracking-tight text-white font-['Outfit']">
+                      Iniciar Sesión
+                    </h1>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Ingresa tus credenciales para acceder al terminal JRPOS
+                    </p>
+                  </div>
                 </div>
 
                 <form onSubmit={submit} className="space-y-4">

@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import logoWhite from "@/assets/logo2.webp";
+import logoDark from "@/assets/logo.webp";
 
 const groups = [
   {
@@ -88,13 +90,13 @@ function SidebarContent({ onNavigate, storeName = "Mi Tienda", storeSub = "Punto
   return (
     <ScrollArea className="h-full">
       <div className="px-4 py-5 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-lg bg-emerald-700 text-white grid place-items-center shadow-sm shrink-0">
-            <Store className="w-5 h-5" />
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-950 p-1.5 flex items-center justify-center shadow-sm shrink-0 border border-slate-800">
+            <img src={logoWhite} alt="JRPOS" className="w-full h-full object-contain" />
           </div>
           <div className="min-w-0">
-            <div className="text-base font-bold tracking-tight truncate" data-testid="sidebar-store-name">{storeName}</div>
-            <div className="text-[11px] text-slate-500 uppercase tracking-wider truncate">{storeSub}</div>
+            <div className="text-base font-bold tracking-tight truncate text-slate-900" data-testid="sidebar-store-name">{storeName}</div>
+            <div className="text-[11px] text-slate-500 uppercase tracking-wider truncate font-medium">{storeSub}</div>
           </div>
         </div>
       </div>
@@ -272,10 +274,10 @@ export default function Layout() {
               <Menu className="w-5 h-5" />
             </Button>
             <div className="flex items-center gap-2 lg:hidden">
-              <div className="w-8 h-8 rounded-md bg-emerald-700 text-white grid place-items-center">
-                <Store className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-lg bg-slate-950 p-1 flex items-center justify-center shadow-sm border border-slate-800">
+                <img src={logoWhite} alt="JRPOS" className="w-full h-full object-contain" />
               </div>
-              <span className="font-bold" data-testid="mobile-store-name">{storeName}</span>
+              <span className="font-bold text-slate-900" data-testid="mobile-store-name">{storeName}</span>
             </div>
             <div className="hidden lg:block">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Módulo</div>

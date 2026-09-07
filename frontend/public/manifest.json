@@ -4,6 +4,31 @@
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#15803D",
-  "background_color": "#FAF9F6",
-  "icons": []
+  "background_color": "#07100c",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "logo2.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "logo.webp",
+      "sizes": "192x192 512x512",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "logo2.webp",
+      "sizes": "192x192 512x512",
+      "type": "image/webp",
+      "purpose": "maskable"
+    }
+  ]
 }

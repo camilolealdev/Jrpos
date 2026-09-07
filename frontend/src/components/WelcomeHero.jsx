@@ -20,6 +20,7 @@ import shotFacturas from "@/assets/screenshots/facturas.jpg";
 import shotInventario from "@/assets/screenshots/inventario.jpg";
 import shotCreditos from "@/assets/screenshots/creditos.jpg";
 import shotDashboard from "@/assets/screenshots/dashboard.jpg";
+import logoWhite from "@/assets/logo2.webp";
 
 const SCREENS = [
   {
@@ -146,8 +147,8 @@ export default function WelcomeHero({ onProceedToLogin }) {
           transition={{ duration: 0.5 }}
           className="flex items-center gap-3"
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-900/40 border border-emerald-300/30">
-            <Store className="w-5 h-5 text-white" />
+          <div className="h-10 px-2 rounded-xl bg-white/[0.06] backdrop-blur-md flex items-center justify-center shadow-lg shadow-black/40 border border-white/10">
+            <img src={logoWhite} alt="JRPOS" className="h-7 w-auto object-contain" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -398,7 +399,8 @@ export default function WelcomeHero({ onProceedToLogin }) {
 
       {/* Footer */}
       <footer className="relative z-10 w-full max-w-[90rem] mx-auto px-6 lg:px-10 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/[0.06] text-xs text-slate-600">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          <img src={logoWhite} alt="JRPOS" className="h-5 w-auto object-contain opacity-80" />
           <span>© {new Date().getFullYear()} JRPOS System</span>
           <span>·</span>
           <span>Desarrollado para comercios en Colombia</span>

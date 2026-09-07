@@ -21,6 +21,8 @@ import {
   Sparkles, CheckCircle2, AlertCircle, RefreshCw, HelpCircle, ShieldCheck,
   Database, Trash2, AlertTriangle, ShieldAlert, ShoppingBag, Users, FileText, CheckCircle
 } from "lucide-react";
+import logoWhite from "@/assets/logo2.webp";
+import logoDark from "@/assets/logo.webp";
 
 export const ACCENTS = {
   emerald: { label: "Esmeralda", hsl: "142 72% 29%", hex: "#15803D" },
@@ -552,10 +554,10 @@ export default function Settings() {
               <CardContent className="space-y-4">
                 {/* Preview barra lateral */}
                 <div className="p-3 bg-white dark:bg-slate-950 rounded-lg border shadow-xs">
-                  <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">En el Menú:</div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-lg bg-emerald-700 text-white grid place-items-center shadow-xs shrink-0">
-                      <Store className="w-5 h-5" />
+                  <div className="text-[10px] text-slate-400 font-bold uppercase mb-1.5">En el Menú y Sidebar:</div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-slate-950 p-1 flex items-center justify-center shadow-xs shrink-0 border border-slate-800">
+                      <img src={logoWhite} alt="JRPOS" className="w-full h-full object-contain" />
                     </div>
                     <div className="min-w-0">
                       <div className="font-bold text-sm text-slate-900 dark:text-white truncate">{form.store_name || "Mi Tienda"}</div>
@@ -567,6 +569,9 @@ export default function Settings() {
                 {/* Preview ticket */}
                 <div className="p-3.5 bg-white dark:bg-slate-950 rounded-lg border font-mono text-xs shadow-xs text-center space-y-1">
                   <div className="text-[10px] text-slate-400 font-sans font-bold uppercase mb-2">En el Ticket de Venta:</div>
+                  <div className="w-10 h-10 mx-auto mb-1">
+                    <img src={logoDark} alt="Logo" className="w-full h-full object-contain mx-auto" />
+                  </div>
                   <div className="font-bold text-sm tracking-tight">{form.store_name || "MI TIENDA"}</div>
                   {form.store_slogan && <div className="text-[11px] text-slate-500 italic">{form.store_slogan}</div>}
                   {form.store_nit && <div className="text-[11px]">NIT: {form.store_nit}</div>}
