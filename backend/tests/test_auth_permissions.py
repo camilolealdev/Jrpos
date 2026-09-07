@@ -1,5 +1,6 @@
 """Auth + Users + Settings backend tests for JRPOS."""
 import os
+import time
 import pytest
 import requests
 
@@ -89,7 +90,8 @@ def test_users_forbidden_for_cajero(cajero_session):
 
 
 def test_users_create_and_delete(admin_session):
-    payload = {"name": "TEST_User", "email": "test_user@jrpos.co", "password": "pass1234", "role": "cajero"}
+    unique_email = f"test_user_{int(time.time() * 1000)}@jrpos.co"
+    payload = {"name": "TEST_User", "email": unique_email, "password": "pass1234", "role": "cajero"}
     # cleanup if exists
     existing = admin_session.get(f"{API}/users").json()
     for u in existing:

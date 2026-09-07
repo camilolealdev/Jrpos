@@ -59,8 +59,8 @@ class TestLoginRegression:
         assert r.json().get("role") == "cajero"
 
 
-# ---------- Timeclock schedule ----------
-class TestSchedule:
+# ---------- Timeclock complete flow (sequential on single worker) ----------
+class TestTimeclockFlow:
     def test_get_schedule_public(self, admin_session):
         r = admin_session.get(f"{API}/timeclock/schedule")
         assert r.status_code == 200
@@ -85,9 +85,6 @@ class TestSchedule:
         r = cajero_session.put(f"{API}/timeclock/schedule", json={"entry_time": "08:00", "exit_time": "18:00", "tolerance_minutes": 10})
         assert r.status_code == 403
 
-
-# ---------- Timeclock mark ----------
-class TestMark:
     def test_double_same_type_blocked(self, cajero_session):
         # First ensure a mark exists — mark whatever makes sense based on state
         today = cajero_session.get(f"{API}/timeclock/today").json()
@@ -130,9 +127,6 @@ class TestMark:
         assert r.status_code == 200
         assert r.json().get("type") == "out"
 
-
-# ---------- Records (admin only) ----------
-class TestRecords:
     def test_records_admin_ok(self, admin_session):
         r = admin_session.get(f"{API}/timeclock/records")
         assert r.status_code == 200
