@@ -4,7 +4,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://jrpos-api.vercel.app').rstrip('/')
 API = f"{BASE_URL}/api"
 
 ADMIN = {"email": "admin@jrpos.com", "password": "jrpos2026"}
