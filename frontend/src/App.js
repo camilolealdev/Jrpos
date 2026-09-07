@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import Layout from "@/components/Layout";
+import logoWhite from "@/assets/logo2.webp";
 
 // Carga perezosa con auto-recuperación ante nuevos despliegues (evita ChunkLoadError)
 const lazyWithRetry = (componentImport) =>
@@ -73,10 +74,15 @@ function ProtectedApp() {
   const loc = useLocation();
   if (user === undefined) {
     return (
-      <div className="min-h-screen grid place-items-center bg-slate-950 text-slate-400 text-sm" data-testid="auth-loading">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-3 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-          <span>Iniciando sesión segura JRPOS...</span>
+      <div className="min-h-screen grid place-items-center bg-[#07100c] text-slate-400 text-sm" data-testid="auth-loading">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-white/[0.05] p-2 flex items-center justify-center border border-white/10 shadow-2xl backdrop-blur-md">
+            <img src={logoWhite} alt="JRPOS" className="w-full h-full object-contain" />
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <div className="w-3.5 h-3.5 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+            <span>Iniciando sesión segura JRPOS...</span>
+          </div>
         </div>
       </div>
     );
