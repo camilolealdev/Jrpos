@@ -57,10 +57,17 @@ async def mark_timeclock(
     if mark_type not in ("in", "out"):
         raise HTTPException(status_code=400, detail="Tipo debe ser 'in' (entrada) u 'out' (salida)")
 
-    # No permitir dos marcas iguales seguidas
+    today_str = datetime.now(timezone.utc).date().isoformat()
+    today_start, today_end = _day_bounds(today_str)
+
+    # No permitir dos marcas iguales seguidas en el mismo día
     last_stmt = (
         select(Timeclock)
-        .where(Timeclock.user_id == user.id)
+        .where(
+            Timeclock.user_id == user.id,
+            Timeclock.created_at >= today_start,
+            Timeclock.created_at < today_end,
+        )
         .order_by(Timeclock.created_at.desc())
         .limit(1)
     )
@@ -72,18 +79,8 @@ async def mark_timeclock(
         )
 
     # Salida requiere una entrada previa en el día
-    if mark_type == "out":
-        today = datetime.now(timezone.utc).date().isoformat()
-        today_start, today_end = _day_bounds(today)
-        has_in_stmt = select(Timeclock).where(
-            Timeclock.user_id == user.id,
-            Timeclock.type == "in",
-            Timeclock.created_at >= today_start,
-            Timeclock.created_at < today_end,
-        ).limit(1)
-        has_in = (await session.execute(has_in_stmt)).scalars().first()
-        if not has_in:
-            raise HTTPException(status_code=400, detail="No puedes marcar salida sin haber marcado entrada hoy")
+    if mark_type == "out" and (not last or last.type != "in"):
+        raise HTTPException(status_code=400, detail="No puedes marcar salida sin haber marcado entrada hoy")
 
     now = datetime.now(timezone.utc)
     late = False
