@@ -9,19 +9,27 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let active = true;
-    // Timeout de seguridad de 4s para evitar quedarse colgado en loading ante caídas de red
-    axios.get(`${API}/auth/me`, { withCredentials: true, timeout: 4000 })
+    // Timeout de seguridad de 2.5s para evitar quedarse colgado en loading
+    axios.get(`${API}/auth/me`, { withCredentials: true, timeout: 2500 })
       .then((r) => {
         if (active) setUser(r.data);
       })
-      .catch(async () => {
-        try {
-          await axios.post(`${API}/auth/refresh`, {}, { withCredentials: true, timeout: 4000 });
-          const r = await axios.get(`${API}/auth/me`, { withCredentials: true, timeout: 4000 });
-          if (active) setUser(r.data);
-        } catch {
-          if (active) setUser(null);
+      .catch(async (err) => {
+        // Solo intentar refresh si el error fue específicamente sesión expirada (había token previo)
+        const isExpired = err?.response?.data?.detail === "Sesión expirada";
+        if (isExpired) {
+          try {
+            await axios.post(`${API}/auth/refresh`, {}, { withCredentials: true, timeout: 2000 });
+            const r = await axios.get(`${API}/auth/me`, { withCredentials: true, timeout: 2000 });
+            if (active) {
+              setUser(r.data);
+              return;
+            }
+          } catch {
+            /* noop */
+          }
         }
+        if (active) setUser(null);
       });
 
     return () => {
