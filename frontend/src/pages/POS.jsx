@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, X, Package as PackageIcon, Pause, Play, Users } from "lucide-react";
+import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, X, Package as PackageIcon, Pause, Play, Users, Camera } from "lucide-react";
 
 export default function POS() {
   const [products, setProducts] = useState([]);
