@@ -326,23 +326,15 @@ export default function WelcomeHero({ onProceedToLogin }) {
             })}
           </div>
 
-          {/* Active screen caption */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={screen.id + "-caption"}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.3 }}
-              className="mt-4 flex items-start gap-3 px-1"
-            >
-              <ChevronRight className={`w-4 h-4 mt-0.5 shrink-0 ${screen.accent}`} />
-              <div>
-                <div className="text-sm font-semibold text-white">{screen.title}</div>
-                <div className="text-xs text-slate-500 mt-0.5">{screen.desc}</div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
+          {/* Active screen caption — always in sync with the url bar and tabs above,
+              never lags behind them mid-transition (unlike an exit-animated block would) */}
+          <div className="mt-4 flex items-start gap-3 px-1">
+            <ChevronRight className={`w-4 h-4 mt-0.5 shrink-0 ${screen.accent}`} />
+            <div>
+              <div className="text-sm font-semibold text-white">{screen.title}</div>
+              <div className="text-xs text-slate-500 mt-0.5">{screen.desc}</div>
+            </div>
+          </div>
         </motion.div>
       </main>
 
