@@ -4,6 +4,8 @@ import { startOnboarding, ONBOARDING_KEY } from "@/lib/onboarding";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { applyAccent } from "@/pages/Settings";
+import { HIDDEN_MODULE_TIDS_BY_TYPE } from "@/lib/businessTypes";
+import BusinessTypeModal from "@/components/BusinessTypeModal";
 import {
   LayoutDashboard, ShoppingCart, Package, Camera, Users, Truck, LineChart,
   FileText, Receipt, ClipboardList, Percent, ShoppingBag, RotateCcw,
@@ -83,9 +85,13 @@ const groups = [
   },
 ];
 
-function SidebarContent({ onNavigate, storeName = "Mi Tienda", storeSub = "Punto de Venta", role = "admin" }) {
+function SidebarContent({ onNavigate, storeName = "Mi Tienda", storeSub = "Punto de Venta", role = "admin", businessType = "abarrotes" }) {
+  const hiddenTids = HIDDEN_MODULE_TIDS_BY_TYPE[businessType] || [];
   const visibleGroups = groups
-    .map((g) => ({ ...g, items: g.items.filter((it) => !it.adminOnly || role === "admin") }))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => (!it.adminOnly || role === "admin") && !hiddenTids.includes(it.tid)),
+    }))
     .filter((g) => g.items.length > 0);
   return (
     <ScrollArea className="h-full">
@@ -165,6 +171,10 @@ export default function Layout() {
       return cached?.store_nit ? `NIT: ${cached.store_nit}` : (cached?.store_slogan || "Punto de Venta");
     } catch { return "Punto de Venta"; }
   });
+  const [businessType, setBusinessType] = useState("abarrotes");
+  const [fullSettings, setFullSettings] = useState(null);
+  const [showBusinessTypeModal, setShowBusinessTypeModal] = useState(false);
+  const [savingBusinessType, setSavingBusinessType] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const loc = useLocation();
@@ -179,6 +189,8 @@ export default function Layout() {
       const sub = data.store_nit ? `NIT: ${data.store_nit}` : (data.store_slogan || "Punto de Venta");
       setStoreSub(sub);
       if (data.accent) applyAccent(data.accent);
+      setBusinessType(data.business_type || "abarrotes");
+      setFullSettings(data);
     };
 
     const cached = localStorage.getItem("jrpos_accent");
@@ -187,6 +199,9 @@ export default function Layout() {
     api.get("/settings/general").then((r) => {
       applyData(r.data);
       localStorage.setItem("jrpos_settings", JSON.stringify(r.data));
+      if (user?.role === "admin" && !localStorage.getItem("jrpos_business_type_asked")) {
+        setShowBusinessTypeModal(true);
+      }
     }).catch(() => {});
 
     const handleSettingsUpdate = (e) => {
@@ -194,7 +209,27 @@ export default function Layout() {
     };
     window.addEventListener("jrpos_settings_updated", handleSettingsUpdate);
     return () => window.removeEventListener("jrpos_settings_updated", handleSettingsUpdate);
-  }, []);
+  }, [user]);
+
+  const handleBusinessTypeSelect = async (chosen) => {
+    setSavingBusinessType(true);
+    try {
+      const payload = { ...(fullSettings || {}), business_type: chosen };
+      const r = await api.put("/settings/general", payload);
+      const data = r.data || payload;
+      setBusinessType(chosen);
+      setFullSettings(data);
+      localStorage.setItem("jrpos_settings", JSON.stringify(data));
+      localStorage.setItem("jrpos_business_type_asked", "1");
+      window.dispatchEvent(new CustomEvent("jrpos_settings_updated", { detail: data }));
+    } catch {
+      // Si falla el guardado, igual dejamos de preguntar para no bloquear al usuario
+      localStorage.setItem("jrpos_business_type_asked", "1");
+    } finally {
+      setSavingBusinessType(false);
+      setShowBusinessTypeModal(false);
+    }
+  };
 
   const doLogout = async () => {
     await logout();
@@ -229,21 +264,26 @@ export default function Layout() {
   }, []);
 
   // Auto-onboarding en la primera visita (solo escritorio: el tour apunta al sidebar)
+  // Se espera a que el modal de tipo de negocio (si aplica) ya no esté visible,
+  // para que el tour conozca qué módulos están ocultos.
   useEffect(() => {
+    // Espera a que los ajustes carguen (y por lo tanto ya se haya decidido si
+    // corresponde mostrar el modal de tipo de negocio) antes de disparar el tour.
+    if (!fullSettings || showBusinessTypeModal) return;
     if (!localStorage.getItem(ONBOARDING_KEY) && window.innerWidth >= 1024) {
       const t = setTimeout(() => {
-        startOnboarding();
+        startOnboarding(HIDDEN_MODULE_TIDS_BY_TYPE[businessType] || []);
         localStorage.setItem(ONBOARDING_KEY, "1");
       }, 800);
       return () => clearTimeout(t);
     }
-  }, []);
+  }, [fullSettings, showBusinessTypeModal, businessType]);
 
   return (
     <div className="min-h-screen bg-background grain-bg flex text-slate-800">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r border-slate-200 bg-white/70 backdrop-blur-md sticky top-0 h-screen z-30">
-        <SidebarContent storeName={storeName} storeSub={storeSub} role={user?.role} />
+        <SidebarContent storeName={storeName} storeSub={storeSub} role={user?.role} businessType={businessType} />
       </aside>
 
       {/* Mobile drawer */}
@@ -255,7 +295,7 @@ export default function Layout() {
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            <SidebarContent onNavigate={() => setOpen(false)} storeName={storeName} storeSub={storeSub} role={user?.role} />
+            <SidebarContent onNavigate={() => setOpen(false)} storeName={storeName} storeSub={storeSub} role={user?.role} businessType={businessType} />
           </div>
           <div className="flex-1 bg-slate-900/40" onClick={() => setOpen(false)} />
         </div>
@@ -307,7 +347,7 @@ export default function Layout() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={startOnboarding}
+                onClick={() => startOnboarding(HIDDEN_MODULE_TIDS_BY_TYPE[businessType] || [])}
                 data-testid="start-onboarding-btn"
                 title="Ver guía de módulos"
               >
@@ -323,6 +363,12 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
+
+      <BusinessTypeModal
+        open={showBusinessTypeModal}
+        onSelect={handleBusinessTypeSelect}
+        saving={savingBusinessType}
+      />
     </div>
   );
 }

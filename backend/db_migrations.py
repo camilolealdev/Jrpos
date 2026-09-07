@@ -37,6 +37,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS pos_audio_beep BOOLEAN DEFAULT TRUE;
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS pos_ask_clear_cart BOOLEAN DEFAULT TRUE;
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS pos_require_credit_customer BOOLEAN DEFAULT TRUE;
+    ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS business_type VARCHAR DEFAULT 'abarrotes';
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS credit_limit FLOAT DEFAULT 0.0;
     ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS denominations TEXT;
     ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS close_notes TEXT;

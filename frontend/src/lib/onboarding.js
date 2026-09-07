@@ -1,14 +1,8 @@
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 
-export const startOnboarding = () => {
-  const d = driver({
-    showProgress: true,
-    nextBtnText: "Siguiente →",
-    prevBtnText: "← Atrás",
-    doneBtnText: "¡Listo!",
-    progressText: "{{current}} de {{total}}",
-    steps: [
+export const startOnboarding = (hiddenTids = []) => {
+  const allSteps = [
       {
         popover: {
           title: "👋 Bienvenido a JRPOS",
@@ -69,7 +63,21 @@ export const startOnboarding = () => {
           description: "Empieza cargando tus productos (Inventario o Carga Masiva) y abre el POS. Puedes repetir esta guía desde el botón ❓ arriba a la derecha.",
         },
       },
-    ],
+    ];
+
+  // Los pasos sin `element` (bienvenida/cierre) siempre se muestran; los
+  // que apuntan a un módulo oculto para este tipo de negocio se filtran.
+  const steps = allSteps.filter(
+    (step) => !step.element || !hiddenTids.some((tid) => step.element.includes(tid))
+  );
+
+  const d = driver({
+    showProgress: true,
+    nextBtnText: "Siguiente →",
+    prevBtnText: "← Atrás",
+    doneBtnText: "¡Listo!",
+    progressText: "{{current}} de {{total}}",
+    steps,
   });
   d.drive();
 };

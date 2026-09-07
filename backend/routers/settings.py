@@ -166,6 +166,9 @@ class GeneralSettingsIn(BaseModel):
     pos_ask_clear_cart: Optional[bool] = True
     pos_require_credit_customer: Optional[bool] = True
 
+    # Tipo de negocio (gating de módulos de la sidebar)
+    business_type: Optional[str] = "abarrotes"
+
 
 from db_migrations import run_auto_migrations
 

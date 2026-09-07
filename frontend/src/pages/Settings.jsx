@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import logoWhite from "@/assets/logo2.webp";
 import logoDark from "@/assets/logo.webp";
+import { BUSINESS_TYPES } from "@/lib/businessTypes";
 
 export const ACCENTS = {
   emerald: { label: "Esmeralda", hsl: "142 72% 29%", hex: "#15803D" },
@@ -137,6 +138,8 @@ export default function Settings() {
     pos_audio_beep: true,
     pos_ask_clear_cart: true,
     pos_require_credit_customer: true,
+
+    business_type: "abarrotes",
   });
 
   const [showApiKey, setShowApiKey] = useState(false);
@@ -515,6 +518,21 @@ export default function Settings() {
                       <SelectItem value="No responsable de IVA">No responsable de IVA</SelectItem>
                       <SelectItem value="Responsable de IVA">Responsable de IVA</SelectItem>
                       <SelectItem value="Régimen Simple de Tributación">Régimen Simple de Tributación</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Tipo de Negocio</label>
+                  <Select value={form.business_type || "abarrotes"} onValueChange={(v) => update({ business_type: v })}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {BUSINESS_TYPES.map((bt) => (
+                        <SelectItem key={bt.id} value={bt.id}>
+                          <span className="flex items-center gap-2">
+                            <bt.icon className="w-4 h-4" /> {bt.label}
+                          </span>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

@@ -256,6 +256,9 @@ class SettingsGeneral(Base):
     pos_ask_clear_cart: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
     pos_require_credit_customer: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=True)
 
+    # Tipo de negocio (gating de módulos de la sidebar)
+    business_type: Mapped[str | None] = mapped_column(String(20), nullable=True, default="abarrotes")
+
 
 class SettingsCertificate(Base):
     __tablename__ = "settings_certificate"
