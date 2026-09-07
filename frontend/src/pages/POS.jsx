@@ -833,8 +833,16 @@ export default function POS() {
               <div className="text-center text-xs mt-3">¡Gracias por su compra!</div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-wrap gap-1.5">
             <Button variant="outline" onClick={() => setReceiptSale(null)}>Cerrar</Button>
+            <Button
+              variant="default"
+              className="bg-emerald-700 hover:bg-emerald-800"
+              onClick={() => window.print()}
+              data-testid="browser-print-receipt-btn"
+            >
+              🖨 Imprimir Ticket (USB/PC)
+            </Button>
             <Button
               variant="outline"
               onClick={async () => {
@@ -854,10 +862,14 @@ export default function POS() {
                     footer: "¡Gracias por su compra!",
                   });
                   toast.success("Enviado a la impresora");
-                } catch (e) { toast.error(e.message || "Error de impresión"); }
+                } catch (e) {
+                  toast.error(e.message || "Error de impresión Bluetooth. Usa 'Imprimir Ticket' para imprimir vía USB o driver del sistema.");
+                }
               }}
               data-testid="print-receipt-btn"
-            >🖨 Imprimir 58mm</Button>
+            >
+              📱 Bluetooth 58mm
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

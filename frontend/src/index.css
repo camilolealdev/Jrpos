@@ -83,6 +83,32 @@
   border: 1px dashed #f59e0b66;
 }
 
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .receipt, .receipt * {
+    visibility: visible !important;
+  }
+  .receipt {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 58mm !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 2mm 3mm !important;
+    background: #ffffff !important;
+    border: none !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+  @page {
+    margin: 0;
+    size: 58mm auto;
+  }
+}
+
 /* Scrollbars subtle */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.15); border-radius: 8px; }
