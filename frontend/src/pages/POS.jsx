@@ -356,24 +356,59 @@ export default function POS() {
   };
 
   useEffect(() => {
+    let barcodeBuffer = "";
+    let lastKeyTimestamp = performance.now();
+
     const handleKeyDown = (e) => {
+      const activeTag = document.activeElement?.tagName;
+      const isInput = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
+
       // F2: Enfoque al lector de código de barras
       if (e.key === "F2") {
         e.preventDefault();
         barcodeRef.current?.focus();
         barcodeRef.current?.select();
+        return;
+      }
+      // F3: Abrir / Cerrar lector de cámara
+      if (e.key === "F3") {
+        e.preventDefault();
+        setCamOpen((prev) => !prev);
+        return;
       }
       // F4: Vaciar carrito
       if (e.key === "F4" && cart.length > 0) {
         e.preventDefault();
         if (window.confirm("¿Vaciar carrito de compras?")) clearCart();
+        return;
       }
       // F9: Abrir cobro
       if (e.key === "F9" && cart.length > 0 && !payOpen) {
         e.preventDefault();
         setPayOpen(true);
+        return;
+      }
+
+      // Detector de pistola lectora USB / Bluetooth global (dispara caracteres a alta velocidad)
+      const now = performance.now();
+      if (now - lastKeyTimestamp > 80) {
+        barcodeBuffer = "";
+      }
+      lastKeyTimestamp = now;
+
+      if (e.key === "Enter" && barcodeBuffer.length >= 3 && !isInput) {
+        e.preventDefault();
+        const code = barcodeBuffer;
+        barcodeBuffer = "";
+        lookupBarcode(code);
+        return;
+      }
+
+      if (e.key.length === 1 && !isInput && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        barcodeBuffer += e.key;
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [cart, payOpen]);
@@ -399,7 +434,7 @@ export default function POS() {
             <ScanLine className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600" />
             <Input
               ref={barcodeRef}
-              placeholder="Escanea código (F2)..."
+              placeholder="Código o Pistola (F2)..."
               className="pl-9 h-11 font-mono"
               data-testid="pos-barcode-input"
               autoFocus
@@ -408,15 +443,21 @@ export default function POS() {
           <Button
             type="button"
             variant="outline"
-            className="h-11 shrink-0"
+            className="h-11 shrink-0 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 font-medium"
             onClick={() => setCamOpen(true)}
             data-testid="open-camera-scan-btn"
-            title="Escanear con cámara"
+            title="Escanear con cámara continua (F3)"
           >
-            📷 <span className="hidden sm:inline ml-1">Cámara</span>
+            <Camera className="w-4 h-4 mr-1 text-emerald-600 dark:text-emerald-400" />
+            <span>Cámara (F3)</span>
           </Button>
         </div>
-        <CameraScanner open={camOpen} onOpenChange={setCamOpen} onScan={(code) => lookupBarcode(code)} />
+        <CameraScanner
+          open={camOpen}
+          onOpenChange={setCamOpen}
+          onScan={(code) => lookupBarcode(code)}
+          continuous={true}
+        />
 
         {/* Código no coincide, pero hay productos con nombre/código parecido: elegir en vez de duplicar */}
         <Dialog open={!!searchResults} onOpenChange={(v) => !v && setSearchResults(null)}>

@@ -23,8 +23,13 @@ const SUPPORTED_FORMATS = [
   Html5QrcodeSupportedFormats.DATA_MATRIX,
 ];
 
-export default function CameraScanner({ open, onOpenChange, onScan }) {
+export default function CameraScanner({ open, onOpenChange, onScan, continuous = false }) {
   const [error, setError] = useState("");
+  const [scannedCount, setScannedCount] = useState(0);
+  const [lastCode, setLastCode] = useState("");
+  const [flash, setFlash] = useState(false);
+  const lastScanTimeRef = useRef(0);
+  const lastScannedCodeRef = useRef("");
   const scannerRef = useRef(null);
   const running = useRef(false);
   const rawId = useId();
@@ -33,10 +38,46 @@ export default function CameraScanner({ open, onOpenChange, onScan }) {
   const readerId = `camera-reader-${rawId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setScannedCount(0);
+      setLastCode("");
+      lastScannedCodeRef.current = "";
+      return;
+    }
     setError("");
     let cancelled = false;
     const startedAt = performance.now();
+
+    const handleDetectedText = async (text) => {
+      if (!text || cancelled) return;
+      const now = performance.now();
+
+      if (continuous) {
+        // Cooldown para evitar re-lecturas duplicadas del mismo código en ráfaga
+        if (text === lastScannedCodeRef.current && now - lastScanTimeRef.current < 1600) {
+          return;
+        }
+        if (now - lastScanTimeRef.current < 700) {
+          return;
+        }
+        lastScanTimeRef.current = now;
+        lastScannedCodeRef.current = text;
+        setLastCode(text);
+        setScannedCount((prev) => prev + 1);
+        setFlash(true);
+        setTimeout(() => setFlash(false), 350);
+        onScan(text);
+      } else {
+        try {
+          if (scannerRef.current) {
+            await scannerRef.current.stop();
+          }
+        } catch { /* noop */ }
+        running.current = false;
+        onOpenChange(false);
+        onScan(text);
+      }
+    };
 
     const start = () => {
       if (cancelled) return;
@@ -44,9 +85,6 @@ export default function CameraScanner({ open, onOpenChange, onScan }) {
       const el = document.getElementById(readerId);
       const hasSize = el && el.offsetWidth > 0 && el.offsetHeight > 0;
       if (!el || !hasSize) {
-        // Radix portal mounts async and animates in; retry until it has a
-        // real, non-zero-sized element, but bail out after a wall-clock
-        // timeout instead of a fixed frame count (slow/low-refresh devices).
         if (performance.now() - startedAt < MOUNT_TIMEOUT_MS) {
           return requestAnimationFrame(start);
         }
@@ -88,16 +126,7 @@ export default function CameraScanner({ open, onOpenChange, onScan }) {
           .start(
             { facingMode: { ideal: "environment" } },
             config,
-            async (text) => {
-              try {
-                if (scannerRef.current) {
-                  await scannerRef.current.stop();
-                }
-              } catch { /* noop */ }
-              running.current = false;
-              onOpenChange(false);
-              onScan(text);
-            },
+            (text) => handleDetectedText(text),
             () => {} // per-frame scan failures ignored
           )
           .then(() => { running.current = true; })
@@ -106,16 +135,7 @@ export default function CameraScanner({ open, onOpenChange, onScan }) {
             return scanner.start(
               { facingMode: "user" },
               config,
-              async (text) => {
-                try {
-                  if (scannerRef.current) {
-                    await scannerRef.current.stop();
-                  }
-                } catch { /* noop */ }
-                running.current = false;
-                onOpenChange(false);
-                onScan(text);
-              },
+              (text) => handleDetectedText(text),
               () => {}
             ).then(() => { running.current = true; })
             .catch(() => {
@@ -143,29 +163,38 @@ export default function CameraScanner({ open, onOpenChange, onScan }) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, continuous]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent data-testid="camera-scanner-dialog" className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <div className="p-1.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
-              <Barcode className="w-5 h-5" />
-            </div>
-            <span>Escanear Código de Barras / QR</span>
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <div className="p-1.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                <Barcode className="w-5 h-5" />
+              </div>
+              <span>{continuous ? "Escaneo Continuo POS" : "Escanear Código"}</span>
+            </DialogTitle>
+            {continuous && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300">
+                ⚡ Modo Ráfaga
+              </span>
+            )}
+          </div>
           <DialogDescription>
-            Alinea el código dentro del recuadro para lectura automática.
+            {continuous
+              ? "Pasa los productos uno tras otro frente a la cámara sin cerrar la ventana."
+              : "Alinea el código dentro del recuadro para lectura automática."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="relative overflow-hidden rounded-xl bg-slate-950 min-h-[280px] shadow-inner">
+        <div className={`relative overflow-hidden rounded-xl bg-slate-950 min-h-[280px] shadow-inner transition-all duration-300 ${flash ? "ring-4 ring-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.8)]" : ""}`}>
           <div id={readerId} className="w-full min-h-[280px] overflow-hidden" />
           
           {/* Guía visual con recuadro y línea láser animada */}
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <div className="relative w-72 h-44 border-2 border-emerald-400/90 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
+            <div className={`relative w-72 h-44 border-2 rounded-xl transition-all duration-200 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] ${flash ? "border-emerald-300 bg-emerald-500/20" : "border-emerald-400/90"}`}>
               {/* Esquinas destacadas */}
               <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-emerald-300" />
               <div className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-emerald-300" />
@@ -176,6 +205,14 @@ export default function CameraScanner({ open, onOpenChange, onScan }) {
               <div className="absolute top-1/2 left-2 right-2 h-0.5 bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.9)] animate-pulse" />
             </div>
           </div>
+
+          {/* Feedback de escaneo en modo continuo */}
+          {continuous && lastCode && (
+            <div className="absolute bottom-2 left-2 right-2 bg-slate-900/90 backdrop-blur border border-emerald-500/50 rounded-lg py-1.5 px-3 flex items-center justify-between text-xs text-white">
+              <span className="text-emerald-400 font-medium truncate">Último: {lastCode}</span>
+              <span className="font-bold bg-emerald-600 px-1.5 py-0.5 rounded text-[11px]">{scannedCount} items</span>
+            </div>
+          )}
         </div>
 
         {/* Formatos admitidos */}
@@ -192,8 +229,16 @@ export default function CameraScanner({ open, onOpenChange, onScan }) {
           </div>
         )}
 
-        <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="close-camera-btn" className="w-full">
-          <X className="w-4 h-4 mr-1.5" /> Cerrar Escáner
+        <Button
+          variant={continuous ? "default" : "outline"}
+          onClick={() => onOpenChange(false)}
+          data-testid="close-camera-btn"
+          className={`w-full font-semibold ${continuous ? "bg-emerald-700 hover:bg-emerald-800 text-white shadow-md shadow-emerald-900/40" : ""}`}
+        >
+          <X className="w-4 h-4 mr-1.5" />
+          {continuous && scannedCount > 0
+            ? `Listo (${scannedCount} producto${scannedCount === 1 ? "" : "s"} escaneado${scannedCount === 1 ? "" : "s"})`
+            : "Cerrar Escáner"}
         </Button>
       </DialogContent>
     </Dialog>
