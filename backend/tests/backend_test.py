@@ -1,15 +1,19 @@
-"""Backend tests for new JRPOS features: bulk load, bulk update, expenses, held, electronic POS."""
+"""Backend tests for core JRPOS features: bulk load, bulk update, expenses, held, electronic POS."""
 import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://digital-commerce-hub-24.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://jrpos-api.vercel.app').rstrip('/')
 API = f"{BASE_URL}/api"
+ADMIN = {"email": "admin@jrpos.com", "password": "jrpos2026"}
 
 
 @pytest.fixture(scope="module")
 def s():
-    return requests.Session()
+    session = requests.Session()
+    r = session.post(f"{API}/auth/login", json=ADMIN)
+    assert r.status_code == 200, f"Login failed: {r.status_code} {r.text}"
+    return session
 
 
 # ---------- Bulk load ----------
