@@ -127,17 +127,22 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       scannerRef.current = scanner;
 
       const config = {
-        fps: 20,
+        fps: 25,
         qrbox: (viewfinderWidth, viewfinderHeight) => {
-          // Área de escaneo amplia optimizada para códigos de barra horizontales y QR
-          const width = Math.min(Math.floor(viewfinderWidth * 0.92), 400);
-          const height = Math.min(Math.floor(viewfinderHeight * 0.75), 260);
+          // Área de escaneo amplia de alta precisión para códigos lineales y 2D
+          const width = Math.min(Math.floor(viewfinderWidth * 0.94), 450);
+          const height = Math.min(Math.floor(viewfinderHeight * 0.80), 280);
           return {
             width: Math.max(220, width),
             height: Math.max(140, height),
           };
         },
         aspectRatio: 1.333333,
+        videoConstraints: {
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          focusMode: "continuous",
+        },
       };
 
       await scanner.start(
