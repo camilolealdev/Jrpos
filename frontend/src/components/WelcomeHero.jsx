@@ -18,7 +18,10 @@ import {
   Printer,
   Barcode,
   Laptop,
+  Smartphone,
+  Tablet,
   Check,
+  QrCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { whatsappUrl } from "@/lib/format";
@@ -32,28 +35,28 @@ import logoWhite from "@/assets/logo2.webp";
 
 const KEY_PILLARS = [
   {
-    icon: ShoppingCart,
-    title: "Ventas más rápidas",
-    desc: "Cobro ágil con lector de barras o cámara, pagos combinados y ticket térmico instantáneo.",
-    badge: "Alta Velocidad",
+    icon: Smartphone,
+    title: "Tu celular es el escáner",
+    desc: "Usa la cámara de tu teléfono para escanear códigos de barras y QR al instante sin comprar pistolas lectoras.",
+    badge: "Cámara Barcode/QR",
     color: "from-emerald-500/20 to-teal-500/10",
     border: "border-emerald-500/30",
     iconColor: "text-emerald-400",
   },
   {
-    icon: Box,
-    title: "Inventario en tiempo real",
-    desc: "Control de stock, alertas de agotado y soporte dual por unidad y sixpack/empaque.",
-    badge: "Cero Descuadres",
+    icon: Zap,
+    title: "Ventas y cobros ágiles",
+    desc: "Cobra en segundos con efectivo, Nequi/Daviplata o fiados desde tu móvil o tablet en el mostrador.",
+    badge: "Alta Velocidad",
     color: "from-teal-500/20 to-cyan-500/10",
     border: "border-teal-500/30",
     iconColor: "text-teal-300",
   },
   {
-    icon: TrendingUp,
-    title: "Tu negocio en crecimiento",
-    desc: "Ganancias diarias, arqueo Z sin descuadres y control de fiados con cobro por WhatsApp.",
-    badge: "Control Total",
+    icon: ShieldCheck,
+    title: "Cero inversión en equipos",
+    desc: "Aprovecha los dispositivos que ya tienes: celular primero, tablets para mostrador y PC opcional.",
+    badge: "Ahorro Total",
     color: "from-amber-500/20 to-emerald-500/10",
     border: "border-amber-500/30",
     iconColor: "text-amber-400",
@@ -119,22 +122,23 @@ const SCREENS = [
 ];
 
 const highlights = [
+  "Vende y escanea con la cámara de tu celular (códigos de barras y QR) sin comprar pistolas",
+  "Cero inversión en equipos: funciona en tu celular actual, tablet o PC",
   "Vende incluso sin internet: la cola offline sincroniza tus ventas al reconectar",
   "Cierra caja sin sorpresas: Arqueo Cierre Z detecta sobrantes y faltantes",
-  "Ahorra horas de digitación: la IA lee tus facturas de proveedor en segundos",
-  "Define el mínimo por producto y JRPOS avisa antes de que se agote",
+  "Digitaliza facturas de proveedor con una foto del celular — la IA hace el resto",
+  "Alertas automáticas de bajo stock y soporte dual (sixpack / unidad)",
   "Cobra el fiado sin perseguir a nadie: recordatorio por WhatsApp en un toque",
   "Roles de Administrador y Cajero: cada quien ve solo lo suyo",
-  "Comisiones por vendedor, calculadas y liquidadas solas",
-  "Remisiones, notas crédito/débito y cuentas de cobro listas para imprimir",
 ];
 
 // TODO: reemplazar por el número real de ventas antes de publicar
 const DEMO_WHATSAPP = "573000000000";
 
 const BEFORE_AFTER = [
+  ["Comprar computadores y pistolas láser caras", "Usa tu celular o tablet actual ($0 en equipos)"],
   ["Cuadernos y Excel sueltos", "Un solo panel: ventas, stock y caja"],
-  ["Facturas de proveedor a mano", "Foto → productos cargados con IA"],
+  ["Facturas de proveedor a mano", "Foto con el celular → productos cargados con IA"],
   ["El fiado se anota y se puede perder", "Cartera por cliente, con historial"],
   ["No sabes qué se agotó hasta que lo piden", "Alerta automática de bajo stock"],
   ["Cierras el día sin saber si ganaste", "Ganancia del día, clara en el panel"],
@@ -206,7 +210,7 @@ export default function WelcomeHero({ onProceedToLogin }) {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
             </span>
-            <span>sistema operativo</span>
+            <span>operación móvil & web</span>
           </div>
 
           <Button
@@ -231,19 +235,19 @@ export default function WelcomeHero({ onProceedToLogin }) {
               transition={{ duration: 0.5 }}
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-semibold font-['JetBrains_Mono'] uppercase tracking-wide shadow-[3px_3px_10px_rgba(0,0,0,0.35)]"
             >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Tecnología POS para Tiendas, Bares y Restaurantes</span>
+              <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+              <span>100% Operable en Celular · Cero Inversión en Equipos</span>
             </motion.div>
 
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-3xl sm:text-5xl lg:text-[3.4rem] font-extrabold tracking-tight text-white leading-[1.05] font-['Outfit']"
+              className="text-3xl sm:text-5xl lg:text-[3.2rem] font-extrabold tracking-tight text-white leading-[1.06] font-['Outfit']"
             >
-              JRPOS — El POS que hace{" "}
+              Tu celular es tu{" "}
               <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">
-                crecer tu tienda
+                caja, escáner y control
               </span>
             </motion.h1>
 
@@ -253,7 +257,7 @@ export default function WelcomeHero({ onProceedToLogin }) {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-base sm:text-lg text-slate-300 max-w-xl mx-auto lg:mx-0 leading-relaxed"
             >
-              Ventas, inventario y control de tu negocio en un solo lugar. De 2 horas cuadrando caja a 90 segundos de ver todo claro.
+              Escanea códigos de barras y QR con la cámara de tu teléfono móvil, cobra en segundos y administra tu tienda desde el celular o tablet. Sin gastar en computadores ni pistolas costosas.
             </motion.p>
 
             {/* CTAs */}
@@ -273,7 +277,7 @@ export default function WelcomeHero({ onProceedToLogin }) {
               </Button>
 
               <a
-                href={whatsappUrl(DEMO_WHATSAPP, "Hola, quiero una demo de JRPOS para mi tienda 🏪")}
+                href={whatsappUrl(DEMO_WHATSAPP, "Hola, quiero una demo de JRPOS en mi celular para mi tienda 🏪")}
                 target="_blank"
                 rel="noreferrer"
                 className="w-full sm:w-auto"
@@ -315,7 +319,7 @@ export default function WelcomeHero({ onProceedToLogin }) {
             </motion.div>
           </div>
 
-          {/* Right Hero Section (58% / 7 cols) - Photorealistic Retail Ecosystem Showcase */}
+          {/* Right Hero Section (58% / 7 cols) - Photorealistic Retail Mobile & Multi-Device Showcase */}
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -329,30 +333,30 @@ export default function WelcomeHero({ onProceedToLogin }) {
               <div className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-950">
                 <img
                   src={heroBanner}
-                  alt="JRPOS Sistema para Tiendas"
+                  alt="JRPOS Celular y Tablet POS"
                   className="w-full h-full object-cover object-center group-hover:scale-[1.015] transition-transform duration-700 ease-out"
                 />
                 
                 {/* Floating hardware & feature badges */}
                 <div className="absolute top-4 left-4 flex flex-wrap gap-2 pointer-events-none">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/15 text-[11px] font-medium text-white shadow-lg">
-                    <Laptop className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>POS Táctil & PC</span>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/65 backdrop-blur-md border border-emerald-500/30 text-[11px] font-semibold text-emerald-300 shadow-lg">
+                    <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Celular: Escáner Cámara Barcode & QR</span>
                   </div>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/15 text-[11px] font-medium text-white shadow-lg">
-                    <Barcode className="w-3.5 h-3.5 text-teal-300" />
-                    <span>Pistola & Cámara</span>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/65 backdrop-blur-md border border-white/15 text-[11px] font-medium text-white shadow-lg">
+                    <Tablet className="w-3.5 h-3.5 text-teal-300" />
+                    <span>Tablet de Mostrador</span>
                   </div>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/15 text-[11px] font-medium text-white shadow-lg">
-                    <Printer className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Ticket Térmico</span>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/65 backdrop-blur-md border border-white/15 text-[11px] font-medium text-slate-300 shadow-lg">
+                    <Laptop className="w-3.5 h-3.5 text-slate-400" />
+                    <span>PC Opcional</span>
                   </div>
                 </div>
 
                 <div className="absolute bottom-4 right-4 pointer-events-none">
-                  <div className="px-3 py-1.5 rounded-xl bg-emerald-950/80 backdrop-blur-md border border-emerald-500/40 text-[11px] font-semibold text-emerald-200 shadow-xl flex items-center gap-2">
+                  <div className="px-3 py-1.5 rounded-xl bg-emerald-950/85 backdrop-blur-md border border-emerald-500/40 text-[11px] font-semibold text-emerald-200 shadow-xl flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Multi-empaque: Unidad & Sixpack</span>
+                    <span>Sin comprar equipos costosos</span>
                   </div>
                 </div>
               </div>
