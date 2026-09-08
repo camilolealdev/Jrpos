@@ -8,6 +8,8 @@ from starlette.middleware.gzip import GZipMiddleware
 from auth import auth_router, seed_admin
 from db import SessionLocal
 from db_migrations import run_auto_migrations
+from routers.billing import router as billing_router
+from routers.superadmin import router as superadmin_router
 from routers.products import products_router
 from routers.contacts import contacts_router
 from routers.users import users_router
@@ -41,6 +43,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="JRPOS API", lifespan=lifespan)
 
 app.include_router(auth_router)
+app.include_router(billing_router)
+app.include_router(superadmin_router)
 app.include_router(products_router)
 app.include_router(contacts_router)
 app.include_router(users_router)
@@ -74,9 +78,6 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=_frontend_origins,
-    # jrpos*.vercel.app (prod + previews) o localhost/127.0.0.1 en cualquier puerto (dev local,
-    # http o https) — la versión anterior exigía "localhost:PUERTO.local", que ningún navegador
-    # envía jamás como Origin real, dejando el dev local sin CORS.
     allow_origin_regex=os.environ.get("FRONTEND_URL_REGEX") or r"^(https://jrpos[a-z0-9\-]*\.vercel\.app|https?://(localhost|127\.0\.0\.1):[0-9]+)$",
     allow_methods=["*"],
     allow_headers=["*"],

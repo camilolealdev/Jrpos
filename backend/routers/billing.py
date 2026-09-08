@@ -1,0 +1,93 @@
+from datetime import datetime, timezone, timedelta
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from auth import get_current_user, require_admin
+from db import get_session
+from models_sql import PlatformPlan, Tenant, TenantSubscription, User, utcnow
+
+router = APIRouter(prefix="/api/billing", tags=["billing"])
+
+
+class CheckoutRequest(BaseModel):
+    plan_id: str
+    period: str = "monthly"  # monthly | annual
+    payment_method: str = "wompi"
+
+
+@router.get("/status")
+async def get_subscription_status(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    tenant_id = user.tenant_id or "tenant-default-001"
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        return {
+            "status": "trial",
+            "plan": "pro",
+            "days_left": 30,
+            "is_active": True,
+            "trial_ends_at": (utcnow() + timedelta(days=30)).isoformat(),
+        }
+
+    now = utcnow()
+    days_left = max(0, (tenant.trial_ends_at - now).days) if tenant.trial_ends_at else 0
+    is_expired = tenant.status == "expired" or (tenant.status == "trial" and tenant.trial_ends_at and tenant.trial_ends_at < now)
+
+    # Obtener suscripción activa
+    sub = (await session.execute(
+        select(TenantSubscription).where(TenantSubscription.tenant_id == tenant_id).order_by(TenantSubscription.created_at.desc())
+    )).scalars().first()
+
+    plan = await session.get(PlatformPlan, sub.plan_id) if sub else None
+
+    return {
+        "tenant_id": tenant.id,
+        "business_name": tenant.business_name,
+        "status": "expired" if is_expired else tenant.status,
+        "days_left": days_left,
+        "trial_ends_at": tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
+        "plan_id": sub.plan_id if sub else "pro",
+        "plan_name": plan.name if plan else "Plan Negocio Pro",
+        "ai_ocr_enabled": plan.ai_ocr_enabled if plan else True,
+        "dian_enabled": plan.dian_enabled if plan else True,
+    }
+
+
+@router.get("/plans")
+async def get_platform_plans(session: AsyncSession = Depends(get_session)):
+    plans = (await session.execute(select(PlatformPlan).where(PlatformPlan.is_active == True))).scalars().all()
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "description": p.description,
+            "price_cop": p.price_cop,
+            "price_annual_cop": p.price_annual_cop,
+            "max_branches": p.max_branches,
+            "max_users": p.max_users,
+            "max_products": p.max_products,
+            "ai_ocr_enabled": p.ai_ocr_enabled,
+            "dian_enabled": p.dian_enabled,
+        }
+        for p in plans
+    ]
+
+
+@router.post("/checkout")
+async def create_checkout_session(payload: CheckoutRequest, user: User = Depends(require_admin), session: AsyncSession = Depends(get_session)):
+    tenant_id = user.tenant_id or "tenant-default-001"
+    plan = await session.get(PlatformPlan, payload.plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan no encontrado")
+
+    amount = plan.price_annual_cop if payload.period == "annual" else plan.price_cop
+
+    # Simulación lista para webhook de Wompi / PSE / Tarjeta
+    return {
+        "ok": True,
+        "checkout_url": f"https://checkout.wompi.co/p/?public-key=pub_test_jrpos&amount-in-cents={int(amount * 100)}&currency=COP&reference=sub_{tenant_id}_{payload.plan_id}",
+        "reference": f"sub_{tenant_id}_{payload.plan_id}",
+        "amount_cop": amount,
+        "plan_name": plan.name,
+    }

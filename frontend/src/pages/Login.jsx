@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -165,15 +165,22 @@ export default function Login() {
                   </Button>
                 </form>
 
-                <div className="pt-2 border-t border-white/10 text-center space-y-2">
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    ¿Olvidaste tu contraseña? Solicita el restablecimiento al administrador de la tienda desde el módulo de Usuarios.
-                  </p>
-                  <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Conexión cifrada de extremo a extremo</span>
+                  <div className="pt-2 border-t border-white/10 text-center space-y-3">
+                    <Link
+                      to="/registro"
+                      className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>¿No tienes cuenta? Registrar mi Tienda (30 días gratis)</span>
+                    </Link>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      ¿Olvidaste tu contraseña? Solicita el restablecimiento al administrador de la tienda desde el módulo de Usuarios.
+                    </p>
+                    <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-medium">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Conexión cifrada de extremo a extremo</span>
+                    </div>
                   </div>
-                </div>
               </CardContent>
             </Card>
         </motion.div>

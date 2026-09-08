@@ -12,12 +12,11 @@ const lazyWithRetry = (componentImport) =>
     try {
       return await componentImport();
     } catch (error) {
-      // Si el chunk cambió por un nuevo deploy de Vercel, refrescar la página automáticamente una vez
       const isRefreshed = sessionStorage.getItem("jrpos_chunk_refreshed") === "true";
       if (!isRefreshed) {
         sessionStorage.setItem("jrpos_chunk_refreshed", "true");
         window.location.reload();
-        return new Promise(() => {}); // suspende mientras recarga
+        return new Promise(() => {});
       }
       sessionStorage.removeItem("jrpos_chunk_refreshed");
       throw error;
@@ -25,6 +24,7 @@ const lazyWithRetry = (componentImport) =>
   });
 
 const Login = lazyWithRetry(() => import("@/pages/Login"));
+const RegisterTenant = lazyWithRetry(() => import("@/pages/RegisterTenant"));
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
 const POS = lazyWithRetry(() => import("@/pages/POS"));
 const Inventory = lazyWithRetry(() => import("@/pages/Inventory"));
@@ -48,6 +48,7 @@ const Purchases = lazyWithRetry(() => import("@/pages/Purchases"));
 const Dian = lazyWithRetry(() => import("@/pages/Dian"));
 const Commissions = lazyWithRetry(() => import("@/pages/Commissions"));
 const Services = lazyWithRetry(() => import("@/pages/Services"));
+const SuperAdmin = lazyWithRetry(() => import("@/pages/SuperAdmin"));
 const Placeholder = lazyWithRetry(() => import("@/pages/Placeholder"));
 
 const soonModules = [];
@@ -63,7 +64,7 @@ function PageLoader() {
 
 function AdminRoute({ children }) {
   const { user } = useAuth();
-  if (user?.role !== "admin") {
+  if (user?.role !== "admin" && user?.role !== "superadmin_platform") {
     return <Navigate to="/dashboard" replace />;
   }
   return children;
@@ -110,6 +111,7 @@ function ProtectedApp() {
           <Route path="facturacion-pos-electronica" element={<AdminRoute><ElectronicPOS /></AdminRoute>} />
           <Route path="usuarios" element={<AdminRoute><Users /></AdminRoute>} />
           <Route path="configuracion" element={<AdminRoute><Settings /></AdminRoute>} />
+          <Route path="superadmin" element={<AdminRoute><SuperAdmin /></AdminRoute>} />
           <Route path="soporte" element={<Support />} />
           <Route path="marcacion" element={<Timeclock />} />
           <Route path="recogidas" element={<CashPickup />} />
@@ -145,6 +147,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/welcome" element={<Login />} />
+            <Route path="/registro" element={<RegisterTenant />} />
             <Route path="/*" element={<ProtectedApp />} />
           </Routes>
         </AuthProvider>
