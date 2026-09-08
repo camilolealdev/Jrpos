@@ -9,11 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Store, ArrowLeft, ShieldCheck, Sparkles, CheckCircle2, Phone, Mail, Lock, User, ShoppingBag } from "lucide-react";
 import logoWhite from "@/assets/logo2.webp";
-import heroBanner from "@/assets/hero-banner.webp";
+import heroShowcase from "@/assets/hero-showcase.jpg";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
+import GoogleOnboardingModal from "@/components/GoogleOnboardingModal";
+import { useGoogleAuthFlow } from "@/lib/useGoogleAuthFlow";
 
 export default function RegisterTenant() {
   const { setUser } = useAuth();
   const navigate = useNavigate();
+  const { handleGoogleCredential, error: googleError, onboardingModalProps } = useGoogleAuthFlow({ setUser, navigate });
 
   const [businessName, setBusinessName] = useState("");
   const [name, setName] = useState("");
@@ -61,7 +65,7 @@ export default function RegisterTenant() {
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div
           className="absolute inset-0 opacity-[0.07] bg-cover bg-center mix-blend-luminosity filter blur-[2px] scale-105"
-          style={{ backgroundImage: `url(${heroBanner})` }}
+          style={{ backgroundImage: `url(${heroShowcase})` }}
         />
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-600/20 rounded-full blur-[128px]" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-600/15 rounded-full blur-[128px]" />
@@ -232,6 +236,20 @@ export default function RegisterTenant() {
               </Button>
             </form>
 
+            <div className="flex items-center gap-3 text-[10px] text-slate-500 uppercase tracking-wide">
+              <div className="h-px flex-1 bg-white/10" />
+              <span>o continúa con</span>
+              <div className="h-px flex-1 bg-white/10" />
+            </div>
+
+            {googleError && (
+              <div className="text-xs text-red-400 bg-red-950/50 border border-red-800/60 rounded-xl p-3 text-center">
+                {googleError}
+              </div>
+            )}
+
+            <GoogleSignInButton text="signup_with" onCredential={handleGoogleCredential} />
+
             <div className="pt-2 border-t border-white/10 space-y-3">
               <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300">
                 <div className="flex items-center gap-1.5">
@@ -260,6 +278,8 @@ export default function RegisterTenant() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <GoogleOnboardingModal {...onboardingModalProps} />
     </div>
   );
 }

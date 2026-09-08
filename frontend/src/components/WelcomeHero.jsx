@@ -30,7 +30,7 @@ import shotFacturas from "@/assets/screenshots/facturas.jpg";
 import shotInventario from "@/assets/screenshots/inventario.jpg";
 import shotCreditos from "@/assets/screenshots/creditos.jpg";
 import shotDashboard from "@/assets/screenshots/dashboard.jpg";
-import heroBanner from "@/assets/hero-banner.webp";
+import heroShowcase from "@/assets/hero-showcase.jpg";
 import logoWhite from "@/assets/logo2.webp";
 
 const KEY_PILLARS = [
@@ -163,7 +163,7 @@ export default function WelcomeHero({ onProceedToLogin }) {
         {/* Subtle hero banner watermark in ambient background */}
         <div 
           className="absolute -top-10 right-0 w-full lg:w-3/4 h-[750px] opacity-[0.07] bg-cover bg-no-repeat bg-right-top mix-blend-luminosity filter blur-[1px]"
-          style={{ backgroundImage: `url(${heroBanner})` }}
+          style={{ backgroundImage: `url(${heroShowcase})` }}
         />
         <div className="absolute -top-40 -left-32 w-[36rem] h-[36rem] bg-emerald-600/20 rounded-full blur-[140px]" />
         <div className="absolute top-1/3 -right-40 w-[32rem] h-[32rem] bg-teal-500/15 rounded-full blur-[140px]" />
@@ -332,7 +332,8 @@ export default function WelcomeHero({ onProceedToLogin }) {
             <div className="relative rounded-3xl bg-white/[0.04] backdrop-blur-2xl border border-white/15 p-2 shadow-[16px_16px_40px_rgba(0,0,0,0.6),-8px_-8px_24px_rgba(255,255,255,0.02)] overflow-hidden">
               <div className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden bg-slate-950">
                 <img
-                  src={heroBanner}
+                  src={heroShowcase}
+                  onError={(e) => { e.currentTarget.src = "/hero-showcase.jpg"; }}
                   alt="JRPOS Celular y Tablet POS"
                   className="w-full h-full object-cover object-center group-hover:scale-[1.015] transition-transform duration-700 ease-out"
                 />

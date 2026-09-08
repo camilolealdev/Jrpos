@@ -1,11 +1,14 @@
 import os
 import re
+import secrets
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -127,21 +130,33 @@ class TenantRegisterRequest(BaseModel):
     business_type: str | None = "abarrotes"
 
 
+class GoogleAuthRequest(BaseModel):
+    credential: str
+    business_name: str | None = None
+    name: str | None = None
+    phone: str | None = None
+    business_type: str | None = None
+
+
 auth_router = APIRouter(prefix="/api/auth")
 
 LOCKOUT_THRESHOLD = 5
 LOCKOUT_MINUTES = 15
 
 
-@auth_router.post("/register-tenant")
-async def register_tenant(payload: TenantRegisterRequest, response: Response, session: AsyncSession = Depends(get_session)):
-    email = payload.email.strip().lower()
-    existing_user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Ya existe una cuenta registrada con este correo electrónico")
-
+async def _provision_tenant(
+    session: AsyncSession,
+    *,
+    business_name: str,
+    email: str,
+    name: str,
+    phone: str | None,
+    business_type: str | None,
+    password_hash: str,
+    google_id: str | None = None,
+) -> tuple[User, Tenant]:
     # 1. Generar slug único para el tenant
-    base_slug = slugify(payload.business_name)
+    base_slug = slugify(business_name)
     slug = base_slug
     counter = 1
     while (await session.execute(select(Tenant).where(Tenant.slug == slug))).scalar_one_or_none():
@@ -154,10 +169,10 @@ async def register_tenant(payload: TenantRegisterRequest, response: Response, se
     tenant = Tenant(
         id=tenant_id,
         slug=slug,
-        business_name=payload.business_name.strip(),
-        phone=payload.phone.strip() if payload.phone else None,
+        business_name=business_name.strip(),
+        phone=phone.strip() if phone else None,
         email=email,
-        business_type=payload.business_type or "abarrotes",
+        business_type=business_type or "abarrotes",
         status="trial",
         trial_ends_at=trial_ends,
     )
@@ -165,14 +180,15 @@ async def register_tenant(payload: TenantRegisterRequest, response: Response, se
 
     # 3. Crear Usuario Administrador de la Tienda
     user_id = new_uuid()
-    owner_name = payload.name.strip() if payload.name else (payload.business_name.strip() or "Propietario")
+    owner_name = name.strip() if name else (business_name.strip() or "Propietario")
     user = User(
         id=user_id,
         tenant_id=tenant_id,
         email=email,
-        password_hash=hash_password(payload.password),
+        password_hash=password_hash,
         name=owner_name,
         role="admin",
+        google_id=google_id,
     )
     session.add(user)
 
@@ -181,7 +197,7 @@ async def register_tenant(payload: TenantRegisterRequest, response: Response, se
         id=new_uuid(),
         tenant_id=tenant_id,
         name="Sede Principal",
-        phone=payload.phone,
+        phone=phone,
         is_active=True,
     )
     session.add(branch)
@@ -200,6 +216,25 @@ async def register_tenant(payload: TenantRegisterRequest, response: Response, se
     session.add(sub)
 
     await session.commit()
+    return user, tenant
+
+
+@auth_router.post("/register-tenant")
+async def register_tenant(payload: TenantRegisterRequest, response: Response, session: AsyncSession = Depends(get_session)):
+    email = payload.email.strip().lower()
+    existing_user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Ya existe una cuenta registrada con este correo electrónico")
+
+    user, tenant = await _provision_tenant(
+        session,
+        business_name=payload.business_name,
+        email=email,
+        name=payload.name,
+        phone=payload.phone,
+        business_type=payload.business_type,
+        password_hash=hash_password(payload.password),
+    )
     set_auth_cookies(response, user)
 
     return {
@@ -209,7 +244,99 @@ async def register_tenant(payload: TenantRegisterRequest, response: Response, se
             "email": user.email,
             "name": user.name,
             "role": user.role,
-            "tenant_id": tenant_id,
+            "tenant_id": tenant.id,
+        },
+        "tenant": {
+            "id": tenant.id,
+            "name": tenant.business_name,
+            "slug": tenant.slug,
+            "status": tenant.status,
+            "trial_ends_at": tenant.trial_ends_at.isoformat(),
+        },
+    }
+
+
+async def _tenant_info_for(session: AsyncSession, user: User) -> dict | None:
+    if not user.tenant_id:
+        return None
+    tenant = await session.get(Tenant, user.tenant_id)
+    if not tenant:
+        return None
+    days_left = max(0, (tenant.trial_ends_at - utcnow()).days) if tenant.trial_ends_at else 0
+    return {
+        "id": tenant.id,
+        "name": tenant.business_name,
+        "status": tenant.status,
+        "trial_ends_at": tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
+        "days_left": days_left,
+    }
+
+
+@auth_router.post("/google")
+async def google_auth(payload: GoogleAuthRequest, response: Response, session: AsyncSession = Depends(get_session)):
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    if not client_id:
+        raise HTTPException(status_code=500, detail="Login con Google no configurado en el servidor")
+
+    try:
+        idinfo = google_id_token.verify_oauth2_token(payload.credential, google_requests.Request(), client_id)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Token de Google inválido")
+
+    if not idinfo.get("email_verified"):
+        raise HTTPException(status_code=401, detail="El correo de Google no está verificado")
+
+    email = idinfo["email"].strip().lower()
+    google_sub = idinfo["sub"]
+
+    user = (await session.execute(select(User).where(User.google_id == google_sub))).scalar_one_or_none()
+    if not user:
+        user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+        if user and not user.google_id:
+            user.google_id = google_sub
+            await session.commit()
+
+    if user:
+        set_auth_cookies(response, user)
+        return {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "tenant_id": user.tenant_id,
+            "tenant": await _tenant_info_for(session, user),
+        }
+
+    if not payload.business_name:
+        return {
+            "needs_onboarding": True,
+            "google": {
+                "email": email,
+                "name": idinfo.get("name"),
+                "picture": idinfo.get("picture"),
+            },
+        }
+
+    new_user, tenant = await _provision_tenant(
+        session,
+        business_name=payload.business_name,
+        email=email,
+        name=payload.name or idinfo.get("name") or payload.business_name,
+        phone=payload.phone,
+        business_type=payload.business_type,
+        password_hash=hash_password(secrets.token_hex(32)),
+        google_id=google_sub,
+    )
+    set_auth_cookies(response, new_user)
+
+    return {
+        "ok": True,
+        "user": {
+            "id": new_user.id,
+            "email": new_user.email,
+            "name": new_user.name,
+            "role": new_user.role,
+            "tenant_id": tenant.id,
         },
         "tenant": {
             "id": tenant.id,
@@ -259,19 +386,6 @@ async def login(payload: LoginRequest, request: Request, response: Response, ses
         await session.delete(attempt)
         await session.commit()
 
-    tenant_info = None
-    if user.tenant_id:
-        tenant = await session.get(Tenant, user.tenant_id)
-        if tenant:
-            days_left = max(0, (tenant.trial_ends_at - utcnow()).days) if tenant.trial_ends_at else 0
-            tenant_info = {
-                "id": tenant.id,
-                "name": tenant.business_name,
-                "status": tenant.status,
-                "trial_ends_at": tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
-                "days_left": days_left,
-            }
-
     set_auth_cookies(response, user)
     return {
         "id": user.id,
@@ -279,7 +393,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, ses
         "name": user.name,
         "role": user.role,
         "tenant_id": user.tenant_id,
-        "tenant": tenant_info,
+        "tenant": await _tenant_info_for(session, user),
     }
 
 
@@ -292,26 +406,13 @@ async def logout(response: Response):
 
 @auth_router.get("/me")
 async def me(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    tenant_info = None
-    if user.tenant_id:
-        tenant = await session.get(Tenant, user.tenant_id)
-        if tenant:
-            days_left = max(0, (tenant.trial_ends_at - utcnow()).days) if tenant.trial_ends_at else 0
-            tenant_info = {
-                "id": tenant.id,
-                "name": tenant.business_name,
-                "status": tenant.status,
-                "trial_ends_at": tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
-                "days_left": days_left,
-            }
-
     return {
         "id": user.id,
         "email": user.email,
         "name": user.name,
         "role": user.role,
         "tenant_id": user.tenant_id,
-        "tenant": tenant_info,
+        "tenant": await _tenant_info_for(session, user),
     }
 
 

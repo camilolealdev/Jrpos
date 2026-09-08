@@ -109,8 +109,8 @@ async def ocr_invoice(
     settings_row = await session.get(SettingsGeneral, 1)
     provider = (settings_row.ai_provider if settings_row and settings_row.ai_provider else "gemini").lower()
     api_key = (settings_row.ai_api_key if settings_row and settings_row.ai_api_key else "").strip()
-    if not api_key and provider == "gemini":
-        api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        api_key = os.environ.get(f"{provider.upper()}_API_KEY", "")
 
     if not api_key:
         raise HTTPException(

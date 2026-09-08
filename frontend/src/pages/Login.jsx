@@ -8,12 +8,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Store, ArrowLeft, ShieldCheck, Lock, User, KeyRound, Sparkles } from "lucide-react";
 import WelcomeHero from "@/components/WelcomeHero";
 import logoWhite from "@/assets/logo2.webp";
-import heroBanner from "@/assets/hero-banner.webp";
+import heroShowcase from "@/assets/hero-showcase.jpg";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
+import GoogleOnboardingModal from "@/components/GoogleOnboardingModal";
+import { useGoogleAuthFlow } from "@/lib/useGoogleAuthFlow";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, setUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { handleGoogleCredential, error: googleError, onboardingModalProps } = useGoogleAuthFlow({ setUser, navigate });
 
   // Si el usuario viene redirigido explícitamente desde una ruta protegida, mostrar directamente el formulario
   const isDirectLogin = Boolean(
@@ -65,7 +69,7 @@ export default function Login() {
             <div className="absolute inset-0 pointer-events-none overflow-hidden">
               <div 
                 className="absolute inset-0 opacity-[0.09] bg-cover bg-center mix-blend-luminosity filter blur-[2px] scale-105"
-                style={{ backgroundImage: `url(${heroBanner})` }}
+                style={{ backgroundImage: `url(${heroShowcase})` }}
               />
               <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-600/20 rounded-full blur-[128px]" />
               <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-600/15 rounded-full blur-[128px]" />
@@ -165,6 +169,20 @@ export default function Login() {
                   </Button>
                 </form>
 
+                <div className="flex items-center gap-3 text-[10px] text-slate-500 uppercase tracking-wide">
+                  <div className="h-px flex-1 bg-white/10" />
+                  <span>o continúa con</span>
+                  <div className="h-px flex-1 bg-white/10" />
+                </div>
+
+                {googleError && (
+                  <div className="text-xs text-red-400 bg-red-950/50 border border-red-800/60 rounded-lg p-3 text-center">
+                    {googleError}
+                  </div>
+                )}
+
+                <GoogleSignInButton text="signin_with" onCredential={handleGoogleCredential} />
+
                   <div className="pt-2 border-t border-white/10 text-center space-y-3">
                     <Link
                       to="/registro"
@@ -185,6 +203,8 @@ export default function Login() {
             </Card>
         </motion.div>
       )}
+
+      <GoogleOnboardingModal {...onboardingModalProps} />
     </div>
   );
 }

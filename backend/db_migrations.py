@@ -98,6 +98,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
 
     -- 2. Añadir columna tenant_id a tablas operativas
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS margin_percent FLOAT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_package FLOAT NOT NULL DEFAULT 1.0;
