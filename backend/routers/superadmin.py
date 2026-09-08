@@ -1,14 +1,26 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import require_superadmin
+from auth import _cookie_flags, create_access_token, get_current_user, require_superadmin
 from db import get_session
-from models_sql import PlatformPlan, Sale, Tenant, TenantSubscription, User, utcnow
+from models_sql import (
+    PlatformPlan,
+    Sale,
+    SupportTicket,
+    Tenant,
+    TenantAuditLog,
+    TenantSubscription,
+    User,
+    new_uuid,
+    utcnow,
+)
 
 router = APIRouter(prefix="/api/superadmin", tags=["superadmin"])
+support_router = APIRouter(prefix="/api/support", tags=["support"])
 
 
 class ExtendTrialRequest(BaseModel):
@@ -19,14 +31,32 @@ class UpdateStatusRequest(BaseModel):
     status: str  # trial | active | suspended | expired
 
 
+class UpdateModulesRequest(BaseModel):
+    modules_config: Dict[str, bool]
+
+
+class UpdateTicketRequest(BaseModel):
+    status: Optional[str] = None  # abierto | en_proceso | resuelto | cerrado
+    admin_notes: Optional[str] = None
+
+
+class CreateTicketRequest(BaseModel):
+    subject: str = Field(..., min_length=3, max_length=255)
+    message: str = Field(..., min_length=5)
+    priority: str = Field(default="media")  # baja | media | alta | urgente
+    user_phone: Optional[str] = None
+
+
 @router.get("/stats")
 async def get_platform_stats(admin: User = Depends(require_superadmin), session: AsyncSession = Depends(get_session)):
     total_tenants = (await session.execute(select(func.count(Tenant.id)))).scalar() or 0
     active_tenants = (await session.execute(select(func.count(Tenant.id)).where(Tenant.status == "active"))).scalar() or 0
     trial_tenants = (await session.execute(select(func.count(Tenant.id)).where(Tenant.status == "trial"))).scalar() or 0
+    suspended_tenants = (await session.execute(select(func.count(Tenant.id)).where(Tenant.status == "suspended"))).scalar() or 0
     total_users = (await session.execute(select(func.count(User.id)))).scalar() or 0
     total_sales_count = (await session.execute(select(func.count(Sale.id)))).scalar() or 0
     total_sales_volume = (await session.execute(select(func.sum(Sale.total)))).scalar() or 0.0
+    open_tickets = (await session.execute(select(func.count(SupportTicket.id)).where(SupportTicket.status.in_(["abierto", "en_proceso"])))).scalar() or 0
 
     # Estimado de MRR
     subscriptions = (await session.execute(
@@ -39,10 +69,12 @@ async def get_platform_stats(admin: User = Depends(require_superadmin), session:
         "total_tenants": total_tenants,
         "active_tenants": active_tenants,
         "trial_tenants": trial_tenants,
+        "suspended_tenants": suspended_tenants,
         "total_users": total_users,
         "total_sales_count": total_sales_count,
         "total_sales_volume_cop": round(total_sales_volume, 2),
         "estimated_mrr_cop": round(estimated_mrr, 2),
+        "open_tickets": open_tickets,
     }
 
 
@@ -51,12 +83,25 @@ async def list_tenants(admin: User = Depends(require_superadmin), session: Async
     tenants = (await session.execute(select(Tenant).order_by(Tenant.created_at.desc()))).scalars().all()
     now = utcnow()
 
+    DEFAULT_MODULES = {
+        "ia_ocr": True,
+        "whatsapp": True,
+        "electronic_invoicing": False,
+        "multi_cashier": True,
+        "accounting_export": True,
+        "warranties": True,
+        "promotions": True,
+        "payroll": False,
+    }
+
     result = []
     for t in tenants:
         days_left = max(0, (t.trial_ends_at - now).days) if t.trial_ends_at else 0
         users_count = (await session.execute(select(func.count(User.id)).where(User.tenant_id == t.id))).scalar() or 0
         sales_count = (await session.execute(select(func.count(Sale.id)).where(Sale.tenant_id == t.id))).scalar() or 0
         sales_volume = (await session.execute(select(func.sum(Sale.total)).where(Sale.tenant_id == t.id))).scalar() or 0.0
+
+        modules = {**DEFAULT_MODULES, **(t.modules_config or {})}
 
         result.append({
             "id": t.id,
@@ -71,6 +116,7 @@ async def list_tenants(admin: User = Depends(require_superadmin), session: Async
             "users_count": users_count,
             "sales_count": sales_count,
             "sales_volume_cop": round(sales_volume, 2),
+            "modules_config": modules,
             "created_at": t.created_at.isoformat() if t.created_at else None,
         })
 
@@ -111,3 +157,201 @@ async def update_tenant_status(tenant_id: str, payload: UpdateStatusRequest, adm
     tenant.updated_at = utcnow()
     await session.commit()
     return {"ok": True, "tenant_id": tenant.id, "status": tenant.status}
+
+
+@router.put("/tenants/{tenant_id}/modules")
+async def update_tenant_modules(tenant_id: str, payload: UpdateModulesRequest, admin: User = Depends(require_superadmin), session: AsyncSession = Depends(get_session)):
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Inquilino no encontrado")
+
+    current = tenant.modules_config or {}
+    tenant.modules_config = {**current, **payload.modules_config}
+    tenant.updated_at = utcnow()
+
+    # Log audit
+    session.add(TenantAuditLog(
+        tenant_id=tenant.id,
+        user_id=admin.id,
+        user_name=admin.name,
+        action="update_modules",
+        entity_type="tenant_modules",
+        entity_id=tenant.id,
+        details=f"Modules updated: {payload.modules_config}",
+    ))
+
+    await session.commit()
+    return {"ok": True, "tenant_id": tenant.id, "modules_config": tenant.modules_config}
+
+
+@router.get("/tickets")
+async def list_support_tickets(
+    status: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+    admin: User = Depends(require_superadmin),
+    session: AsyncSession = Depends(get_session)
+):
+    query = select(SupportTicket).order_by(SupportTicket.created_at.desc())
+    if status and status != "todos":
+        query = query.where(SupportTicket.status == status)
+    if tenant_id:
+        query = query.where(SupportTicket.tenant_id == tenant_id)
+
+    tickets = (await session.execute(query)).scalars().all()
+    tenants_map = {t.id: t.business_name for t in (await session.execute(select(Tenant))).scalars().all()}
+
+    return [
+        {
+            "id": tk.id,
+            "tenant_id": tk.tenant_id,
+            "tenant_name": tenants_map.get(tk.tenant_id, "Tienda"),
+            "user_id": tk.user_id,
+            "user_name": tk.user_name,
+            "user_email": tk.user_email,
+            "user_phone": tk.user_phone,
+            "subject": tk.subject,
+            "message": tk.message,
+            "priority": tk.priority,
+            "status": tk.status,
+            "admin_notes": tk.admin_notes,
+            "created_at": tk.created_at.isoformat() if tk.created_at else None,
+            "updated_at": tk.updated_at.isoformat() if tk.updated_at else None,
+        }
+        for tk in tickets
+    ]
+
+
+@router.put("/tickets/{ticket_id}")
+async def update_support_ticket(
+    ticket_id: str,
+    payload: UpdateTicketRequest,
+    admin: User = Depends(require_superadmin),
+    session: AsyncSession = Depends(get_session)
+):
+    ticket = await session.get(SupportTicket, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    if payload.status:
+        if payload.status not in ("abierto", "en_proceso", "resuelto", "cerrado"):
+            raise HTTPException(status_code=400, detail="Estado de ticket inválido")
+        ticket.status = payload.status
+
+    if payload.admin_notes is not None:
+        ticket.admin_notes = payload.admin_notes
+
+    ticket.updated_at = utcnow()
+    await session.commit()
+    return {"ok": True, "ticket_id": ticket.id, "status": ticket.status, "admin_notes": ticket.admin_notes}
+
+
+@router.post("/impersonate/{tenant_id}")
+async def impersonate_tenant(
+    tenant_id: str,
+    response: Response,
+    admin: User = Depends(require_superadmin),
+    session: AsyncSession = Depends(get_session)
+):
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Inquilino no encontrado")
+
+    # Find tenant admin user
+    tenant_admin = (await session.execute(
+        select(User).where(User.tenant_id == tenant_id, User.role == "admin")
+    )).scalars().first()
+
+    if not tenant_admin:
+        # Fallback to any user in tenant
+        tenant_admin = (await session.execute(
+            select(User).where(User.tenant_id == tenant_id)
+        )).scalars().first()
+
+    if not tenant_admin:
+        raise HTTPException(status_code=404, detail="No hay usuarios registrados en esta tienda")
+
+    access_token = create_access_token(
+        user_id=tenant_admin.id,
+        email=tenant_admin.email,
+        role=tenant_admin.role,
+        tenant_id=tenant_id
+    )
+
+    is_secure, same_site = _cookie_flags()
+    response.set_cookie(
+        "access_token",
+        access_token,
+        httponly=True,
+        secure=is_secure,
+        samesite=same_site,
+        max_age=8 * 3600,
+        path="/"
+    )
+
+    return {
+        "ok": True,
+        "impersonated_user": {
+            "id": tenant_admin.id,
+            "email": tenant_admin.email,
+            "name": tenant_admin.name,
+            "role": tenant_admin.role,
+            "tenant_id": tenant_id,
+            "business_name": tenant.business_name,
+        }
+    }
+
+
+# =====================================================================
+# TENANT-FACING SUPPORT ENDPOINTS (/api/support/tickets)
+# =====================================================================
+
+@support_router.post("/tickets")
+async def create_tenant_support_ticket(
+    payload: CreateTicketRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    tenant_id = user.tenant_id or "tenant-default-001"
+    ticket = SupportTicket(
+        id=new_uuid(),
+        tenant_id=tenant_id,
+        user_id=user.id,
+        user_name=user.name,
+        user_email=user.email,
+        user_phone=payload.user_phone,
+        subject=payload.subject,
+        message=payload.message,
+        priority=payload.priority,
+        status="abierto",
+    )
+    session.add(ticket)
+    await session.commit()
+    return {"ok": True, "ticket_id": ticket.id, "status": ticket.status}
+
+
+@support_router.get("/tickets")
+async def get_my_support_tickets(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    tenant_id = user.tenant_id or "tenant-default-001"
+    tickets = (await session.execute(
+        select(SupportTicket)
+        .where(SupportTicket.tenant_id == tenant_id)
+        .order_by(SupportTicket.created_at.desc())
+    )).scalars().all()
+
+    return [
+        {
+            "id": tk.id,
+            "subject": tk.subject,
+            "message": tk.message,
+            "priority": tk.priority,
+            "status": tk.status,
+            "admin_notes": tk.admin_notes,
+            "created_at": tk.created_at.isoformat() if tk.created_at else None,
+            "updated_at": tk.updated_at.isoformat() if tk.updated_at else None,
+        }
+        for tk in tickets
+    ]
+

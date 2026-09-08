@@ -96,7 +96,24 @@ async def run_auto_migrations(session: AsyncSession) -> None:
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS support_tickets (
+        id VARCHAR(36) PRIMARY KEY,
+        tenant_id VARCHAR(36) NOT NULL,
+        user_id VARCHAR(36),
+        user_name VARCHAR(255) NOT NULL,
+        user_email VARCHAR(255) NOT NULL,
+        user_phone VARCHAR(50),
+        subject VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        priority VARCHAR(20) NOT NULL DEFAULT 'media',
+        status VARCHAR(20) NOT NULL DEFAULT 'abierto',
+        admin_notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- 2. Añadir columna tenant_id a tablas operativas
+    ALTER TABLE tenants ADD COLUMN IF NOT EXISTS modules_config JSON;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);

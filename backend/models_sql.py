@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Index, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db import Base
@@ -34,6 +34,16 @@ class Tenant(Base):
     business_type: Mapped[str] = mapped_column(String(50), nullable=False, default="abarrotes")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="trial", index=True)
     trial_ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    modules_config: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=lambda: {
+        "ia_ocr": True,
+        "whatsapp": True,
+        "electronic_invoicing": False,
+        "multi_cashier": True,
+        "accounting_export": True,
+        "warranties": True,
+        "promotions": True,
+        "payroll": False
+    })
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -100,6 +110,24 @@ class TenantAuditLog(Base):
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    user_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    priority: Mapped[str] = mapped_column(String(20), nullable=False, default="media")  # baja, media, alta, urgente
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="abierto", index=True)  # abierto, en_proceso, resuelto, cerrado
+    admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 # =====================================================================

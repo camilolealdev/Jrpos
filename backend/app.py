@@ -9,7 +9,7 @@ from auth import auth_router, seed_admin
 from db import SessionLocal
 from db_migrations import run_auto_migrations
 from routers.billing import router as billing_router
-from routers.superadmin import router as superadmin_router
+from routers.superadmin import router as superadmin_router, support_router
 from routers.products import products_router
 from routers.contacts import contacts_router
 from routers.users import users_router
@@ -45,6 +45,7 @@ app = FastAPI(title="JRPOS API", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(billing_router)
 app.include_router(superadmin_router)
+app.include_router(support_router)
 app.include_router(products_router)
 app.include_router(contacts_router)
 app.include_router(users_router)
