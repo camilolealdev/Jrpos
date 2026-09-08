@@ -1,0 +1,17 @@
+{$DOMAIN:localhost} {
+	encode gzip
+
+	# API requests go to the backend container. Caddy auto-provisions
+	# HTTPS via Let's Encrypt for a real domain (falls back to a local
+	# self-signed cert for "localhost").
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else is the React SPA build.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

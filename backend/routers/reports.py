@@ -65,6 +65,12 @@ async def report_summary(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    from redis_client import get_json, set_json
+
+    cached = await get_json("reports:summary")
+    if cached is not None:
+        return cached
+
     total_sales = (await session.execute(select(func.coalesce(func.sum(Sale.total), 0.0)))).scalar_one()
     sales_count = (await session.execute(select(func.count()).select_from(Sale))).scalar_one()
     products_count = (await session.execute(select(func.count()).select_from(Product))).scalar_one()
@@ -126,7 +132,7 @@ async def report_summary(
         )
     ).scalars().all()
 
-    return {
+    result = {
         "total_sales": round(float(total_sales), 2),
         "sales_count": sales_count,
         "products_count": products_count,
@@ -138,8 +144,12 @@ async def report_summary(
         "gross_margin_percent": margin_pct,
         "top_products": top_products,
         "daily_sales": daily_sales,
-        "low_stock": low_stock_rows,
+        "low_stock": [
+            ProductBrief.model_validate(p).model_dump(mode="json") for p in low_stock_rows
+        ],
     }
+    await set_json("reports:summary", result, ttl=30)
+    return result
 
 
 @reports_router.get("/reports/accounting-export")
