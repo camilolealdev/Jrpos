@@ -206,9 +206,70 @@ async def close_cash(
     cs.denominations = payload.denominations
     cs.close_notes = payload.close_notes
 
+    # Pre-calculate and persist immutable Z-Report snapshot
+    sales_stmt = select(Sale).where(
+        Sale.tenant_id == tenant_id,
+        Sale.created_at >= cs.opened_at,
+        Sale.created_at <= cs.closed_at,
+    )
+    all_sales = (await session.execute(sales_stmt)).scalars().all()
+    by_method: Dict[str, Dict[str, Any]] = {}
+    total_gross = 0.0
+    total_tax = 0.0
+    total_discount = 0.0
+    for s in all_sales:
+        m = s.payment_method or "otro"
+        if m not in by_method:
+            by_method[m] = {"total": 0.0, "count": 0}
+        by_method[m]["total"] = round(by_method[m]["total"] + float(s.total), 2)
+        by_method[m]["count"] += 1
+        total_gross += float(s.subtotal or s.total)
+        total_tax += float(s.tax_total or 0.0)
+        total_discount += float(s.discount or 0.0)
+
+    pickups = await _get_pickups(session, cs.id)
+    pickups_total = sum(float(p.amount) for p in pickups)
+    parsed_denominations = {}
+    if cs.denominations:
+        try:
+            parsed_denominations = json.loads(cs.denominations)
+        except Exception:
+            pass
+
+    snapshot = {
+        "report_type": "Reporte Z / Arqueo de Cierre (Inmutable)",
+        "session_id": cs.id,
+        "tenant_id": cs.tenant_id,
+        "cashier": cs.opened_by,
+        "opened_at": cs.opened_at.isoformat() if cs.opened_at else None,
+        "closed_at": cs.closed_at.isoformat() if cs.closed_at else None,
+        "status": "closed",
+        "base_initial": cs.base,
+        "by_payment_method": by_method,
+        "totals": {
+            "gross_sales": round(total_gross, 2),
+            "tax_collected": round(total_tax, 2),
+            "discounts": round(total_discount, 2),
+            "net_sales": round(sum(v["total"] for v in by_method.values()), 2),
+            "sales_count": len(all_sales),
+        },
+        "cash_flow": {
+            "base": cs.base,
+            "cash_sales": by_method.get("efectivo", {}).get("total", 0.0),
+            "pickups_total": round(pickups_total, 2),
+            "expected_cash": totals["expected"],
+            "counted_cash": counted,
+            "diff": diff,
+            "diff_label": "SOBRANTE" if diff > 0 else ("FALTANTE" if diff < 0 else "CUADRADA"),
+        },
+        "denominations": parsed_denominations,
+        "pickups": [_pickup_dict(p) for p in pickups],
+        "close_notes": cs.close_notes,
+    }
+    cs.z_report_snapshot = json.dumps(snapshot)
+
     await session.commit()
     await session.refresh(cs)
-    pickups = await _get_pickups(session, cs.id)
     return _session_dict(cs, pickups)
 
 
@@ -247,6 +308,12 @@ async def get_z_report(
     cs = await session.get(CashSession, session_id)
     if not cs or cs.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Sesión de caja no encontrada")
+
+    if cs.z_report_snapshot:
+        try:
+            return json.loads(cs.z_report_snapshot)
+        except Exception:
+            pass
 
     # Obtener todas las ventas del periodo
     end_time = cs.closed_at or utcnow()
@@ -289,8 +356,8 @@ async def get_z_report(
         "session_id": cs.id,
         "tenant_id": cs.tenant_id,
         "cashier": cs.opened_by,
-        "opened_at": cs.opened_at,
-        "closed_at": cs.closed_at,
+        "opened_at": cs.opened_at.isoformat() if hasattr(cs.opened_at, 'isoformat') else str(cs.opened_at),
+        "closed_at": cs.closed_at.isoformat() if hasattr(cs.closed_at, 'isoformat') and cs.closed_at else str(cs.closed_at),
         "status": cs.status,
         "base_initial": cs.base,
         "by_payment_method": by_method,

@@ -48,9 +48,8 @@ export default function Reports() {
     } catch (e) { toast.error(e.message || "Error de impresión"); }
   };
 
-  const safeSales = Array.isArray(sales) ? sales : [];
-
   const filteredSales = useMemo(() => {
+    const safeSales = Array.isArray(sales) ? sales : [];
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(now);
@@ -89,7 +88,7 @@ export default function Reports() {
 
       return matchQuery && matchMethod && matchDate;
     });
-  }, [safeSales, q, selectedMethod, datePreset, startDate, endDate]);
+  }, [sales, q, selectedMethod, datePreset, startDate, endDate]);
 
   const stats = useMemo(() => {
     const totalAmount = filteredSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0);

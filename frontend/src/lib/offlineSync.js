@@ -1,12 +1,24 @@
-// Sistema de sincronización offline con IndexedDB para JRPOS
-const DB_NAME = "jrpos_offline_db";
+// Sistema de sincronización offline con IndexedDB para JRPOS con Aislamiento Multi-Tenant
+function getTenantId() {
+  try {
+    const raw = localStorage.getItem("user") || sessionStorage.getItem("user");
+    if (raw) {
+      const u = JSON.parse(raw);
+      if (u && u.tenant_id) return u.tenant_id;
+    }
+  } catch {}
+  return "default";
+}
+
 const DB_VERSION = 1;
 const STORE_SALES = "sales_queue";
 const STORE_PRODUCTS = "cached_products";
 
 function openDB() {
+  const tenantId = getTenantId();
+  const dbName = `jrpos_offline_db_${tenantId}`;
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(dbName, DB_VERSION);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains(STORE_SALES)) {
@@ -21,7 +33,7 @@ function openDB() {
   });
 }
 
-// Guarda productos en caché local para búsqueda offline
+// Guarda productos en caché local para búsqueda offline (aislado por tenant)
 export async function cacheProductsOffline(products) {
   try {
     const db = await openDB();

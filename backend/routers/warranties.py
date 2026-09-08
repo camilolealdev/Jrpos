@@ -46,6 +46,7 @@ async def create_warranty(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     if not payload.product_name:
         raise HTTPException(status_code=400, detail="Producto requerido")
 
@@ -53,6 +54,7 @@ async def create_warranty(
     number = f"GAR-{seq:06d}"
 
     warranty = Warranty(
+        tenant_id=tenant_id,
         number=number, sale_id=payload.sale_id, sale_number=payload.sale_number,
         product_name=payload.product_name, reason=payload.reason,
         resolution=payload.resolution or "cambio", status="abierta",
@@ -68,7 +70,8 @@ async def list_warranties(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Warranty).order_by(Warranty.created_at.desc()).limit(300)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Warranty).where(Warranty.tenant_id == tenant_id).order_by(Warranty.created_at.desc()).limit(300)
     return (await session.execute(stmt)).scalars().all()
 
 
@@ -79,11 +82,14 @@ async def update_warranty(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     warranty = await session.get(Warranty, wid)
-    if not warranty:
+    if not warranty or warranty.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="No encontrada")
-    warranty.status = payload.status
-    warranty.resolution = payload.resolution
+    if payload.status is not None:
+        warranty.status = payload.status
+    if payload.resolution is not None:
+        warranty.resolution = payload.resolution
     await session.commit()
     await session.refresh(warranty)
     return warranty

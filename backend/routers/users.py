@@ -31,7 +31,9 @@ async def list_users(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    res = await session.execute(select(User))
+    tenant_id = admin.tenant_id or "tenant-default-001"
+    stmt = select(User).where(User.tenant_id == tenant_id)
+    res = await session.execute(stmt)
     return res.scalars().all()
 
 
@@ -41,15 +43,17 @@ async def create_user(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     email = payload.email.strip().lower()
     existing = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
     user = User(
+        tenant_id=tenant_id,
         email=email,
         password_hash=hash_password(payload.password),
         name=payload.name,
-        role=payload.role if payload.role in ("admin", "cajero") else "cajero",
+        role=payload.role if payload.role in ("admin", "cajero", "supervisor", "contador") else "cajero",
     )
     session.add(user)
     await session.commit()
@@ -68,10 +72,11 @@ async def reset_password(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     if len(payload.new_password) < 4:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres")
     user = await session.get(User, user_id)
-    if not user:
+    if not user or user.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     user.password_hash = hash_password(payload.new_password)
     attempt = await session.get(LoginAttempt, user.email)
@@ -87,10 +92,11 @@ async def delete_user(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     if user_id == admin.id:
         raise HTTPException(status_code=400, detail="No puedes eliminarte a ti mismo")
     user = await session.get(User, user_id)
-    if not user:
+    if not user or user.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     await session.delete(user)
     await session.commit()

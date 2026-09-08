@@ -37,8 +37,9 @@ def _day_bounds(day: str) -> tuple[datetime, datetime]:
     return start, start + timedelta(days=1)
 
 
-async def _get_schedule_values(session: AsyncSession) -> dict:
-    row = await session.get(SettingsTimeclockSchedule, 1)
+async def _get_schedule_values(session: AsyncSession, tenant_id: str) -> dict:
+    stmt = select(SettingsTimeclockSchedule).where(SettingsTimeclockSchedule.tenant_id == tenant_id)
+    row = (await session.execute(stmt)).scalars().first()
     if row:
         return {
             "entry_time": row.entry_time or "08:00",
@@ -53,6 +54,7 @@ async def mark_timeclock(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     mark_type = payload.type
     if mark_type not in ("in", "out"):
         raise HTTPException(status_code=400, detail="Tipo debe ser 'in' (entrada) u 'out' (salida)")
@@ -64,6 +66,7 @@ async def mark_timeclock(
     last_stmt = (
         select(Timeclock)
         .where(
+            Timeclock.tenant_id == tenant_id,
             Timeclock.user_id == user.id,
             Timeclock.created_at >= today_start,
             Timeclock.created_at < today_end,
@@ -85,7 +88,7 @@ async def mark_timeclock(
     now = datetime.now(timezone.utc)
     late = False
     if mark_type == "in":
-        sched = await _get_schedule_values(session)
+        sched = await _get_schedule_values(session, tenant_id)
         try:
             hh, mm = sched["entry_time"].split(":")
             limit = now.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0) + timedelta(
@@ -96,6 +99,7 @@ async def mark_timeclock(
             late = False
 
     mark = Timeclock(
+        tenant_id=tenant_id,
         user_id=user.id,
         user_name=user.name or user.email,
         role=user.role,
@@ -115,11 +119,17 @@ async def my_timeclock_today(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     today = datetime.now(timezone.utc).date().isoformat()
     start, end = _day_bounds(today)
     stmt = (
         select(Timeclock)
-        .where(Timeclock.user_id == user.id, Timeclock.created_at >= start, Timeclock.created_at < end)
+        .where(
+            Timeclock.tenant_id == tenant_id,
+            Timeclock.user_id == user.id,
+            Timeclock.created_at >= start,
+            Timeclock.created_at < end,
+        )
         .order_by(Timeclock.created_at.asc())
         .limit(50)
     )
@@ -132,11 +142,16 @@ async def timeclock_records(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     day = date or datetime.now(timezone.utc).date().isoformat()
     start, end = _day_bounds(day)
     stmt = (
         select(Timeclock)
-        .where(Timeclock.created_at >= start, Timeclock.created_at < end)
+        .where(
+            Timeclock.tenant_id == tenant_id,
+            Timeclock.created_at >= start,
+            Timeclock.created_at < end,
+        )
         .order_by(Timeclock.created_at.asc())
         .limit(500)
     )

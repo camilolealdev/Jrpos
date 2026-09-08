@@ -52,7 +52,10 @@ class PurchaseOrderOut(BaseModel):
 async def _po_out(session: AsyncSession, po: PurchaseOrder) -> PurchaseOrderOut:
     items = (
         await session.execute(
-            select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)
+            select(PurchaseOrderItem).where(
+                PurchaseOrderItem.purchase_order_id == po.id,
+                PurchaseOrderItem.tenant_id == po.tenant_id,
+            )
         )
     ).scalars().all()
     return PurchaseOrderOut(
@@ -67,6 +70,7 @@ async def create_purchase_order(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     if not payload.items:
         raise HTTPException(status_code=400, detail="Agrega al menos un ítem")
 
@@ -75,6 +79,7 @@ async def create_purchase_order(
     number = f"OC-{seq:06d}"
 
     po = PurchaseOrder(
+        tenant_id=tenant_id,
         number=number, supplier_id=payload.supplier_id, supplier_name=payload.supplier_name,
         total=total, status="enviada",
     )
@@ -83,6 +88,7 @@ async def create_purchase_order(
 
     for it in payload.items:
         session.add(PurchaseOrderItem(
+            tenant_id=tenant_id,
             purchase_order_id=po.id, name=it.name, barcode=it.barcode,
             qty=it.qty, cost=it.cost, price=it.price,
         ))
@@ -96,7 +102,8 @@ async def list_purchase_orders(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(PurchaseOrder).order_by(PurchaseOrder.created_at.desc()).limit(300)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(PurchaseOrder).where(PurchaseOrder.tenant_id == tenant_id).order_by(PurchaseOrder.created_at.desc()).limit(300)
     pos = (await session.execute(stmt)).scalars().all()
     return [await _po_out(session, po) for po in pos]
 
@@ -107,15 +114,19 @@ async def receive_purchase_order(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     po = await session.get(PurchaseOrder, oid)
-    if not po:
+    if not po or po.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="No encontrada")
     if po.status == "recibida":
         raise HTTPException(status_code=400, detail="Ya fue recibida")
 
     items = (
         await session.execute(
-            select(PurchaseOrderItem).where(PurchaseOrderItem.purchase_order_id == po.id)
+            select(PurchaseOrderItem).where(
+                PurchaseOrderItem.purchase_order_id == po.id,
+                PurchaseOrderItem.tenant_id == tenant_id,
+            )
         )
     ).scalars().all()
 
@@ -123,11 +134,11 @@ async def receive_purchase_order(
         existing = None
         if it.barcode:
             existing = (
-                await session.execute(select(Product).where(Product.barcode == it.barcode))
+                await session.execute(select(Product).where(Product.barcode == it.barcode, Product.tenant_id == tenant_id))
             ).scalar_one_or_none()
         if not existing:
             existing = (
-                await session.execute(select(Product).where(Product.name == it.name))
+                await session.execute(select(Product).where(Product.name == it.name, Product.tenant_id == tenant_id))
             ).scalar_one_or_none()
 
         if existing:
@@ -136,6 +147,7 @@ async def receive_purchase_order(
             existing.updated_at = utcnow()
         else:
             session.add(Product(
+                tenant_id=tenant_id,
                 name=it.name, barcode=it.barcode,
                 cost=float(it.cost), price=round(float(it.cost) * 1.3, 2),
                 stock=float(it.qty),

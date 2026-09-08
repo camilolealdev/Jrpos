@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db import Base
@@ -131,6 +131,11 @@ class LoginAttempt(Base):
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (
+        Index("ix_products_tenant_barcode", "tenant_id", "barcode"),
+        Index("ix_products_tenant_category", "tenant_id", "category"),
+        Index("ix_products_tenant_name", "tenant_id", "name"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -164,6 +169,10 @@ class CategoryMeta(Base):
 
 class Contact(Base):
     __tablename__ = "contacts"
+    __table_args__ = (
+        Index("ix_contacts_tenant_kind", "tenant_id", "kind"),
+        Index("ix_contacts_tenant_document", "tenant_id", "document"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -182,6 +191,11 @@ class Contact(Base):
 
 class Sale(Base):
     __tablename__ = "sales"
+    __table_args__ = (
+        Index("ix_sales_tenant_created", "tenant_id", "created_at"),
+        Index("ix_sales_tenant_customer", "tenant_id", "customer_id"),
+        Index("ix_sales_tenant_credit", "tenant_id", "is_credit"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -206,6 +220,10 @@ class Sale(Base):
 
 class SaleItem(Base):
     __tablename__ = "sale_items"
+    __table_args__ = (
+        Index("ix_sale_items_tenant_sale", "tenant_id", "sale_id"),
+        Index("ix_sale_items_tenant_product", "tenant_id", "product_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -236,6 +254,9 @@ class Payment(Base):
 
 class HeldSale(Base):
     __tablename__ = "held_sales"
+    __table_args__ = (
+        Index("ix_held_sales_tenant_created", "tenant_id", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -248,6 +269,9 @@ class HeldSale(Base):
 
 class HeldSaleItem(Base):
     __tablename__ = "held_sale_items"
+    __table_args__ = (
+        Index("ix_held_items_tenant_held", "tenant_id", "held_sale_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -262,6 +286,10 @@ class HeldSaleItem(Base):
 
 class Expense(Base):
     __tablename__ = "expenses"
+    __table_args__ = (
+        Index("ix_expenses_tenant_created", "tenant_id", "created_at"),
+        Index("ix_expenses_tenant_category", "tenant_id", "category"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -380,6 +408,10 @@ class SettingsCertificate(Base):
 
 class Timeclock(Base):
     __tablename__ = "timeclock"
+    __table_args__ = (
+        Index("ix_timeclock_tenant_created", "tenant_id", "created_at"),
+        Index("ix_timeclock_tenant_user", "tenant_id", "user_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -394,6 +426,10 @@ class Timeclock(Base):
 
 class CashSession(Base):
     __tablename__ = "cash_sessions"
+    __table_args__ = (
+        Index("ix_cash_sessions_tenant_status", "tenant_id", "status"),
+        Index("ix_cash_sessions_tenant_opened", "tenant_id", "opened_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -411,10 +447,14 @@ class CashSession(Base):
     pickups_total: Mapped[float | None] = mapped_column(Float, nullable=True)
     denominations: Mapped[str | None] = mapped_column(Text, nullable=True)
     close_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    z_report_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class CashPickup(Base):
     __tablename__ = "cash_pickups"
+    __table_args__ = (
+        Index("ix_cash_pickups_tenant_session", "tenant_id", "cash_session_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -427,6 +467,9 @@ class CashPickup(Base):
 
 class Promotion(Base):
     __tablename__ = "promotions"
+    __table_args__ = (
+        Index("ix_promotions_tenant_active", "tenant_id", "active"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -444,6 +487,7 @@ class Document(Base):
     __tablename__ = "documents"
     __table_args__ = (
         CheckConstraint("kind IN ('quotes', 'remissions', 'collection_accounts')", name="ck_documents_kind"),
+        Index("ix_documents_tenant_kind", "tenant_id", "kind"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)

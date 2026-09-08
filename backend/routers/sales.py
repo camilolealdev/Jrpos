@@ -125,6 +125,15 @@ async def create_sale(
     if is_credit and not payload.customer_id:
         raise HTTPException(status_code=400, detail="Debes seleccionar un cliente para venta a crédito (fiado)")
 
+    if payload.customer_id:
+        contact_check = (
+            await session.execute(
+                select(Contact.id).where(Contact.id == payload.customer_id, Contact.tenant_id == tenant_id)
+            )
+        ).scalar_one_or_none()
+        if not contact_check:
+            raise HTTPException(status_code=400, detail="El cliente seleccionado no pertenece a tu tienda")
+
     # Atomic sequence — avoids the race condition of the old count()+1 scheme
     seq = (await session.execute(text("SELECT nextval('sales_number_seq')"))).scalar_one()
     number = f"POS-{seq:06d}"
@@ -154,6 +163,16 @@ async def create_sale(
             )
 
     await session.commit()
+
+    # Invalidate Redis summary report cache for real-time reactivity
+    try:
+        from redis_client import get_redis
+        redis = get_redis()
+        if redis:
+            await redis.delete(f"reports:summary:{tenant_id}")
+    except Exception:
+        pass
+
     return await _sale_out(session, sale)
 
 

@@ -52,7 +52,8 @@ async def list_promotions(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Promotion).order_by(Promotion.created_at.desc()).limit(500)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Promotion).where(Promotion.tenant_id == tenant_id).order_by(Promotion.created_at.desc()).limit(500)
     rows = (await session.execute(stmt)).scalars().all()
     return [_promo_dict(p) for p in rows]
 
@@ -62,8 +63,10 @@ async def active_promotions(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     today = datetime.now(timezone.utc).date().isoformat()
     stmt = select(Promotion).where(
+        Promotion.tenant_id == tenant_id,
         Promotion.active == True,  # noqa: E712
         or_(Promotion.start.is_(None), Promotion.start == "", Promotion.start <= today),
         or_(Promotion.end.is_(None), Promotion.end == "", Promotion.end >= today),
@@ -78,9 +81,11 @@ async def create_promotion(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     if not payload.name or payload.value <= 0:
         raise HTTPException(status_code=400, detail="Nombre y valor > 0 requeridos")
     promo = Promotion(
+        tenant_id=tenant_id,
         name=payload.name,
         type=payload.type or "percent_all",
         value=float(payload.value),
@@ -102,8 +107,9 @@ async def update_promotion(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     promo = await session.get(Promotion, pid)
-    if not promo:
+    if not promo or promo.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="No encontrada")
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
@@ -119,8 +125,9 @@ async def delete_promotion(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     promo = await session.get(Promotion, pid)
-    if promo:
+    if promo and promo.tenant_id == tenant_id:
         await session.delete(promo)
         await session.commit()
     return {"ok": True}

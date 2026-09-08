@@ -41,9 +41,15 @@ async def create_commission_rule(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     if not payload.user_name:
         raise HTTPException(status_code=400, detail="Vendedor requerido")
-    rule = CommissionRule(user_name=payload.user_name, percent=float(payload.percent or 0), active=True)
+    rule = CommissionRule(
+        tenant_id=tenant_id,
+        user_name=payload.user_name,
+        percent=float(payload.percent or 0),
+        active=True,
+    )
     session.add(rule)
     await session.commit()
     await session.refresh(rule)
@@ -55,7 +61,8 @@ async def list_commission_rules(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(CommissionRule).limit(100)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(CommissionRule).where(CommissionRule.tenant_id == tenant_id).limit(100)
     res = await session.execute(stmt)
     return res.scalars().all()
 
@@ -66,8 +73,9 @@ async def delete_commission_rule(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     rule = await session.get(CommissionRule, rid)
-    if rule:
+    if rule and rule.tenant_id == tenant_id:
         await session.delete(rule)
         await session.commit()
     return {"ok": True}
@@ -78,10 +86,17 @@ async def commissions_report(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     rules = (
-        await session.execute(select(CommissionRule).where(CommissionRule.active == True))  # noqa: E712
+        await session.execute(
+            select(CommissionRule).where(CommissionRule.active == True, CommissionRule.tenant_id == tenant_id)  # noqa: E712
+        )
     ).scalars().all()
-    sales = (await session.execute(select(Sale.cashier, Sale.total))).all()
+    sales = (
+        await session.execute(
+            select(Sale.cashier, Sale.total).where(Sale.tenant_id == tenant_id)
+        )
+    ).all()
 
     # NOTE (known data-quality issue, ported as-is from the original): commissions
     # are matched against sales by the CASHIER NAME STRING (Sale.cashier), not a

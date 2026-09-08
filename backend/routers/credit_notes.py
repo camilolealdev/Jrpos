@@ -44,8 +44,9 @@ async def create_credit_note(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     sale = await session.get(Sale, payload.sale_id)
-    if not sale:
+    if not sale or sale.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
     ntype = payload.type or "credito"
@@ -68,6 +69,7 @@ async def create_credit_note(
     cufe = hashlib.sha256(f"{prefix}{sale.number}{amount}".encode()).hexdigest()
 
     note = CreditNote(
+        tenant_id=tenant_id,
         number=number, sale_id=sale.id, sale_number=sale.number, type=ntype,
         concept=payload.concept or "devolucion", amount=amount, cufe=cufe, status="simulada",
     )
@@ -75,10 +77,10 @@ async def create_credit_note(
 
     # Devolución: re-ingresar stock de los items de la venta original.
     if ntype == "credito" and payload.restock:
-        items = (await session.execute(select(SaleItem).where(SaleItem.sale_id == sale.id))).scalars().all()
+        items = (await session.execute(select(SaleItem).where(SaleItem.sale_id == sale.id, SaleItem.tenant_id == tenant_id))).scalars().all()
         for it in items:
             await session.execute(
-                update(Product).where(Product.id == it.product_id).values(stock=Product.stock + it.qty)
+                update(Product).where(Product.id == it.product_id, Product.tenant_id == tenant_id).values(stock=Product.stock + it.qty)
             )
 
     # Si la venta era a crédito, bajar el saldo pendiente.
@@ -97,5 +99,6 @@ async def list_credit_notes(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(CreditNote).order_by(CreditNote.created_at.desc()).limit(300)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(CreditNote).where(CreditNote.tenant_id == tenant_id).order_by(CreditNote.created_at.desc()).limit(300)
     return (await session.execute(stmt)).scalars().all()

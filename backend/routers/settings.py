@@ -64,7 +64,9 @@ async def get_electronic_settings(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    row = await session.get(SettingsElectronic, 1)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(SettingsElectronic).where(SettingsElectronic.tenant_id == tenant_id)
+    row = (await session.execute(stmt)).scalars().first()
     base = _electronic_defaults()
     if row:
         for key in base:
@@ -80,9 +82,11 @@ async def save_electronic_settings(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    row = await session.get(SettingsElectronic, 1)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(SettingsElectronic).where(SettingsElectronic.tenant_id == tenant_id)
+    row = (await session.execute(stmt)).scalars().first()
     if row is None:
-        row = SettingsElectronic(id=1, **payload.model_dump())
+        row = SettingsElectronic(tenant_id=tenant_id, **payload.model_dump())
         session.add(row)
     else:
         for key, value in payload.model_dump().items():
@@ -107,7 +111,9 @@ async def get_schedule(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    row = await session.get(SettingsTimeclockSchedule, 1)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(SettingsTimeclockSchedule).where(SettingsTimeclockSchedule.tenant_id == tenant_id)
+    row = (await session.execute(stmt)).scalars().first()
     base = _schedule_defaults()
     if row:
         for key in base:
@@ -123,9 +129,11 @@ async def save_schedule(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    row = await session.get(SettingsTimeclockSchedule, 1)
+    tenant_id = admin.tenant_id or "tenant-default-001"
+    stmt = select(SettingsTimeclockSchedule).where(SettingsTimeclockSchedule.tenant_id == tenant_id)
+    row = (await session.execute(stmt)).scalars().first()
     if row is None:
-        row = SettingsTimeclockSchedule(id=1, **payload.model_dump())
+        row = SettingsTimeclockSchedule(tenant_id=tenant_id, **payload.model_dump())
         session.add(row)
     else:
         for key, value in payload.model_dump().items():
@@ -185,9 +193,11 @@ async def get_general_settings(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     base = _general_defaults()
     try:
-        row = await session.get(SettingsGeneral, 1)
+        stmt = select(SettingsGeneral).where(SettingsGeneral.tenant_id == tenant_id)
+        row = (await session.execute(stmt)).scalars().first()
         if row:
             for key in base:
                 val = getattr(row, key, None)
@@ -197,7 +207,8 @@ async def get_general_settings(
         await session.rollback()
         await run_auto_migrations(session)
         try:
-            row = await session.get(SettingsGeneral, 1)
+            stmt = select(SettingsGeneral).where(SettingsGeneral.tenant_id == tenant_id)
+            row = (await session.execute(stmt)).scalars().first()
             if row:
                 for key in base:
                     val = getattr(row, key, None)
@@ -217,21 +228,25 @@ async def save_general_settings(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     if payload.printer_width not in (58, 80):
         raise HTTPException(status_code=400, detail="Ancho de impresora debe ser 58 u 80")
     
     data = payload.model_dump()
     data["iva_default"] = int(data["iva_default"])
+    data["tenant_id"] = tenant_id
     
     try:
-        row = await session.get(SettingsGeneral, 1)
+        stmt = select(SettingsGeneral).where(SettingsGeneral.tenant_id == tenant_id)
+        row = (await session.execute(stmt)).scalars().first()
     except Exception:
         await session.rollback()
         await run_auto_migrations(session)
-        row = await session.get(SettingsGeneral, 1)
+        stmt = select(SettingsGeneral).where(SettingsGeneral.tenant_id == tenant_id)
+        row = (await session.execute(stmt)).scalars().first()
 
     if row is None:
-        row = SettingsGeneral(id=1, **data)
+        row = SettingsGeneral(**data)
         session.add(row)
     else:
         for key, value in data.items():
@@ -242,9 +257,10 @@ async def save_general_settings(
     except Exception:
         await session.rollback()
         await run_auto_migrations(session)
-        row = await session.get(SettingsGeneral, 1)
+        stmt = select(SettingsGeneral).where(SettingsGeneral.tenant_id == tenant_id)
+        row = (await session.execute(stmt)).scalars().first()
         if row is None:
-            row = SettingsGeneral(id=1, **data)
+            row = SettingsGeneral(**data)
             session.add(row)
         else:
             for key, value in data.items():
@@ -350,18 +366,21 @@ async def upload_certificate(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     if not payload.filename:
         raise HTTPException(status_code=400, detail="Archivo requerido")
     cert_values = {
+        "tenant_id": tenant_id,
         "filename": payload.filename,
         "size": payload.size,
         "expires": payload.expires,
         "uploaded_by": admin.email,
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
-    row = await session.get(SettingsCertificate, 1)
+    stmt = select(SettingsCertificate).where(SettingsCertificate.tenant_id == tenant_id)
+    row = (await session.execute(stmt)).scalars().first()
     if row is None:
-        row = SettingsCertificate(id=1, **cert_values)
+        row = SettingsCertificate(**cert_values)
         session.add(row)
     else:
         for key, value in cert_values.items():
@@ -375,7 +394,9 @@ async def get_certificate(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    row = await session.get(SettingsCertificate, 1)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(SettingsCertificate).where(SettingsCertificate.tenant_id == tenant_id)
+    row = (await session.execute(stmt)).scalars().first()
     if not row:
         return {}
     return {
@@ -394,14 +415,15 @@ async def get_data_stats(
     admin: User = Depends(require_admin),
 ):
     """Retorna conteos actuales de la base de datos para auditoría previa a producción."""
-    products = (await session.execute(select(func.count(Product.id)))).scalar_one()
-    contacts = (await session.execute(select(func.count(Contact.id)))).scalar_one()
-    sales = (await session.execute(select(func.count(Sale.id)))).scalar_one()
-    payments = (await session.execute(select(func.count(Payment.id)))).scalar_one()
-    expenses = (await session.execute(select(func.count(Expense.id)))).scalar_one()
-    invoices = (await session.execute(select(func.count(PurchaseInvoice.id)))).scalar_one()
-    cash_sessions = (await session.execute(select(func.count(CashSession.id)))).scalar_one()
-    timeclock = (await session.execute(select(func.count(Timeclock.id)))).scalar_one()
+    tenant_id = admin.tenant_id or "tenant-default-001"
+    products = (await session.execute(select(func.count(Product.id)).where(Product.tenant_id == tenant_id))).scalar_one()
+    contacts = (await session.execute(select(func.count(Contact.id)).where(Contact.tenant_id == tenant_id))).scalar_one()
+    sales = (await session.execute(select(func.count(Sale.id)).where(Sale.tenant_id == tenant_id))).scalar_one()
+    payments = (await session.execute(select(func.count(Payment.id)).where(Payment.tenant_id == tenant_id))).scalar_one()
+    expenses = (await session.execute(select(func.count(Expense.id)).where(Expense.tenant_id == tenant_id))).scalar_one()
+    invoices = (await session.execute(select(func.count(PurchaseInvoice.id)).where(PurchaseInvoice.tenant_id == tenant_id))).scalar_one()
+    cash_sessions = (await session.execute(select(func.count(CashSession.id)).where(CashSession.tenant_id == tenant_id))).scalar_one()
+    timeclock = (await session.execute(select(func.count(Timeclock.id)).where(Timeclock.tenant_id == tenant_id))).scalar_one()
 
     return {
         "products": products,
@@ -433,6 +455,7 @@ async def wipe_data(
     Limpia de forma segura los datos transaccionales o la base de datos completa
     para iniciar producción real desde cero. Los usuarios y configuraciones se preservan.
     """
+    tenant_id = admin.tenant_id or "tenant-default-001"
     valid_phrases = ["BORRAR", "PRODUCCION", "PRODUCCIÓN", "RESET", "LIMPIAR"]
     if payload.confirm_phrase.strip().upper() not in valid_phrases:
         raise HTTPException(
@@ -442,7 +465,7 @@ async def wipe_data(
 
     deleted_counts: Dict[str, int] = {}
 
-    # 1. Borrar todas las transacciones operativas y registros auxiliares
+    # 1. Borrar todas las transacciones operativas y registros auxiliares del tenant
     trans_sequence = [
         ("sale_items", SaleItem),
         ("payments", Payment),
@@ -467,25 +490,26 @@ async def wipe_data(
     ]
 
     for label, model in trans_sequence:
-        res = await session.execute(delete(model))
+        res = await session.execute(delete(model).where(model.tenant_id == tenant_id))
         deleted_counts[label] = res.rowcount or 0
 
     # 2. Manejo de productos y catálogo
     if payload.scope == "full_clean_slate" or not payload.keep_products:
-        res_p = await session.execute(delete(Product))
+        res_p = await session.execute(delete(Product).where(Product.tenant_id == tenant_id))
         deleted_counts["products"] = res_p.rowcount or 0
-        res_cat = await session.execute(delete(CategoryMeta))
+        res_cat = await session.execute(delete(CategoryMeta).where(CategoryMeta.tenant_id == tenant_id))
         deleted_counts["category_meta"] = res_cat.rowcount or 0
-        res_prom = await session.execute(delete(Promotion))
+        res_prom = await session.execute(delete(Promotion).where(Promotion.tenant_id == tenant_id))
         deleted_counts["promotions"] = res_prom.rowcount or 0
 
     # 3. Manejo de contactos (clientes / proveedores)
     if payload.scope == "full_clean_slate" or not payload.keep_contacts:
-        res_c = await session.execute(delete(Contact))
+        res_c = await session.execute(delete(Contact).where(Contact.tenant_id == tenant_id))
         deleted_counts["contacts"] = res_c.rowcount or 0
         
-        # Siempre re-sembrar el Consumidor Final estándar para mostrador
+        # Siempre re-sembrar el Consumidor Final estándar para mostrador de este tenant
         final_consumer = Contact(
+            tenant_id=tenant_id,
             kind="customer",
             name="Consumidor Final",
             document="222222222222",

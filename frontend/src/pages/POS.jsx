@@ -15,12 +15,23 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, X, Package as PackageIcon, Pause, Play, Users, Camera, Scale } from "lucide-react";
 
+const getCartStorageKey = () => {
+  try {
+    const raw = localStorage.getItem("user") || sessionStorage.getItem("user");
+    const u = raw ? JSON.parse(raw) : null;
+    return `jrpos_pos_cart_${u?.tenant_id || "default"}`;
+  } catch {
+    return "jrpos_pos_cart_default";
+  }
+};
+
 export default function POS() {
   const [products, setProducts] = useState([]);
   const [q, setQ] = useState("");
   const [cart, setCart] = useState(() => {
     try {
-      const saved = sessionStorage.getItem("jrpos_pos_cart");
+      const key = getCartStorageKey();
+      const saved = sessionStorage.getItem(key);
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
@@ -48,10 +59,11 @@ export default function POS() {
 
   useEffect(() => {
     try {
+      const key = getCartStorageKey();
       if (cart.length > 0) {
-        sessionStorage.setItem("jrpos_pos_cart", JSON.stringify(cart));
+        sessionStorage.setItem(key, JSON.stringify(cart));
       } else {
-        sessionStorage.removeItem("jrpos_pos_cart");
+        sessionStorage.removeItem(key);
       }
     } catch {}
   }, [cart]);
@@ -520,6 +532,7 @@ export default function POS() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart, payOpen, camOpen, createOpen, weighOpen, searchResults]);
 
   const change = Number(received || 0) - totals.total;

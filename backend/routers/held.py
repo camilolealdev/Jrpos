@@ -53,7 +53,9 @@ class HeldSaleOut(BaseModel):
 
 async def _held_out(session: AsyncSession, h: HeldSale) -> HeldSaleOut:
     items = (
-        await session.execute(select(HeldSaleItem).where(HeldSaleItem.held_sale_id == h.id))
+        await session.execute(
+            select(HeldSaleItem).where(HeldSaleItem.held_sale_id == h.id, HeldSaleItem.tenant_id == h.tenant_id)
+        )
     ).scalars().all()
     return HeldSaleOut(
         id=h.id, label=h.label, items=items, customer_id=h.customer_id,
@@ -68,8 +70,10 @@ async def hold_sale(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     total = sum(float(it.qty) * float(it.price) for it in payload.items)
     h = HeldSale(
+        tenant_id=tenant_id,
         label=payload.label, customer_id=payload.customer_id,
         customer_name=payload.customer_name, total=round(total, 2),
     )
@@ -78,6 +82,7 @@ async def hold_sale(
 
     for it in payload.items:
         session.add(HeldSaleItem(
+            tenant_id=tenant_id,
             held_sale_id=h.id, product_id=it.product_id, name=it.name,
             barcode=it.barcode, qty=it.qty, price=it.price, tax_rate=it.tax_rate,
         ))
@@ -91,9 +96,10 @@ async def list_held(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     # Orden ascendente (más antigua primero) — igual que el original, para
     # que la primera cuenta retenida sea la primera en aparecer en la lista.
-    stmt = select(HeldSale).order_by(HeldSale.created_at.asc()).limit(100)
+    stmt = select(HeldSale).where(HeldSale.tenant_id == tenant_id).order_by(HeldSale.created_at.asc()).limit(100)
     held = (await session.execute(stmt)).scalars().all()
     return [await _held_out(session, h) for h in held]
 
@@ -104,10 +110,11 @@ async def delete_held(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     h = await session.get(HeldSale, held_id)
-    if not h:
+    if not h or h.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Cuenta no encontrada")
-    await session.execute(delete(HeldSaleItem).where(HeldSaleItem.held_sale_id == held_id))
+    await session.execute(delete(HeldSaleItem).where(HeldSaleItem.held_sale_id == held_id, HeldSaleItem.tenant_id == tenant_id))
     await session.delete(h)
     await session.commit()
     return {"ok": True}
