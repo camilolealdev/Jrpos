@@ -91,6 +91,17 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
         user = (await session.execute(select(User).where(User.id == payload["sub"]))).scalar_one_or_none()
         if not user:
             raise HTTPException(status_code=401, detail="Usuario no encontrado")
+        # Bloqueo por trial vencido (superadmin y admins de tenants activos/suscritos pasan)
+        if user.role != "superadmin_platform" and user.tenant_id:
+            tenant = (await session.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one_or_none()
+            if tenant:
+                expired = tenant.status == "trial" and tenant.trial_ends_at and tenant.trial_ends_at < utcnow()
+                suspended = tenant.status in ("suspended", "cancelled")
+                if expired or suspended:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Trial vencido o cuenta suspendida. Activa tu plan para continuar.",
+                    )
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Sesión expirada")
@@ -165,7 +176,8 @@ async def _provision_tenant(
 
     # 2. Crear Tenant con 30 días de prueba gratuita
     tenant_id = new_uuid()
-    trial_ends = utcnow() + timedelta(days=30)
+    trial_days = int(os.environ.get("TRIAL_DAYS", "365"))
+    trial_ends = utcnow() + timedelta(days=trial_days)
     tenant = Tenant(
         id=tenant_id,
         slug=slug,
@@ -438,10 +450,29 @@ async def refresh(request: Request, response: Response, session: AsyncSession = 
 
 
 async def seed_admin(session: AsyncSession) -> None:
+    # 1. Garantizar Usuario SuperAdmin Global de Plataforma SaaS
+    superadmin_email = (os.environ.get("SUPERADMIN_EMAIL") or "superadmin@jrpos.co").strip().lower()
+    superadmin_password = os.environ.get("SUPERADMIN_PASSWORD") or "superadmin123"
+
+    super_user = (await session.execute(select(User).where(User.email == superadmin_email))).scalar_one_or_none()
+    if super_user is None:
+        session.add(User(
+            id=new_uuid(),
+            tenant_id=None,
+            email=superadmin_email,
+            password_hash=hash_password(superadmin_password),
+            name="SuperAdmin Plataforma",
+            role="superadmin_platform",
+        ))
+    else:
+        super_user.role = "superadmin_platform"
+        if not verify_password(superadmin_password, super_user.password_hash):
+            super_user.password_hash = hash_password(superadmin_password)
+
+    # 2. Garantizar Tenant por defecto y Usuario Administrador de Tienda
     admin_email = (os.environ.get("ADMIN_EMAIL") or "admin@jrpos.co").strip().lower()
     admin_password = os.environ.get("ADMIN_PASSWORD") or "admin123"
 
-    # Garantizar que el tenant por defecto exista
     default_tenant_id = "tenant-default-001"
     tenant = await session.get(Tenant, default_tenant_id)
     if not tenant:
