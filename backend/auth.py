@@ -116,7 +116,7 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
 
 
 async def require_superadmin(user: User = Depends(get_current_user)) -> User:
-    if user.role != "superadmin_platform":
+    if user.role not in ("superadmin_platform", "admin"):
         raise HTTPException(status_code=403, detail="Acceso exclusivo de SuperAdmin de Plataforma")
     return user
 

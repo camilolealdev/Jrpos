@@ -4,9 +4,9 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import get_current_user, require_admin
+from auth import get_current_user, require_admin, require_superadmin
 from db import get_session
-from models_sql import PlatformPlan, Tenant, TenantSubscription, User, utcnow
+from models_sql import PlatformPlan, Tenant, TenantSubscription, TenantAuditLog, User, new_uuid, utcnow
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
@@ -90,4 +90,100 @@ async def create_checkout_session(payload: CheckoutRequest, user: User = Depends
         "reference": f"sub_{tenant_id}_{payload.plan_id}",
         "amount_cop": amount,
         "plan_name": plan.name,
+    }
+
+
+# ---------------- Pago de plataforma (QR/transferencia) y activacion ----------------
+
+class ActivateRequest(BaseModel):
+    plan_id: str
+    months: int = 1
+
+
+@router.get("/payment-info")
+async def payment_info(session: AsyncSession = Depends(get_session)):
+    """PUBLICO: info de pago de la plataforma (QR Nequi/Bancolombia, planes).
+
+    Lo consume la pantalla /paywall cuando el trial vencio (el usuario ya no
+    puede autenticar endpoints protegidos, por eso esta ruta es abierta).
+    """
+    plans = (
+        (await session.execute(select(PlatformPlan).where(PlatformPlan.active == True).order_by(PlatformPlan.price_cop)))  # noqa: E712
+        .scalars().all()
+    )
+    import os
+    return {
+        "qr_url": os.environ.get("PAYMENT_QR_URL", ""),
+        "bank_info": os.environ.get("PAYMENT_BANK_INFO", ""),
+        "whatsapp": os.environ.get("PAYMENT_WHATSAPP", ""),
+        "plans": [
+            {
+                "id": pl.id, "name": pl.name, "price_cop": pl.price_cop,
+                "description": getattr(pl, "description", "") or "",
+                "max_users": getattr(pl, "max_users", None),
+                "max_products": getattr(pl, "max_products", None),
+            }
+            for pl in plans
+        ],
+    }
+
+
+@router.post("/superadmin/tenants/{tenant_id}/activate")
+async def activate_subscription(
+    tenant_id: str,
+    payload: ActivateRequest,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_superadmin),
+):
+    """Activa/cobra un tenant: suscripcion activa por N meses + status active.
+
+    Flujo fase 1 (hasta 20 clientes): pago por QR/transferencia verificado
+    manualmente por el SuperAdmin, que ejecuta esta accion desde su panel.
+    """
+    plan = await session.get(PlatformPlan, payload.plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan no encontrado")
+    tenant = await session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+
+    # cancelar suscripciones activas previas
+    prev = (
+        await session.execute(
+            select(TenantSubscription).where(
+                TenantSubscription.tenant_id == tenant_id,
+                TenantSubscription.status == "active",
+            )
+        )
+    ).scalars().all()
+    for sub in prev:
+        sub.status = "canceled"
+
+    period = payload.months or 1
+    amount = float(plan.price_cop) * period
+    sub = TenantSubscription(
+        tenant_id=tenant_id,
+        plan_id=plan.id,
+        status="active",
+        current_period_start=utcnow(),
+        current_period_end=utcnow() + timedelta(days=30 * period),
+        amount_cop=amount,
+        payment_gateway="manual_qr",
+    )
+    session.add(sub)
+    tenant.status = "active"
+    session.add(TenantAuditLog(
+        tenant_id=tenant_id,
+        actor_user_id=admin.id,
+        action="activate_subscription",
+        detail={"plan": plan.id, "months": period, "amount_cop": amount},
+    ))
+    await session.commit()
+    return {
+        "ok": True,
+        "tenant_id": tenant_id,
+        "plan": plan.id,
+        "months": period,
+        "period_end": sub.current_period_end.isoformat(),
+        "amount_cop": amount,
     }
