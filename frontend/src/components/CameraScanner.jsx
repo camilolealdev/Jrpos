@@ -185,22 +185,25 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       }
 
       try {
-        // Enlistar todas las cámaras disponibles en PC / Móvil
+        // Enlistar cámaras disponibles para el selector manual (útil en PC con varios webcams)
         const devices = await Html5Qrcode.getCameras().catch(() => []);
         if (cancelled) return;
+        if (devices && devices.length > 0) setCameras(devices);
 
-        if (devices && devices.length > 0) {
-          setCameras(devices);
-          // Preferir cámara trasera en móviles si existe, o la primera encontrada en PC
+        // Arrancar por facingMode en vez de por label: en la mayoría de navegadores
+        // móviles el label del dispositivo llega vacío hasta que ya se dio permiso de
+        // cámara antes, así que buscar "back/trasera/rear/environment" en el label
+        // casi siempre falla y termina usando devices[0] (la frontal en muchos Android).
+        // facingMode deja que el navegador resuelva la cámara trasera de forma nativa.
+        await startWithCamera({ facingMode: { ideal: "environment" } });
+
+        if (!cancelled && devices && devices.length > 0) {
+          // Solo para reflejar la selección en el dropdown manual (labels ya disponibles
+          // tras conceder el permiso arriba)
           const backCam = devices.find((d) =>
             /back|trasera|rear|environment/i.test(d.label || "")
           );
-          const defaultId = backCam ? backCam.id : devices[0].id;
-          setSelectedCamId(defaultId);
-          startWithCamera(defaultId);
-        } else {
-          // Fallback a facingMode ideal para móviles con drivers restrictivos
-          startWithCamera({ facingMode: { ideal: "environment" } });
+          setSelectedCamId(backCam ? backCam.id : devices[0].id);
         }
       } catch (e) {
         if (!cancelled) {
