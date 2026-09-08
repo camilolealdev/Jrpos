@@ -7,6 +7,10 @@ reconstruir la lista completa de skills disponibles y entender el sistema multi-
 
 | Archivo | Propósito |
 |---------|-----------|
+| `docs/MASTER_PLAN_UNIFICADO_MULTIAGENTE.md` | **Plan Maestro Unificado de Ejecución Multi-Agente (Fuente de Verdad)** |
+| `docs/PLAN_ARQUITECTURA_SAAS_MULTITENANT_Y_ROLES.md` | Arquitectura técnica SaaS Multi-Tenant y estructura DDL |
+| `docs/PROPUESTA-NEURO-VENTAS.md` | Estrategia de crecimiento, neuro-ventas y onboarding |
+| `docs/MODULOS_PENDIENTES.md` | Matriz de estado de los 28 módulos funcionales |
 | `UNIFIED-KNOWLEDGE.md` | Taxonomía multi-conocimiento unificada con todas las skills |
 | `skills-inventory.md` | Inventario por repositorio de origen |
 
