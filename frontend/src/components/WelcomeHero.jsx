@@ -132,8 +132,7 @@ const highlights = [
   "Roles de Administrador y Cajero: cada quien ve solo lo suyo",
 ];
 
-// TODO: reemplazar por el número real de ventas antes de publicar
-const DEMO_WHATSAPP = "573000000000";
+const DEMO_WHATSAPP = "573505954438";
 
 const BEFORE_AFTER = [
   ["Comprar computadores y pistolas láser caras", "Usa tu celular o tablet actual ($0 en equipos)"],
