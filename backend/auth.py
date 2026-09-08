@@ -116,7 +116,9 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
 
 
 async def require_superadmin(user: User = Depends(get_current_user)) -> User:
-    if user.role not in ("superadmin_platform", "admin"):
+    # Solo el superadmin de plataforma. Un admin de tienda NUNCA debe ver
+    # datos de otras tiendas (aislamiento multi-tenant).
+    if user.role != "superadmin_platform":
         raise HTTPException(status_code=403, detail="Acceso exclusivo de SuperAdmin de Plataforma")
     return user
 
@@ -274,7 +276,12 @@ async def _tenant_info_for(session: AsyncSession, user: User) -> dict | None:
     tenant = await session.get(Tenant, user.tenant_id)
     if not tenant:
         return None
-    days_left = max(0, (tenant.trial_ends_at - utcnow()).days) if tenant.trial_ends_at else 0
+    trial_end = tenant.trial_ends_at
+    if trial_end and trial_end.tzinfo is None:
+        # SQLite (y algunos drivers) devuelven datetimes naive; trátalos como UTC
+        # para evitar TypeError al restar contra utcnow() (aware).
+        trial_end = trial_end.replace(tzinfo=timezone.utc)
+    days_left = max(0, (trial_end - utcnow()).days) if trial_end else 0
     return {
         "id": tenant.id,
         "name": tenant.business_name,

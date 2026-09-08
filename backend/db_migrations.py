@@ -229,6 +229,16 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     INSERT INTO settings_general (id, tenant_id, store_name, ticket_footer, iva_default, printer_width, accent)
     VALUES (1, 'tenant-default-001', 'JRPOS', '¡Gracias por su compra!', 19, 58, 'emerald')
     ON CONFLICT (id) DO NOTHING;
+
+    -- 7. Secuencias de numeración de documentos (routers usan nextval)
+    --    create_all() solo crea tablas; las secuencias deben crearse aparte.
+    CREATE SEQUENCE IF NOT EXISTS sales_number_seq;
+    CREATE SEQUENCE IF NOT EXISTS documents_number_seq;
+    CREATE SEQUENCE IF NOT EXISTS warranties_number_seq;
+    CREATE SEQUENCE IF NOT EXISTS credit_notes_number_seq;
+    CREATE SEQUENCE IF NOT EXISTS purchase_orders_number_seq;
+    CREATE SEQUENCE IF NOT EXISTS payroll_number_seq;
+    CREATE SEQUENCE IF NOT EXISTS support_docs_number_seq;
     """
 
     try:
