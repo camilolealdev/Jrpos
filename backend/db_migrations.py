@@ -3,6 +3,9 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from db import Base
+import models_sql  # noqa: F401  (registers every table on Base.metadata)
+
 logger = logging.getLogger("jrpos.migrations")
 
 
@@ -11,6 +14,17 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     Ejecuta migraciones automáticas e idempotentes para garantizar que todas las
     tablas y columnas multi-tenant SaaS existan en PostgreSQL o SQLite sin romper producción.
     """
+    # Crea cualquier tabla que falte (held_sales, promotions, etc.) a partir de
+    # los modelos ORM actuales. Es idempotente: create_all() solo crea las
+    # tablas que no existen, nunca toca las que ya están (por eso las
+    # columnas nuevas en tablas ya existentes siguen necesitando su propio
+    # ALTER TABLE más abajo — create_all no altera tablas existentes).
+    await session.run_sync(lambda sync_session: Base.metadata.create_all(sync_session.connection()))
+    # Commit ya: si no, un rollback más adelante (el batch_script de abajo
+    # falla y se revierte a propósito, ver except debajo) deshace también
+    # estas tablas recién creadas, porque comparten la misma transacción.
+    await session.commit()
+
     trial_expiry = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
 
     batch_script = f"""
@@ -85,6 +99,8 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     -- 2. Añadir columna tenant_id a tablas operativas
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS margin_percent FLOAT;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_package FLOAT NOT NULL DEFAULT 1.0;
     ALTER TABLE category_meta ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
