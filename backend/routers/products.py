@@ -20,6 +20,7 @@ class ProductOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    tenant_id: Optional[str] = None
     name: str
     barcode: Optional[str] = None
     sku: Optional[str] = None
@@ -112,7 +113,8 @@ async def list_products(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Product)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Product).where(Product.tenant_id == tenant_id)
     cat_list = [c.strip() for c in categories.split(",")] if categories else []
     cat_list = [c for c in cat_list if c and c != "all"]
     if cat_list:
@@ -139,7 +141,8 @@ async def get_by_barcode(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Product).where(Product.barcode == barcode.strip())
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Product).where(Product.barcode == barcode.strip(), Product.tenant_id == tenant_id)
     product = (await session.execute(stmt)).scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -244,7 +247,9 @@ async def get_product(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    product = await session.get(Product, product_id)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Product).where(Product.id == product_id, Product.tenant_id == tenant_id)
+    product = (await session.execute(stmt)).scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return product
@@ -256,15 +261,14 @@ async def create_product(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    # El precio que llega en el payload siempre gana (el usuario lo pudo digitar a mano en el
-    # formulario, aunque haya usado la calculadora de utilidad primero) — el % solo se usa si
-    # no hay un precio explícito.
+    tenant_id = user.tenant_id or "tenant-default-001"
     unit_cost, unit_price = compute_unit_pricing(
         payload.package_cost, payload.units_per_package, payload.margin_percent,
         fallback_cost=float(payload.cost or 0.0), fallback_price=float(payload.price or 0.0),
         explicit_price=float(payload.price) if payload.price else None,
     )
     product = Product(
+        tenant_id=tenant_id,
         name=payload.name.strip(),
         barcode=payload.barcode.strip() if payload.barcode else None,
         sku=payload.sku.strip() if payload.sku else None,
@@ -293,7 +297,9 @@ async def update_product(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    product = await session.get(Product, product_id)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Product).where(Product.id == product_id, Product.tenant_id == tenant_id)
+    product = (await session.execute(stmt)).scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
@@ -301,8 +307,6 @@ async def update_product(
     package_cost = data.pop("package_cost", None)
     units_per_package = data.pop("units_per_package", None)
     margin_percent = data.pop("margin_percent", None)
-    # ¿El request trajo un precio explícito? (el formulario siempre lo manda, calculado o
-    # digitado a mano) — si sí, gana sobre el % de utilidad, igual que en create_product.
     price_sent = data.get("price")
 
     for key, value in data.items():
@@ -334,7 +338,9 @@ async def delete_product(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    product = await session.get(Product, product_id)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Product).where(Product.id == product_id, Product.tenant_id == tenant_id)
+    product = (await session.execute(stmt)).scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     await session.delete(product)
@@ -348,13 +354,15 @@ async def list_categories(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    # Group products by category
+    tenant_id = user.tenant_id or "tenant-default-001"
+    # Group products by category scoped by tenant
     stmt = (
         select(
             Product.category,
             func.count(Product.id).label("count"),
             func.coalesce(func.sum(Product.stock), 0.0).label("stock"),
         )
+        .where(Product.tenant_id == tenant_id)
         .group_by(Product.category)
     )
     res = (await session.execute(stmt)).all()
@@ -414,15 +422,16 @@ async def bulk_load_products(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     created = 0
     updated = 0
     for it in items:
         existing = None
         if it.barcode:
-            stmt = select(Product).where(Product.barcode == it.barcode.strip())
+            stmt = select(Product).where(Product.barcode == it.barcode.strip(), Product.tenant_id == tenant_id)
             existing = (await session.execute(stmt)).scalar_one_or_none()
         if not existing:
-            stmt = select(Product).where(Product.name == it.name.strip())
+            stmt = select(Product).where(Product.name == it.name.strip(), Product.tenant_id == tenant_id)
             existing = (await session.execute(stmt)).scalar_one_or_none()
 
         unit_cost, unit_price = compute_unit_pricing(
@@ -444,6 +453,7 @@ async def bulk_load_products(
             updated += 1
         else:
             new_p = Product(
+                tenant_id=tenant_id,
                 name=it.name.strip(),
                 barcode=it.barcode.strip() if it.barcode else None,
                 sku=it.sku.strip() if it.sku else None,
@@ -471,7 +481,8 @@ async def bulk_update_products(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    stmt = select(Product)
+    tenant_id = admin.tenant_id or "tenant-default-001"
+    stmt = select(Product).where(Product.tenant_id == tenant_id)
     if payload.category and payload.category not in ("all", "Todos"):
         stmt = stmt.where(Product.category == payload.category)
     products = (await session.execute(stmt)).scalars().all()
@@ -544,8 +555,9 @@ async def seed_data(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
+    tenant_id = admin.tenant_id or "tenant-default-001"
     force_mode = force or (payload.force if payload else False)
-    existing_count = (await session.execute(select(func.count(Product.id)))).scalar_one()
+    existing_count = (await session.execute(select(func.count(Product.id)).where(Product.tenant_id == tenant_id))).scalar_one()
 
     # Si ya existen productos y no es forzado, informar
     if existing_count > 0 and not force_mode:
@@ -556,22 +568,26 @@ async def seed_data(
             "existing_products": existing_count,
         }
 
-    # Cargar / reponer productos demo sin duplicar barcodes
-    existing_barcodes = set((await session.execute(select(Product.barcode).where(Product.barcode.isnot(None)))).scalars().all())
-    existing_names = set((await session.execute(select(Product.name))).scalars().all())
+    # Cargar / reponer productos demo sin duplicar barcodes para este tenant
+    existing_barcodes = set((await session.execute(select(Product.barcode).where(Product.barcode.isnot(None), Product.tenant_id == tenant_id))).scalars().all())
+    existing_names = set((await session.execute(select(Product.name).where(Product.tenant_id == tenant_id))).scalars().all())
     
     products_added = 0
     for p in _SEED_PRODUCTS:
         if p.get("barcode") not in existing_barcodes and p.get("name") not in existing_names:
-            session.add(Product(**p))
+            p_dict = dict(p)
+            p_dict["tenant_id"] = tenant_id
+            session.add(Product(**p_dict))
             products_added += 1
 
-    # Cargar contactos demo sin duplicar documentos
-    existing_docs = set((await session.execute(select(Contact.document).where(Contact.document.isnot(None)))).scalars().all())
+    # Cargar contactos demo sin duplicar documentos para este tenant
+    existing_docs = set((await session.execute(select(Contact.document).where(Contact.document.isnot(None), Contact.tenant_id == tenant_id))).scalars().all())
     contacts_added = 0
     for c in _SEED_CONTACTS:
         if c.get("document") not in existing_docs:
-            session.add(Contact(**c))
+            c_dict = dict(c)
+            c_dict["tenant_id"] = tenant_id
+            session.add(Contact(**c_dict))
             contacts_added += 1
 
     # Cargar categorías con emojis
@@ -582,8 +598,8 @@ async def seed_data(
 
     await session.commit()
 
-    total_products = (await session.execute(select(func.count(Product.id)))).scalar_one()
-    total_contacts = (await session.execute(select(func.count(Contact.id)))).scalar_one()
+    total_products = (await session.execute(select(func.count(Product.id)).where(Product.tenant_id == tenant_id))).scalar_one()
+    total_contacts = (await session.execute(select(func.count(Contact.id)).where(Contact.tenant_id == tenant_id))).scalar_one()
 
     return {
         "ok": True,
@@ -594,3 +610,4 @@ async def seed_data(
         "total_contacts": total_contacts,
         "message": f"Datos demo listos: +{products_added} productos y +{contacts_added} contactos incorporados.",
     }
+

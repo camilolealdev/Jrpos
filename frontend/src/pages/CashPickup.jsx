@@ -136,7 +136,20 @@ export default function CashPickup() {
     window.print();
   };
 
-  const s = current?.session;
+  const [zReportData, setZReportData] = useState(null);
+  const [loadingZReport, setLoadingZReport] = useState(false);
+
+  const viewZReport = async (sessionId) => {
+    setLoadingZReport(true);
+    try {
+      const { data } = await api.get(`/cash/session/${sessionId}/z-report`);
+      setZReportData(data);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Error obteniendo Reporte Z");
+    } finally {
+      setLoadingZReport(false);
+    }
+  };
 
   return (
     <div className="p-4 lg:p-6 space-y-4 max-w-4xl" data-testid="cash-page">
@@ -346,7 +359,7 @@ export default function CashPickup() {
                     <div className="space-y-1 pt-1">
                       <div className="flex justify-between"><span>Base inicial:</span><span className="font-mono">{formatCOP(closeResult.base)}</span></div>
                       <div className="flex justify-between"><span>Ventas efectivo ({closeResult.sales_count || 0}):</span><span className="font-mono">{formatCOP(closeResult.sales_total)}</span></div>
-                      <div className="flex justify-between"><span>Recogidas ({closeResult.pickups_count || 0}):</span><span className="font-mono text-orange-700">-{formatCOP(closeResult.pickups_total)}</span></div>
+                      <div className="flex justify-between"><span>Recogidas ({closeResult.pickups?.length || 0}):</span><span className="font-mono text-orange-700">-{formatCOP(closeResult.pickups_total || 0)}</span></div>
                       <div className="flex justify-between border-t pt-1 font-semibold"><span>Total Esperado:</span><span className="font-mono">{formatCOP(closeResult.expected)}</span></div>
                       <div className="flex justify-between font-semibold"><span>Total Físico Contado:</span><span className="font-mono">{formatCOP(closeResult.counted)}</span></div>
                       
@@ -379,6 +392,113 @@ export default function CashPickup() {
         </>
       )}
 
+      {/* Modal Reporte Z Detallado */}
+      <Dialog open={!!zReportData} onOpenChange={(v) => !v && setZReportData(null)}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto" data-testid="z-report-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-emerald-700" />
+                <span>Reporte Z / Arqueo Fiscal Detallado</span>
+              </span>
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300">
+                Turno Cerrado
+              </Badge>
+            </DialogTitle>
+            <DialogDescription>
+              Comprobante de auditoría fiscal, ventas por canal de pago y conciliación de flujo de efectivo.
+            </DialogDescription>
+          </DialogHeader>
+          {zReportData && (
+            <div className="space-y-3 receipt p-4 rounded text-xs border bg-slate-50">
+              <div className="text-center border-b pb-2">
+                <div className="font-bold text-sm uppercase">{storeSettings?.store_name || "Mi Tienda"}</div>
+                {storeSettings?.store_nit && <div>NIT: {storeSettings.store_nit}</div>}
+                <div className="text-[10px] text-slate-500 mt-1 font-bold uppercase tracking-wider">REPORTE Z — CIERRE DE TURNO</div>
+                <div className="text-[10px] text-slate-500">Cajero: {zReportData.cashier}</div>
+                <div className="text-[10px] text-slate-500">
+                  Apertura: {new Date(zReportData.opened_at).toLocaleString("es-CO")}
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  Cierre: {zReportData.closed_at ? new Date(zReportData.closed_at).toLocaleString("es-CO") : "En curso"}
+                </div>
+              </div>
+
+              {/* Ventas por Método de Pago */}
+              <div>
+                <div className="font-bold text-slate-800 mb-1 uppercase tracking-wide text-[11px] border-b pb-0.5">
+                  1. Ventas por Medio de Pago
+                </div>
+                <div className="space-y-1">
+                  {Object.entries(zReportData.by_payment_method || {}).map(([method, info]) => (
+                    <div key={method} className="flex justify-between items-center capitalize">
+                      <span>{method} ({info.count} ventas):</span>
+                      <span className="font-mono font-semibold">{formatCOP(info.total)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center font-bold border-t pt-1 mt-1 text-slate-900">
+                  <span>Total Ventas Netas:</span>
+                  <span className="font-mono text-emerald-700">{formatCOP(zReportData.totals?.net_sales || 0)}</span>
+                </div>
+              </div>
+
+              {/* Impuestos y Descuentos */}
+              <div className="border-t pt-2">
+                <div className="font-bold text-slate-800 mb-1 uppercase tracking-wide text-[11px] border-b pb-0.5">
+                  2. Discriminación Fiscal
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between"><span>Ventas Brutas:</span><span className="font-mono">{formatCOP(zReportData.totals?.gross_sales || 0)}</span></div>
+                  <div className="flex justify-between"><span>IVA Recaudado:</span><span className="font-mono">{formatCOP(zReportData.totals?.tax_collected || 0)}</span></div>
+                  <div className="flex justify-between"><span>Descuentos / Promos:</span><span className="font-mono text-amber-700">-{formatCOP(zReportData.totals?.discounts || 0)}</span></div>
+                </div>
+              </div>
+
+              {/* Flujo de Efectivo en Caja */}
+              <div className="border-t pt-2">
+                <div className="font-bold text-slate-800 mb-1 uppercase tracking-wide text-[11px] border-b pb-0.5">
+                  3. Cuadre de Efectivo Físico
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between"><span>Base Inicial (+):</span><span className="font-mono">{formatCOP(zReportData.cash_flow?.base || 0)}</span></div>
+                  <div className="flex justify-between"><span>Ventas Efectivo (+):</span><span className="font-mono">{formatCOP(zReportData.cash_flow?.cash_sales || 0)}</span></div>
+                  <div className="flex justify-between"><span>Recogidas / Retiros (-):</span><span className="font-mono text-orange-700">-{formatCOP(zReportData.cash_flow?.pickups_total || 0)}</span></div>
+                  <div className="flex justify-between font-semibold border-t pt-1">
+                    <span>Saldo Esperado en Caja:</span>
+                    <span className="font-mono">{formatCOP(zReportData.cash_flow?.expected_cash || 0)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold">
+                    <span>Efectivo Físico Contado:</span>
+                    <span className="font-mono">{formatCOP(zReportData.cash_flow?.counted_cash || 0)}</span>
+                  </div>
+                  <div className={`flex justify-between font-bold border-t pt-1.5 text-sm ${zReportData.cash_flow?.diff === 0 ? "text-emerald-700" : zReportData.cash_flow?.diff > 0 ? "text-blue-700" : "text-red-600"}`}>
+                    <span>Diferencia ({zReportData.cash_flow?.diff_label}):</span>
+                    <span className="font-mono">
+                      {zReportData.cash_flow?.diff === 0 ? "$0 (Exacto)" : `${zReportData.cash_flow?.diff > 0 ? "+" : ""}${formatCOP(zReportData.cash_flow?.diff)}`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {zReportData.close_notes && (
+                <div className="border-t pt-2 text-[11px] text-slate-600">
+                  <span className="font-semibold">Observaciones: </span>{zReportData.close_notes}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="w-4 h-4 mr-1.5" /> Imprimir Reporte Z
+            </Button>
+            <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={() => setZReportData(null)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader><CardTitle className="text-lg flex items-center gap-2"><History className="w-5 h-5" /> Historial de cierres</CardTitle></CardHeader>
         <CardContent className="p-0">
@@ -387,10 +507,11 @@ export default function CashPickup() {
               <thead className="bg-slate-50 border-b"><tr className="text-left">
                 <th className="p-3">Fecha</th><th className="p-3">Cajero</th><th className="p-3 text-right">Esperado</th>
                 <th className="p-3 text-right">Contado</th><th className="p-3 text-right">Diferencia</th>
+                <th className="p-3 text-center">Acciones</th>
               </tr></thead>
               <tbody>
                 {safeHistory.length === 0 ? (
-                  <tr><td colSpan={5} className="p-6 text-center text-slate-400">Sin cierres aún.</td></tr>
+                  <tr><td colSpan={6} className="p-6 text-center text-slate-400">Sin cierres aún.</td></tr>
                 ) : safeHistory.map((h) => (
                   <tr key={h.id} className="border-b hover:bg-slate-50">
                     <td className="p-3">{formatDate(h.closed_at)}</td>
@@ -402,6 +523,19 @@ export default function CashPickup() {
                         {h.diff === 0 ? "Cuadrada" : `${h.diff > 0 ? "+" : ""}${formatCOP(h.diff)}`}
                       </Badge>
                     </td>
+                    <td className="p-3 text-center">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs font-medium border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                        onClick={() => viewZReport(h.id)}
+                        disabled={loadingZReport}
+                        data-testid={`view-z-report-${h.id}`}
+                      >
+                        <Printer className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                        <span>Reporte Z</span>
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -412,3 +546,4 @@ export default function CashPickup() {
     </div>
   );
 }
+

@@ -46,6 +46,7 @@ class SaleCreate(BaseModel):
 class SaleOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    tenant_id: Optional[str] = None
     number: str
     items: List[SaleItemOut]
     subtotal: float
@@ -73,6 +74,7 @@ class PaymentCreate(BaseModel):
 class PaymentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    tenant_id: Optional[str] = None
     sale_id: str
     sale_number: Optional[str] = None
     customer_id: Optional[str] = None
@@ -86,7 +88,7 @@ class PaymentOut(BaseModel):
 async def _sale_out(session: AsyncSession, sale: Sale) -> SaleOut:
     items = (await session.execute(select(SaleItem).where(SaleItem.sale_id == sale.id))).scalars().all()
     return SaleOut(
-        id=sale.id, number=sale.number, items=items, subtotal=sale.subtotal, tax_total=sale.tax_total,
+        id=sale.id, tenant_id=sale.tenant_id, number=sale.number, items=items, subtotal=sale.subtotal, tax_total=sale.tax_total,
         discount=sale.discount, total=sale.total, payment_method=sale.payment_method,
         customer_id=sale.customer_id, customer_name=sale.customer_name, cashier=sale.cashier,
         notes=sale.notes, is_credit=sale.is_credit, balance_due=sale.balance_due,
@@ -100,6 +102,7 @@ async def create_sale(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     # Recalculate totals server-side for integrity
     items: List[SaleItem] = []
     subtotal = 0.0
@@ -108,6 +111,7 @@ async def create_sale(
         line_sub = round(it.qty * it.price, 2)
         line_tax = round(line_sub * (it.tax_rate / 100.0) / (1 + it.tax_rate / 100.0), 2) if it.tax_rate else 0.0
         items.append(SaleItem(
+            tenant_id=tenant_id,
             sale_id="",  # set after sale.id is known
             product_id=it.product_id, name=it.name, barcode=it.barcode,
             qty=it.qty, price=it.price, tax_rate=it.tax_rate, subtotal=line_sub,
@@ -126,6 +130,7 @@ async def create_sale(
     number = f"POS-{seq:06d}"
 
     sale = Sale(
+        tenant_id=tenant_id,
         number=number, subtotal=round(subtotal, 2), tax_total=round(tax_total, 2),
         discount=round(discount, 2), total=total, payment_method=payload.payment_method,
         customer_id=payload.customer_id, customer_name=payload.customer_name,
@@ -141,10 +146,11 @@ async def create_sale(
 
     # Decrease stock in the SAME transaction as the sale (servicios no descuentan inventario)
     for it in items:
-        product = await session.get(Product, it.product_id)
+        p_stmt = select(Product).where(Product.id == it.product_id, Product.tenant_id == tenant_id)
+        product = (await session.execute(p_stmt)).scalar_one_or_none()
         if product and not product.is_service:
             await session.execute(
-                update(Product).where(Product.id == it.product_id).values(stock=Product.stock - it.qty)
+                update(Product).where(Product.id == it.product_id, Product.tenant_id == tenant_id).values(stock=Product.stock - it.qty)
             )
 
     await session.commit()
@@ -157,7 +163,8 @@ async def list_sales(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Sale).order_by(Sale.created_at.desc()).limit(limit)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Sale).where(Sale.tenant_id == tenant_id).order_by(Sale.created_at.desc()).limit(limit)
     sales = (await session.execute(stmt)).scalars().all()
     return [await _sale_out(session, s) for s in sales]
 
@@ -168,7 +175,9 @@ async def get_sale(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    sale = await session.get(Sale, sale_id)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
+    sale = (await session.execute(stmt)).scalar_one_or_none()
     if not sale:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     return await _sale_out(session, sale)
@@ -196,7 +205,9 @@ async def register_payment(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    sale = await session.get(Sale, payload.sale_id)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Sale).where(Sale.id == payload.sale_id, Sale.tenant_id == tenant_id)
+    sale = (await session.execute(stmt)).scalar_one_or_none()
     if not sale:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
     if not sale.is_credit:
@@ -213,6 +224,7 @@ async def register_payment(
     sale.credit_status = "paid" if new_balance <= 0.009 else "partial"
 
     pay = Payment(
+        tenant_id=tenant_id,
         sale_id=payload.sale_id, sale_number=sale.number, customer_id=sale.customer_id,
         customer_name=sale.customer_name, amount=round(amount, 2), method=payload.method, notes=payload.notes,
     )
@@ -227,7 +239,8 @@ async def credits_summary(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Sale).where(Sale.is_credit == True, Sale.credit_status.in_(["pending", "partial"]))  # noqa: E712
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Sale).where(Sale.tenant_id == tenant_id, Sale.is_credit == True, Sale.credit_status.in_(["pending", "partial"]))  # noqa: E712
     sales = (await session.execute(stmt)).scalars().all()
     by_customer: dict = {}
     for s in sales:
@@ -251,10 +264,13 @@ async def credit_statement(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    contact = await session.get(Contact, customer_id)
-    sales_stmt = select(Sale).where(Sale.customer_id == customer_id, Sale.is_credit == True).order_by(Sale.created_at.desc())  # noqa: E712
+    tenant_id = user.tenant_id or "tenant-default-001"
+    contact_stmt = select(Contact).where(Contact.id == customer_id, Contact.tenant_id == tenant_id)
+    contact = (await session.execute(contact_stmt)).scalar_one_or_none()
+
+    sales_stmt = select(Sale).where(Sale.tenant_id == tenant_id, Sale.customer_id == customer_id, Sale.is_credit == True).order_by(Sale.created_at.desc())  # noqa: E712
     sales = (await session.execute(sales_stmt)).scalars().all()
-    payments_stmt = select(Payment).where(Payment.customer_id == customer_id).order_by(Payment.created_at.desc())
+    payments_stmt = select(Payment).where(Payment.tenant_id == tenant_id, Payment.customer_id == customer_id).order_by(Payment.created_at.desc())
     payments = (await session.execute(payments_stmt)).scalars().all()
     total_credit = sum(float(s.total) for s in sales)
     total_paid = sum(float(p.amount) for p in payments)
@@ -275,9 +291,11 @@ async def pending_credit_sales(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Sale).where(Sale.is_credit == True, Sale.credit_status.in_(["pending", "partial"]))  # noqa: E712
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Sale).where(Sale.tenant_id == tenant_id, Sale.is_credit == True, Sale.credit_status.in_(["pending", "partial"]))  # noqa: E712
     if customer_id:
         stmt = stmt.where(Sale.customer_id == customer_id)
     stmt = stmt.order_by(Sale.created_at.desc())
     sales = (await session.execute(stmt)).scalars().all()
     return [await _sale_out(session, s) for s in sales]
+

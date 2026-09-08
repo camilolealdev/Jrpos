@@ -16,6 +16,7 @@ class ContactOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    tenant_id: Optional[str] = None
     kind: str
     name: str
     document: Optional[str] = None
@@ -47,7 +48,8 @@ async def create_contact(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    contact = Contact(**payload.model_dump())
+    tenant_id = user.tenant_id or "tenant-default-001"
+    contact = Contact(tenant_id=tenant_id, **payload.model_dump())
     session.add(contact)
     await session.commit()
     await session.refresh(contact)
@@ -60,7 +62,8 @@ async def list_contacts(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Contact)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Contact).where(Contact.tenant_id == tenant_id)
     if kind:
         stmt = stmt.where(Contact.kind == kind)
     stmt = stmt.limit(1000)
@@ -75,7 +78,9 @@ async def update_contact(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    contact = await session.get(Contact, contact_id)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Contact).where(Contact.id == contact_id, Contact.tenant_id == tenant_id)
+    contact = (await session.execute(stmt)).scalar_one_or_none()
     if not contact:
         raise HTTPException(status_code=404, detail="Contacto no encontrado")
     for key, value in payload.model_dump().items():
@@ -91,9 +96,12 @@ async def delete_contact(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    contact = await session.get(Contact, contact_id)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Contact).where(Contact.id == contact_id, Contact.tenant_id == tenant_id)
+    contact = (await session.execute(stmt)).scalar_one_or_none()
     if not contact:
         raise HTTPException(status_code=404, detail="Contacto no encontrado")
     await session.delete(contact)
     await session.commit()
     return {"ok": True}
+

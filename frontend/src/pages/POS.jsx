@@ -190,12 +190,30 @@ export default function POS() {
     } catch { /* Audio not allowed before user interaction */ }
   };
 
-  const addToCart = (p) => {
+  const addToCart = (p, isPackage = false) => {
     playScannerBeep();
+    const isPack = Boolean(isPackage && p.units_per_package && p.units_per_package > 1);
+    const cartItemId = isPack ? `${p.id}_pack` : p.id;
+    const itemName = isPack ? `${p.name} (Pack x${p.units_per_package})` : p.name;
+    const itemPrice = isPack ? Math.round(p.price * p.units_per_package) : p.price;
+
     setCart((prev) => {
-      const found = prev.find((x) => x.product_id === p.id);
-      if (found) return prev.map((x) => x.product_id === p.id ? { ...x, qty: x.qty + 1 } : x);
-      return [...prev, { product_id: p.id, name: p.name, barcode: p.barcode, qty: 1, price: p.price, tax_rate: p.tax_rate }];
+      const found = prev.find((x) => x.product_id === cartItemId);
+      if (found) return prev.map((x) => x.product_id === cartItemId ? { ...x, qty: x.qty + 1 } : x);
+      return [
+        ...prev,
+        {
+          product_id: cartItemId,
+          base_product_id: p.id,
+          name: itemName,
+          barcode: p.barcode,
+          qty: 1,
+          price: itemPrice,
+          tax_rate: p.tax_rate,
+          is_package: isPack,
+          units_per_package: isPack ? p.units_per_package : 1,
+        }
+      ];
     });
   };
 
@@ -374,7 +392,15 @@ export default function POS() {
   const checkout = async () => {
     if (cart.length === 0) return;
     if (payment === "credito" && !customerId) return toast.error("Selecciona un cliente para venta a crédito");
-    const items = cart.map((c) => ({ ...c, subtotal: c.qty * c.price }));
+    const items = cart.map((c) => ({
+      product_id: c.base_product_id || c.product_id,
+      name: c.name,
+      barcode: c.barcode,
+      qty: c.is_package ? c.qty * (c.units_per_package || 1) : c.qty,
+      price: c.is_package ? c.price / (c.units_per_package || 1) : c.price,
+      tax_rate: c.tax_rate || 0,
+      subtotal: c.qty * c.price,
+    }));
     const customer = customers.find((x) => x.id === customerId);
     const salePayload = {
       items,
@@ -797,24 +823,46 @@ export default function POS() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pr-2">
               {products.map((p) => (
-                <button
+                <div
                   key={p.id}
                   onClick={() => addToCart(p)}
-                  className="text-left group border border-slate-200 rounded-lg bg-white hover:border-emerald-500 hover:shadow-md transition-all p-3 touch-btn"
+                  className="text-left group border border-slate-200 rounded-lg bg-white hover:border-emerald-500 hover:shadow-md transition-all p-3 touch-btn cursor-pointer flex flex-col justify-between relative"
                   data-testid={`pos-product-${p.id}`}
                 >
-                  <div className="text-[11px] uppercase font-semibold tracking-wider text-emerald-700 flex items-center gap-1">
-                    <span>{(normCategories.find((c) => c.name === p.category)?.emoji) || categoryIcon(p.category)}</span>
-                    <span className="truncate">{p.category}</span>
+                  <div>
+                    <div className="text-[11px] uppercase font-semibold tracking-wider text-emerald-700 flex items-center gap-1">
+                      <span>{(normCategories.find((c) => c.name === p.category)?.emoji) || categoryIcon(p.category)}</span>
+                      <span className="truncate">{p.category}</span>
+                    </div>
+                    <div className="text-sm font-semibold leading-tight mt-1 line-clamp-2 h-10">{p.name}</div>
                   </div>
-                  <div className="text-sm font-semibold leading-tight mt-1 line-clamp-2 h-10">{p.name}</div>
-                  <div className="flex items-end justify-between mt-2">
-                    <div className="font-mono font-bold text-lg text-slate-900">{formatCOP(p.price)}</div>
-                    <Badge variant="outline" className={p.stock <= 5 ? "text-orange-700 border-orange-300" : "text-slate-600"}>
-                      {p.stock} {p.unit}
-                    </Badge>
+
+                  <div className="mt-2 space-y-1.5">
+                    {p.units_per_package && p.units_per_package > 1 ? (
+                      <div className="flex items-center gap-1">
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(p, true);
+                            toast.success(`+ Pack x${p.units_per_package} de ${p.name}`);
+                          }}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold hover:bg-indigo-100 transition z-10"
+                          title="Vender paquete / sixpack completo"
+                          data-testid={`pack-badge-${p.id}`}
+                        >
+                          <PackageIcon className="w-3 h-3" /> Pack x{p.units_per_package} ({formatCOP(p.price * p.units_per_package)})
+                        </span>
+                      </div>
+                    ) : null}
+
+                    <div className="flex items-end justify-between">
+                      <div className="font-mono font-bold text-lg text-slate-900">{formatCOP(p.price)}</div>
+                      <Badge variant="outline" className={p.stock <= 5 ? "text-orange-700 border-orange-300" : "text-slate-600"}>
+                        {p.stock} {p.unit}
+                      </Badge>
+                    </div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -1145,6 +1193,31 @@ export default function POS() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Mobile Floating Action Button for Quick Thumb Checkout */}
+      {Array.isArray(cart) && cart.length > 0 && (
+        <div
+          className="lg:hidden fixed bottom-14 left-0 right-0 p-3 bg-white/95 backdrop-blur border-t border-slate-200 shadow-2xl z-30 flex items-center justify-between gap-3 animate-in slide-in-from-bottom-3 duration-200"
+          data-testid="mobile-floating-checkout-bar"
+        >
+          <div className="min-w-0">
+            <div className="text-[11px] text-slate-500 font-medium">
+              {cart.reduce((s, x) => s + (Number(x.qty) || 1), 0)} producto(s) en carrito
+            </div>
+            <div className="font-mono font-black text-xl text-emerald-700">
+              {formatCOP(totals.total)}
+            </div>
+          </div>
+          <Button
+            className="h-12 px-6 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-base shadow-lg flex items-center gap-2 touch-manipulation"
+            onClick={() => setPayOpen(true)}
+            data-testid="mobile-floating-checkout-btn"
+          >
+            <CircleDollarSign className="w-5 h-5" />
+            <span>Cobrar</span>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

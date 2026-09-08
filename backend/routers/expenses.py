@@ -26,6 +26,7 @@ class ExpenseCreate(BaseModel):
 class ExpenseOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    tenant_id: Optional[str] = None
     concept: str
     category: str = "General"
     amount: float
@@ -42,7 +43,8 @@ async def create_expense(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    e = Expense(**payload.model_dump())
+    tenant_id = user.tenant_id or "tenant-default-001"
+    e = Expense(tenant_id=tenant_id, **payload.model_dump())
     session.add(e)
     await session.commit()
     await session.refresh(e)
@@ -55,22 +57,22 @@ async def list_expenses(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Expense).order_by(Expense.created_at.desc()).limit(limit)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Expense).where(Expense.tenant_id == tenant_id).order_by(Expense.created_at.desc()).limit(limit)
     expenses = (await session.execute(stmt)).scalars().all()
 
-    # Los agregados se calculan sobre TODA la tabla (no solo la página
-    # devuelta por `limit`), a diferencia del original en Mongo que sumaba
-    # únicamente sobre los últimos `limit` documentos por prefijo de string
-    # ISO — aquí se hace correctamente con agregados SQL sobre fecha real,
-    # manteniendo la misma forma de respuesta que consume Expenses.jsx.
-    total = (await session.execute(select(func.coalesce(func.sum(Expense.amount), 0.0)))).scalar_one()
+    total = (await session.execute(
+        select(func.coalesce(func.sum(Expense.amount), 0.0)).where(Expense.tenant_id == tenant_id)
+    )).scalar_one()
     today_total = (await session.execute(
         select(func.coalesce(func.sum(Expense.amount), 0.0)).where(
+            Expense.tenant_id == tenant_id,
             func.date(Expense.created_at) == func.current_date()
         )
     )).scalar_one()
     month_total = (await session.execute(
         select(func.coalesce(func.sum(Expense.amount), 0.0)).where(
+            Expense.tenant_id == tenant_id,
             func.date_trunc("month", Expense.created_at) == func.date_trunc("month", func.now())
         )
     )).scalar_one()
@@ -89,9 +91,12 @@ async def delete_expense(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    e = await session.get(Expense, expense_id)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Expense).where(Expense.id == expense_id, Expense.tenant_id == tenant_id)
+    e = (await session.execute(stmt)).scalar_one_or_none()
     if not e:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
     await session.delete(e)
     await session.commit()
     return {"ok": True}
+
