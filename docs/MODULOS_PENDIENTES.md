@@ -1,7 +1,7 @@
 # JRPOS — Matriz de Módulos y Estado del Sistema
 
-> Última actualización: Septiembre 2026
-> Leyenda: ✅ Construido y Probado · 🧪 Simulado (Sandbox) · 🔄 En Evolución
+> Última actualización: 8 de septiembre 2026 (Sprint Multi-Tenant en curso)
+> Leyenda: ✅ Construido y Probado · 🧪 Simulado (Sandbox) · 🔄 En Evolución · 🔨 En Desarrollo (código sin integrar)
 
 ---
 
@@ -43,6 +43,24 @@
 
 ---
 
+## 🏢 Plataforma SaaS Multi-Tenant (Fase 1 en curso)
+
+| Módulo | Ruta | Backend | Estado | Descripción & Capacidades |
+|---|---|---|:---:|---|
+| **Registro Self-Service** | `/registro` | `/api/auth/register-tenant` | ✅ Activo | Onboarding de tienda en 2 min, trial automático sin tarjeta |
+| **Paywall / Activación** | `/paywall` | `/api/billing/payment-info`, `/api/billing/activate` | ✅ Activo | Página de pago Nequi (QR + WhatsApp) registrada en App.js y conectada al gate 403: redirect desde interceptor, sesión restaurada y post-login (incluye trial vencido por fecha) |
+| **Planes de Plataforma** | — | `/api/billing/payment-info` (público) | ✅ Activo | Catálogo `PlatformPlan` con precios COP, filtrado correcto por `is_active` |
+| **Panel SuperAdmin** | `/superadmin` | `/api/superadmin/*` | ✅ Activo | MRR estimado, tenants con estado, gestión de suscripciones y soporte. Protegido con `SuperAdminRoute` (`superadmin_platform`) |
+| **Auditoría Tenant** | — | `tenant_audit_logs` (modelo) | ✅ Activo | Helper `_audit()` en `superadmin.py` usado en `extend_trial`, `update_status`, `update_support_ticket` e `impersonate`; además de la escritura en `billing.py` (activación) |
+| **Gate de Suscripción** | — | `auth.py get_current_user` | ✅ Activo | Bloqueo 403 automático ante trial vencido / tenant `suspended` / `cancelled` |
+
+---
+
 ## 🎯 Próximo Paso para Producción DIAN
 - Conexión del conector SOAP y firma digital XAdES-BES con Proveedor Tecnológico (PT) habilitado ante la DIAN para emisión de facturas electrónicas reales con valor legal.
+
+## ✅ Resueltas esta sesión (Sprint actual)
+1. ~~Paywall sin ruta~~: `/paywall` registrado en `App.js` (fuera de los gates de app protegida) + redirect al paywall desde interceptor 403 (`lib/api.js`), restauración de sesión (`lib/auth.jsx`) y post-login (`Login.jsx`, incluye comparación de `trial_ends_at`).
+2. ~~SuperAdminRoute sin uso~~: ruta `/superadmin` ahora usa `SuperAdminRoute`.
+3. **Pendiente:** Login 500 en producción (`POST /api/auth/login` en `jrpos-api.vercel.app` responde 500) — requiere diagnóstico server-side antes del próximo deploy.
 

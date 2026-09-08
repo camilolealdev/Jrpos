@@ -14,7 +14,7 @@ def _load_frontend_env():
                     return line.split("=", 1)[1].strip()
     except Exception:
         pass
-    return os.environ.get("REACT_APP_BACKEND_URL", "https://jrpos-api.vercel.app")
+    return os.environ.get("BACKEND_TEST_URL", "http://127.0.0.1:8000")
 
 
 BASE_URL = _load_frontend_env().rstrip("/")

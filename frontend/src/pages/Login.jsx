@@ -35,7 +35,19 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      await login(email, password);
+      const data = await login(email, password);
+      // Gate de suscripción: tenant con trial vencido / suspendido → paywall
+      const t = data?.tenant;
+      const st = t?.status;
+      const trialOver = st === "trial" && t?.trial_ends_at && new Date(t.trial_ends_at) < new Date();
+      if (st && st !== "active" && st !== "trial") {
+        navigate("/paywall");
+        return;
+      }
+      if (trialOver) {
+        navigate("/paywall");
+        return;
+      }
       navigate("/dashboard");
     } catch (err) {
       const d = err?.response?.data?.detail;

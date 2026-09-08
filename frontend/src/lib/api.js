@@ -12,10 +12,24 @@ export const api = axios.create({
 
 let refreshing = null;
 
+// Detalle que el backend (auth.py) devuelve al bloquear por trial vencido / tenant suspendido
+const isPaywallBlock = (detail) =>
+  typeof detail === "string" && /trial vencido|cuenta suspendida|activa tu plan/i.test(detail);
+
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config || {};
+    // Gate de suscripción: 403 por trial vencido / tenant suspendido → paywall público
+    if (
+      err?.response?.status === 403 &&
+      isPaywallBlock(err?.response?.data?.detail) &&
+      !window.location.pathname.startsWith("/paywall") &&
+      !window.location.pathname.startsWith("/login")
+    ) {
+      window.location.href = "/paywall";
+      return new Promise(() => {}); // detiene la cadena de promesas mientras redirige
+    }
     // Refresh transparente: ante 401 intenta renovar la sesión una sola vez
     if (
       err?.response?.status === 401 &&

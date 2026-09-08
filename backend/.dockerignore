@@ -1,7 +1,12 @@
-__pycache__
-**/__pycache__
+# no meter basura en la imagen
+__pycache__/
 *.pyc
-tests
-_legacy_mongo_archive
-.venv
-venv
+.pytest_cache/
+.mypy_cache/
+tests/
+_legacy_mongo_archive/
+*.log
+.env*
+.venv/
+Dockerfile
+docker-entrypoint.sh.bak

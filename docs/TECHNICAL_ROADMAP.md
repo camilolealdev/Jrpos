@@ -19,7 +19,7 @@ JRPOS cuenta con un núcleo operativo robusto para comercio minorista y mayorist
 | **Modo Contingencia / Offline** | Dependiente 100% de backend | ⚪ No iniciado | 🟡 Media |
 | **Impresión Térmica** | Formato fijo 58mm | 🟡 Funcional | 🟢 Baja |
 | **Notificaciones WhatsApp** | Manual | ⚪ No iniciado | 🟢 Baja |
-| **Multi-Tenant / SaaS** | Mono-tenant (1 DB por despliegue, sin `tenant_id`) | ⚪ No iniciado | 🟡 Media (post Fase 2) |
+| **Multi-Tenant / SaaS** | En curso: modelos `Tenant`/`PlatformPlan`/`TenantSubscription`/audit + gate 403 + `/registro` + panel `/superadmin` (con `SuperAdminRoute` + auditoría en todas las operaciones) + router `billing.py` + `/paywall` ruteado con redirect desde gate 403; faltan tests multi-tenant | 🔨 En Desarrollo | 🔴 Alta (fase activa) |
 
 ---
 

@@ -16,6 +16,8 @@ export default function GoogleSignInButton({ onCredential, text = "signin_with",
       window.google.accounts.id.initialize({
         client_id: CLIENT_ID,
         callback: (response) => onCredential(response.credential),
+        use_fedcm_for_prompt: true,
+        itp_support: true,
       });
       containerRef.current.innerHTML = "";
       window.google.accounts.id.renderButton(containerRef.current, {

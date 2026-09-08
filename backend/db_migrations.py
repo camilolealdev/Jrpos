@@ -116,6 +116,12 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE tenants ADD COLUMN IF NOT EXISTS modules_config JSON;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
+    -- El CHECK constraint de "role" se creó con la tabla original (solo admin/cajero)
+    -- y nunca se actualizó al agregar supervisor/contador/superadmin_platform al
+    -- modelo ORM; sin este ALTER, insertar cualquiera de esos roles revienta el
+    -- arranque del backend con IntegrityError.
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_role;
+    ALTER TABLE users ADD CONSTRAINT ck_users_role CHECK (role IN ('superadmin_platform', 'admin', 'supervisor', 'cajero', 'contador'));
     ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS margin_percent FLOAT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_package FLOAT NOT NULL DEFAULT 1.0;

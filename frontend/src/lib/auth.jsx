@@ -15,6 +15,14 @@ export function AuthProvider({ children }) {
         if (active) setUser(r.data);
       })
       .catch(async (err) => {
+        // Gate de suscripción: trial vencido / tenant suspendido (403) → paywall
+        if (err?.response?.status === 403) {
+          if (!window.location.pathname.startsWith("/paywall")) {
+            window.location.href = "/paywall";
+          }
+          if (active) setUser(null);
+          return;
+        }
         // Solo intentar refresh si el error fue específicamente sesión expirada (había token previo)
         const isExpired = err?.response?.data?.detail === "Sesión expirada";
         if (isExpired) {

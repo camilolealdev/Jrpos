@@ -108,7 +108,7 @@ async def payment_info(session: AsyncSession = Depends(get_session)):
     puede autenticar endpoints protegidos, por eso esta ruta es abierta).
     """
     plans = (
-        (await session.execute(select(PlatformPlan).where(PlatformPlan.active == True).order_by(PlatformPlan.price_cop)))  # noqa: E712
+        (await session.execute(select(PlatformPlan).where(PlatformPlan.is_active == True).order_by(PlatformPlan.price_cop)))  # noqa: E712
         .scalars().all()
     )
     import os
@@ -172,11 +172,15 @@ async def activate_subscription(
     )
     session.add(sub)
     tenant.status = "active"
+    import json as _json
     session.add(TenantAuditLog(
         tenant_id=tenant_id,
-        actor_user_id=admin.id,
+        user_id=admin.id,
+        user_name=admin.name,
         action="activate_subscription",
-        detail={"plan": plan.id, "months": period, "amount_cop": amount},
+        entity_type="tenant_subscription",
+        entity_id=tenant_id,
+        details=_json.dumps({"plan": plan.id, "months": period, "amount_cop": amount}),
     ))
     await session.commit()
     return {

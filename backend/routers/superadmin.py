@@ -1,3 +1,4 @@
+import json as _json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -21,6 +22,19 @@ from models_sql import (
 
 router = APIRouter(prefix="/api/superadmin", tags=["superadmin"])
 support_router = APIRouter(prefix="/api/support", tags=["support"])
+
+
+def _audit(session: AsyncSession, *, admin: User, tenant_id: str, action: str, entity_type: str, entity_id: str, details: Any) -> None:
+    """Escribe un registro de auditoría de plataforma (tenant_audit_logs)."""
+    session.add(TenantAuditLog(
+        tenant_id=tenant_id,
+        user_id=admin.id,
+        user_name=admin.name,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        details=details if isinstance(details, str) else _json.dumps(details, ensure_ascii=False, default=str),
+    ))
 
 
 class ExtendTrialRequest(BaseModel):
@@ -135,6 +149,9 @@ async def extend_tenant_trial(tenant_id: str, payload: ExtendTrialRequest, admin
     tenant.status = "trial"
     tenant.updated_at = now
 
+    _audit(session, admin=admin, tenant_id=tenant.id, action="extend_trial", entity_type="tenant",
+           entity_id=tenant.id, details={"days_added": payload.days, "new_trial_ends_at": tenant.trial_ends_at.isoformat()})
+
     await session.commit()
     return {
         "ok": True,
@@ -153,8 +170,13 @@ async def update_tenant_status(tenant_id: str, payload: UpdateStatusRequest, adm
     if payload.status not in ("trial", "active", "suspended", "expired"):
         raise HTTPException(status_code=400, detail="Estado de suscripción inválido")
 
+    old_status = tenant.status
     tenant.status = payload.status
     tenant.updated_at = utcnow()
+
+    _audit(session, admin=admin, tenant_id=tenant.id, action="update_status", entity_type="tenant",
+           entity_id=tenant.id, details={"from": old_status, "to": payload.status})
+
     await session.commit()
     return {"ok": True, "tenant_id": tenant.id, "status": tenant.status}
 
@@ -241,6 +263,8 @@ async def update_support_ticket(
         ticket.admin_notes = payload.admin_notes
 
     ticket.updated_at = utcnow()
+    _audit(session, admin=admin, tenant_id=ticket.tenant_id, action="update_support_ticket", entity_type="support_ticket",
+           entity_id=ticket.id, details={"status": ticket.status, "admin_notes": ticket.admin_notes})
     await session.commit()
     return {"ok": True, "ticket_id": ticket.id, "status": ticket.status, "admin_notes": ticket.admin_notes}
 
@@ -287,6 +311,10 @@ async def impersonate_tenant(
         max_age=8 * 3600,
         path="/"
     )
+
+    _audit(session, admin=admin, tenant_id=tenant_id, action="impersonate", entity_type="user",
+           entity_id=tenant_admin.id, details={"impersonated_email": tenant_admin.email, "impersonated_role": tenant_admin.role})
+    await session.commit()
 
     return {
         "ok": True,

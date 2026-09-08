@@ -25,6 +25,7 @@ const lazyWithRetry = (componentImport) =>
 
 const Login = lazyWithRetry(() => import("@/pages/Login"));
 const RegisterTenant = lazyWithRetry(() => import("@/pages/RegisterTenant"));
+const Paywall = lazyWithRetry(() => import("@/pages/Paywall"));
 const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
 const POS = lazyWithRetry(() => import("@/pages/POS"));
 const Inventory = lazyWithRetry(() => import("@/pages/Inventory"));
@@ -65,6 +66,14 @@ function PageLoader() {
 function AdminRoute({ children }) {
   const { user } = useAuth();
   if (user?.role !== "admin" && user?.role !== "superadmin_platform") {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+}
+
+function SuperAdminRoute({ children }) {
+  const { user } = useAuth();
+  if (user?.role !== "superadmin_platform") {
     return <Navigate to="/dashboard" replace />;
   }
   return children;
@@ -111,7 +120,7 @@ function ProtectedApp() {
           <Route path="facturacion-pos-electronica" element={<AdminRoute><ElectronicPOS /></AdminRoute>} />
           <Route path="usuarios" element={<AdminRoute><Users /></AdminRoute>} />
           <Route path="configuracion" element={<AdminRoute><Settings /></AdminRoute>} />
-          <Route path="superadmin" element={<AdminRoute><SuperAdmin /></AdminRoute>} />
+          <Route path="superadmin" element={<SuperAdminRoute><SuperAdmin /></SuperAdminRoute>} />
           <Route path="soporte" element={<Support />} />
           <Route path="marcacion" element={<Timeclock />} />
           <Route path="recogidas" element={<CashPickup />} />
@@ -148,6 +157,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/welcome" element={<Login />} />
             <Route path="/registro" element={<RegisterTenant />} />
+            <Route path="/paywall" element={<Paywall />} />
             <Route path="/*" element={<ProtectedApp />} />
           </Routes>
         </AuthProvider>

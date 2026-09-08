@@ -20,7 +20,7 @@
 | **8. Compras & Facturas Proveedor** | 95% | 🟢 Producción | OCR Multimodal + compras y costos | 🟢 Bajo |
 | **9. Cotizaciones & Remisiones** | 95% | 🟢 Producción | Conversión a venta con 1 clic | 🟢 Bajo |
 | **10. Configuración, IA & Marca** | 100% | 🟢 Producción | Branding WebP, API keys protegidas, Personalización | 🟢 Ninguno |
-| **11. Test Suite & Calidad** | 100% | 🟢 Producción | 73 tests pasando (0 fallos) en backend | 🟢 Ninguno |
+| **11. Test Suite & Calidad** | 55% | 🟡 Riesgo Alto | Suite existe pero es E2E contra prod; login en prod responde 500 → 2/2 tests de auth FALLAN al 2026-09-08 | 🔴 Alto |
 
 ---
 
@@ -158,3 +158,39 @@ graph TD
    - Añadir interruptor de Cierre de Caja Ciego en Configuración.
 3. **Sprint Fiscal & DIAN:**
    - Habilitación del conector de emisión real con certificado digital / PT.
+
+---
+
+## 📅 4. Actualización 2026-09-08 — Sprint SaaS Multi-Tenant en Curso
+
+> Las fases 1–3 del plan anterior siguen pendientes (verificado: `stock_movements` y `credit_limit` **no existen** aún en el código). La Fase 5 (SaaS) se adelantó y está en ejecución parcial.
+
+### Estado real del código (verificado hoy)
+
+**✅ Hecho:**
+- Modelos SaaS en `models_sql.py`: `Tenant`, `PlatformPlan` (con `is_active`), `TenantSubscription`, `TenantAuditLog` (esquema completo: `user_id`, `user_name`, `entity_type`, `entity_id`, `details`, `ip_address`), `SupportTicket`.
+- 23 routers; incluye `billing.py` y `superadmin.py` montados en `app.py`.
+- Gate de suscripción en `auth.py:get_current_user` → HTTP 403 ante trial vencido, `suspended` o `cancelled`.
+- `/registro` con onboarding self-service; panel `/superadmin` con MRR estimado y conteos de tenants.
+- Corrección aplicada en `billing.py`: `PlatformPlan.active` → `is_active` y escritura de `TenantAuditLog` alineada al modelo real.
+
+**🔨 Código escrito pero sin integrar (brecha de integración, no de feature):**
+1. `frontend/src/pages/Paywall.jsx` (pago Nequi QR + WhatsApp + reintento) — **no está registrado como ruta en `App.js`** ni conectado al gate 403 del backend. El usuario suspendido ve error, no la pantalla de pago.
+2. `SuperAdminRoute` ya definido en `App.js` pero la ruta `/superadmin` sigue usando solo `AdminRoute` (un `cajero` no entra, pero la separación admin vs superadmin_platform no está garantizada en FE).
+3. `GoogleSignInButton.jsx` actualizado con `use_fedcm_for_prompt` + `itp_support` (fix FedCM/Safari ITP) — sin changelog ni test de regresión.
+
+### Deudas nuevas detectadas hoy
+
+| # | Deuda | Impacto | Solución propuesta | Esfuerzo |
+|---|---|---|---|---|
+| D1 | Tests E2E apuntan a prod (`jrpos-api.vercel.app`) y login prod responde **500** → suite bloqueada (2/2 auth fallan) | CI inútil, no hay red de seguridad antes de deploy | (a) Diagnosticar 500 prod primero; (b) apuntar `BASE_URL` a backend local en CI y agregar tests unitarios sobre `TestClient` + SQLite in-memory | M |
+| D2 | Paywall sin ruta ni redirect desde gate 403 | Tenants vencidos no pueden autoreactivar → churn | Registrar `<Route path="paywall">` fuera de `ProtectedApp` gates y redirigir desde interceptor 403 en `lib/auth.js` | S |
+| D3 | Sin log de auditoría en operaciones superadmin/billing restantes | Cumplimiento y trazabilidad de cambios de plan | Extraer helper `log_audit(tenant_id, user, action, entity, details)` y usarlo en todos los mutadores de `superadmin.py` | S |
+| D4 | Sin migraciones versionadas (solo `db_migrations.py` ad-hoc) | Drift entre DDL del plan maestro y DB real | Adoptar Alembic o convención estricta de scripts numerados con tabla `_migrations` | M |
+| D5 | Kardex `stock_movements` y `credit_limit` aún no implementados (prometidos en sprint anterior) | Inventario sin trazabilidad; créditos sin tope | Mantener plan original, estimación 1-2 días cada uno | M |
+
+### Orden recomendado de ejecución (esta semana)
+1. **D1a** — diagnosticar el 500 de login en prod (bloquea todo lo demás, incluye confianza del cliente).
+2. **D2 + D3** — cerrar el loop de monetización: ruta Paywall + redirect 403 + helper de auditoría (medio día).
+3. Wire de `SuperAdminRoute` a `/superadmin` y changelog del fix FedCM (15 min).
+4. Reanudar D5 (Kardex + credit_limit) con el plan original.

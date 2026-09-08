@@ -3,6 +3,7 @@ services:
     image: postgres:16-alpine
     container_name: jrpos-postgres
     restart: unless-stopped
+    command: postgres -N 150 -c shared_buffers=256MB -c work_mem=4MB -c checkpoint_completion_target=0.9
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-jrpos}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -14,6 +15,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 1g
 
   redis:
     image: redis:7-alpine
@@ -23,12 +30,18 @@ services:
       - "6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    mem_limit: 192m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build:
@@ -46,6 +59,12 @@ services:
         condition: service_healthy
     expose:
       - "8000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 768m
 
   web:
     build:
@@ -63,6 +82,12 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 256m
 
 volumes:
   postgres_data:
