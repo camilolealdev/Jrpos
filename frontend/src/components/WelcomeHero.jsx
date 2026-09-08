@@ -450,14 +450,19 @@ export default function WelcomeHero({ onProceedToLogin }) {
                   <AnimatePresence mode="wait">
                     <motion.img
                       key={screen.id}
-                      src={screen.img}
+                      src={screen.img || `/screenshots/${screen.id}.jpg`}
                       alt={`JRPOS — ${screen.label}`}
                       initial={{ opacity: 0, scale: 1.02 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.99 }}
                       transition={{ duration: 0.45, ease: "easeOut" }}
-                      className="absolute top-0 left-0 h-full object-cover object-left-top"
-                      style={{ width: "112%", maxWidth: "112%" }}
+                      className="w-full h-full object-cover object-left-top"
+                      onError={(e) => {
+                        const fallbackUrl = `/screenshots/${screen.id}.jpg`;
+                        if (!e.currentTarget.src.endsWith(fallbackUrl)) {
+                          e.currentTarget.src = fallbackUrl;
+                        }
+                      }}
                     />
                   </AnimatePresence>
                   {/* subtle scanline sweep */}
