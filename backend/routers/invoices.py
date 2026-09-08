@@ -233,7 +233,6 @@ async def ocr_invoice(
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Fallo de conexión OCR con {provider.upper()}: {e}")
 
-    response_text = response.text or ""
     parsed = _extract_json(response_text)
     if not parsed:
         raise HTTPException(status_code=422, detail="No se pudo extraer JSON de la factura. Intenta con foto más clara o edición manual.")
