@@ -1,0 +1,28 @@
+# Build context for docker/web.Dockerfile is the repo root (needs both
+# frontend/ and the root Caddyfile) — exclude everything that Dockerfile
+# doesn't actually COPY, so the context upload stays small and fast.
+
+.git
+.claude
+.agents
+.emergent
+memory
+docs
+test_reports
+tests
+_legacy_mongo_archive
+
+**/node_modules
+frontend/build
+backend/__pycache__
+backend/.venv
+backend/venv
+**/__pycache__
+**/*.pyc
+
+.env
+.env.*
+!.env.example
+
+*.md
+!README.md

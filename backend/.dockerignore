@@ -1,0 +1,7 @@
+__pycache__
+**/__pycache__
+*.pyc
+tests
+_legacy_mongo_archive
+.venv
+venv

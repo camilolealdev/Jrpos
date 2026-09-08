@@ -67,24 +67,27 @@ async def report_summary(
 ):
     from redis_client import get_json, set_json
 
-    cached = await get_json("reports:summary")
+    tenant_id = user.tenant_id or "tenant-default-001"
+    cache_key = f"reports:summary:{tenant_id}"
+    cached = await get_json(cache_key)
     if cached is not None:
         return cached
 
-    total_sales = (await session.execute(select(func.coalesce(func.sum(Sale.total), 0.0)))).scalar_one()
-    sales_count = (await session.execute(select(func.count()).select_from(Sale))).scalar_one()
-    products_count = (await session.execute(select(func.count()).select_from(Product))).scalar_one()
+    total_sales = (await session.execute(select(func.coalesce(func.sum(Sale.total), 0.0)).where(Sale.tenant_id == tenant_id))).scalar_one()
+    sales_count = (await session.execute(select(func.count()).select_from(Sale).where(Sale.tenant_id == tenant_id))).scalar_one()
+    products_count = (await session.execute(select(func.count()).select_from(Product).where(Product.tenant_id == tenant_id))).scalar_one()
     low_stock_count = (
         await session.execute(
-            select(func.count()).select_from(Product).where(Product.stock <= LOW_STOCK_THRESHOLD)
+            select(func.count()).select_from(Product).where(Product.stock <= LOW_STOCK_THRESHOLD, Product.tenant_id == tenant_id)
         )
     ).scalar_one()
 
-    # Calculate COGS from SaleItems joined with Product costs
+    # Calculate COGS from SaleItems joined with Product costs for this tenant
     cogs_query = (
         select(func.coalesce(func.sum(SaleItem.qty * Product.cost), 0.0))
         .select_from(SaleItem)
-        .join(Product, SaleItem.product_id == Product.id, isouter=True)
+        .join(Product, (SaleItem.product_id == Product.id) & (Product.tenant_id == tenant_id), isouter=True)
+        .where(SaleItem.tenant_id == tenant_id)
     )
     total_cogs_val = float((await session.execute(cogs_query)).scalar_one() or 0.0)
     gross_profit_val = max(0.0, float(total_sales) - total_cogs_val)
@@ -97,7 +100,7 @@ async def report_summary(
     todays_total, todays_count = (
         await session.execute(
             select(func.coalesce(func.sum(Sale.total), 0.0), func.count()).where(
-                Sale.created_at >= today_start, Sale.created_at < today_end
+                Sale.tenant_id == tenant_id, Sale.created_at >= today_start, Sale.created_at < today_end
             )
         )
     ).one()
@@ -106,6 +109,7 @@ async def report_summary(
     top_rows = (
         await session.execute(
             select(SaleItem.name, func.sum(SaleItem.qty).label("qty"))
+            .where(SaleItem.tenant_id == tenant_id)
             .group_by(SaleItem.name)
             .order_by(func.sum(SaleItem.qty).desc())
             .limit(5)
@@ -113,11 +117,12 @@ async def report_summary(
     ).all()
     top_products = [{"name": name, "qty": float(qty)} for name, qty in top_rows]
 
-    # Last 7 days that actually had sales (mirrors original: group all-time by day, take last 7 ascending)
+    # Last 7 days that actually had sales
     day_expr = func.date_trunc("day", Sale.created_at)
     daily_rows = (
         await session.execute(
             select(day_expr.label("day"), func.sum(Sale.total).label("total"))
+            .where(Sale.tenant_id == tenant_id)
             .group_by(day_expr)
             .order_by(day_expr.desc())
             .limit(7)
@@ -128,7 +133,7 @@ async def report_summary(
 
     low_stock_rows = (
         await session.execute(
-            select(Product).where(Product.stock <= LOW_STOCK_THRESHOLD).limit(10)
+            select(Product).where(Product.stock <= LOW_STOCK_THRESHOLD, Product.tenant_id == tenant_id).limit(10)
         )
     ).scalars().all()
 
@@ -148,7 +153,7 @@ async def report_summary(
             ProductBrief.model_validate(p).model_dump(mode="json") for p in low_stock_rows
         ],
     }
-    await set_json("reports:summary", result, ttl=30)
+    await set_json(cache_key, result, ttl=30)
     return result
 
 
@@ -159,7 +164,8 @@ async def accounting_export(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Sale).order_by(Sale.created_at.desc())
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Sale).where(Sale.tenant_id == tenant_id).order_by(Sale.created_at.desc())
     if start_date:
         try:
             s_dt = datetime.fromisoformat(start_date)
@@ -177,11 +183,10 @@ async def accounting_export(
 
     rows = []
     for s in sales:
-        items_stmt = select(SaleItem).where(SaleItem.sale_id == s.id)
+        items_stmt = select(SaleItem).where(SaleItem.sale_id == s.id, SaleItem.tenant_id == tenant_id)
         items = (await session.execute(items_stmt)).scalars().all()
         items_desc = ", ".join(f"{it.name} (x{it.qty})" for it in items)
         
-        # Calculate approximate taxes by rate
         tax_0 = sum(it.qty * it.price for it in items if it.tax_rate == 0)
         tax_5 = sum(it.qty * it.price * 0.05 for it in items if it.tax_rate == 5)
         tax_19 = sum(it.qty * it.price * 0.19 for it in items if it.tax_rate == 19)
@@ -210,3 +215,4 @@ async def accounting_export(
         "total_tax": round(sum(r["tax_total"] for r in rows), 2),
         "sales": rows,
     }
+
