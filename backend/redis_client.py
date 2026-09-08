@@ -49,3 +49,22 @@ async def set_json(key: str, value, ttl: int = 30) -> None:
         await r.set(key, json.dumps(value, default=str), ex=ttl)
     except Exception:
         pass
+
+
+def get_redis():
+    """Cliente bruto o None (para invalidaciones puntuales)."""
+    return _client()
+
+
+async def rate_limit(key: str, limit: int, window: int) -> bool:
+    """True = permitido. No-op (True) sin Redis. Never-fail."""
+    r = _client()
+    if r is None:
+        return True
+    try:
+        n = await r.incr(key)
+        if n == 1:
+            await r.expire(key, window)
+        return n <= limit
+    except Exception:
+        return True

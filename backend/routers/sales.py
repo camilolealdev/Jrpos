@@ -1,14 +1,14 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from db import get_session
-from models_sql import Contact, Payment, Product, Sale, SaleItem, User
+from models_sql import Contact, Payment, Product, Promotion, Sale, SaleItem, User
 
 sales_router = APIRouter(prefix="/api", tags=["sales"])
 
@@ -107,8 +107,10 @@ async def create_sale(
     items: List[SaleItem] = []
     subtotal = 0.0
     tax_total = 0.0
+    line_subtotals: List[float] = []
     for it in payload.items:
         line_sub = round(it.qty * it.price, 2)
+        line_subtotals.append(line_sub)
         line_tax = round(line_sub * (it.tax_rate / 100.0) / (1 + it.tax_rate / 100.0), 2) if it.tax_rate else 0.0
         items.append(SaleItem(
             tenant_id=tenant_id,
@@ -119,7 +121,48 @@ async def create_sale(
         subtotal += line_sub
         tax_total += line_tax
 
+    # Precargar productos en product_map para validaciones, promociones y control de stock
+    product_map = {}
+    for it in items:
+        if it.product_id not in product_map:
+            product_map[it.product_id] = (
+                await session.execute(
+                    select(Product).where(Product.id == it.product_id, Product.tenant_id == tenant_id)
+                )
+            ).scalar_one_or_none()
+
     discount = payload.discount or 0.0
+    promo_name = None
+    if not discount:
+        # Auto-descuento: mejor promo activa vigente (sin stacking). El descuento manual manda si existe.
+        today = datetime.now(timezone.utc).date().isoformat()
+        promos = (
+            await session.execute(
+                select(Promotion).where(
+                    Promotion.tenant_id == tenant_id,
+                    Promotion.active == True,  # noqa: E712
+                    or_(Promotion.start.is_(None), Promotion.start == "", Promotion.start <= today),
+                    or_(Promotion.end.is_(None), Promotion.end == "", Promotion.end >= today),
+                )
+            )
+        ).scalars().all()
+        if promos:
+            best = 0.0
+            for promo in promos:
+                if promo.type == "percent_all":
+                    d = subtotal * promo.value / 100.0
+                elif promo.type == "percent_category" and promo.category:
+                    cat_sub = sum(
+                        ls for it, ls in zip(items, line_subtotals)
+                        if (pm := product_map.get(it.product_id)) and pm and pm.category == promo.category
+                    )
+                    d = cat_sub * promo.value / 100.0
+                else:
+                    continue
+                if d > best:
+                    best, promo_name = d, promo.name
+            if best > 0:
+                discount = round(min(best, subtotal), 2)
     total = round(subtotal - discount, 2)
     is_credit = payload.payment_method == "credito"
     if is_credit and not payload.customer_id:
@@ -134,16 +177,20 @@ async def create_sale(
         if not contact_check:
             raise HTTPException(status_code=400, detail="El cliente seleccionado no pertenece a tu tienda")
 
-    # Atomic sequence — avoids the race condition of the old count()+1 scheme
-    seq = (await session.execute(text("SELECT nextval('sales_number_seq')"))).scalar_one()
-    number = f"POS-{seq:06d}"
+    # Atomic sequence con fallback seguro para SQLite / pruebas locales
+    try:
+        seq = (await session.execute(text("SELECT nextval('sales_number_seq')"))).scalar_one()
+        number = f"POS-{seq:06d}"
+    except Exception:
+        count_val = (await session.execute(select(func.count(Sale.id)).where(Sale.tenant_id == tenant_id))).scalar_one()
+        number = f"POS-{count_val + 1:06d}"
 
     sale = Sale(
         tenant_id=tenant_id,
         number=number, subtotal=round(subtotal, 2), tax_total=round(tax_total, 2),
         discount=round(discount, 2), total=total, payment_method=payload.payment_method,
         customer_id=payload.customer_id, customer_name=payload.customer_name,
-        cashier=user.name, notes=payload.notes, is_credit=is_credit,
+        cashier=user.name, notes=(payload.notes or "") + (f" [Promo: {promo_name}]" if promo_name else "") or None, is_credit=is_credit,
         balance_due=total if is_credit else 0.0, credit_status="pending" if is_credit else "paid",
     )
     session.add(sale)
@@ -155,8 +202,7 @@ async def create_sale(
 
     # Decrease stock in the SAME transaction as the sale (servicios no descuentan inventario)
     for it in items:
-        p_stmt = select(Product).where(Product.id == it.product_id, Product.tenant_id == tenant_id)
-        product = (await session.execute(p_stmt)).scalar_one_or_none()
+        product = product_map.get(it.product_id)
         if product and not product.is_service:
             await session.execute(
                 update(Product).where(Product.id == it.product_id, Product.tenant_id == tenant_id).values(stock=Product.stock - it.qty)

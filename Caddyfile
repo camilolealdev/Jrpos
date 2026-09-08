@@ -1,5 +1,9 @@
 {$DOMAIN:localhost} {
 	encode gzip
+	log {
+		output stdout
+		format console
+	}
 
 	# API requests go to the backend container. Caddy auto-provisions
 	# HTTPS via Let's Encrypt for a real domain (falls back to a local

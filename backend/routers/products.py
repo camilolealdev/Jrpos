@@ -594,7 +594,9 @@ async def seed_data(
     for cat in _SEED_CATEGORIES:
         cat_row = await session.get(CategoryMeta, cat["name"])
         if not cat_row:
-            session.add(CategoryMeta(**cat))
+            cat_dict = dict(cat)
+            cat_dict["tenant_id"] = tenant_id
+            session.add(CategoryMeta(**cat_dict))
 
     await session.commit()
 

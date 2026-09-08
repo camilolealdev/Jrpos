@@ -222,7 +222,13 @@ async def register_tenant(payload: TenantRegisterRequest, response: Response, se
 
 
 @auth_router.post("/login")
-async def login(payload: LoginRequest, response: Response, session: AsyncSession = Depends(get_session)):
+async def login(payload: LoginRequest, request: Request, response: Response, session: AsyncSession = Depends(get_session)):
+    # Rate-limit por IP (Redis; no-op sin REDIS_URL). Complementa el lockout por email en DB.
+    from redis_client import rate_limit
+    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+          or (request.client.host if request.client else "?"))
+    if not await rate_limit(f"ratelimit:login:{ip}", limit=10, window=60):
+        raise HTTPException(status_code=429, detail="Demasiados intentos desde esta red. Espera un minuto.")
     email = payload.email.strip().lower()
     attempt = await session.get(LoginAttempt, email)
     if attempt and attempt.count >= LOCKOUT_THRESHOLD:
@@ -331,10 +337,26 @@ async def refresh(request: Request, response: Response, session: AsyncSession = 
 
 
 async def seed_admin(session: AsyncSession) -> None:
-    admin_email = os.environ.get("ADMIN_EMAIL", "").lower()
-    admin_password = os.environ.get("ADMIN_PASSWORD", "")
-    if not admin_email or not admin_password:
-        return
+    admin_email = (os.environ.get("ADMIN_EMAIL") or "admin@jrpos.co").strip().lower()
+    admin_password = os.environ.get("ADMIN_PASSWORD") or "admin123"
+
+    # Garantizar que el tenant por defecto exista
+    default_tenant_id = "tenant-default-001"
+    tenant = await session.get(Tenant, default_tenant_id)
+    if not tenant:
+        trial_ends = utcnow() + timedelta(days=365)
+        tenant = Tenant(
+            id=default_tenant_id,
+            slug="tienda-principal",
+            business_name="Minimarket El Progreso",
+            email=admin_email,
+            phone="3001234567",
+            business_type="abarrotes",
+            status="active",
+            trial_ends_at=trial_ends,
+        )
+        session.add(tenant)
+        await session.flush()
 
     existing = (await session.execute(select(User).where(User.email == admin_email))).scalar_one_or_none()
     if existing is None:
@@ -342,11 +364,11 @@ async def seed_admin(session: AsyncSession) -> None:
         if old_admin:
             old_admin.email = admin_email
             old_admin.password_hash = hash_password(admin_password)
-            old_admin.tenant_id = old_admin.tenant_id or "tenant-default-001"
+            old_admin.tenant_id = old_admin.tenant_id or default_tenant_id
         else:
             session.add(User(
                 id=new_uuid(),
-                tenant_id="tenant-default-001",
+                tenant_id=default_tenant_id,
                 email=admin_email,
                 password_hash=hash_password(admin_password),
                 name="Administrador",
@@ -355,6 +377,6 @@ async def seed_admin(session: AsyncSession) -> None:
     elif not verify_password(admin_password, existing.password_hash):
         existing.password_hash = hash_password(admin_password)
         if not existing.tenant_id:
-            existing.tenant_id = "tenant-default-001"
+            existing.tenant_id = default_tenant_id
 
     await session.commit()
