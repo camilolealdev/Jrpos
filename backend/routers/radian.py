@@ -30,6 +30,7 @@ async def radian_invoices(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Sale).where(Sale.cufe.isnot(None)).limit(300)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Sale).where(Sale.cufe.isnot(None), Sale.tenant_id == tenant_id).limit(300)
     res = await session.execute(stmt)
     return res.scalars().all()

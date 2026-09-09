@@ -99,7 +99,13 @@ async def list_docs(
     user: User = Depends(get_current_user),
 ):
     _cfg(kind)
-    stmt = select(Document).where(Document.kind == kind).order_by(Document.created_at.desc()).limit(300)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = (
+        select(Document)
+        .where(Document.kind == kind, Document.tenant_id == tenant_id)
+        .order_by(Document.created_at.desc())
+        .limit(300)
+    )
     docs = (await session.execute(stmt)).scalars().all()
     if not docs:
         return []
@@ -122,6 +128,7 @@ async def create_doc(
     user: User = Depends(get_current_user),
 ):
     prefix, initial_status = _cfg(kind)
+    tenant_id = user.tenant_id or "tenant-default-001"
 
     total = round(sum(i.qty * i.price for i in payload.items), 2)
     if kind == "collection_accounts" and payload.amount:
@@ -133,6 +140,7 @@ async def create_doc(
     doc = Document(
         kind=kind, number=number, customer_id=payload.customer_id, customer_name=payload.customer_name,
         concept=payload.concept, total=total, status=initial_status, notes=payload.notes,
+        tenant_id=tenant_id,
     )
     session.add(doc)
     await session.flush()  # assigns doc.id
@@ -141,7 +149,7 @@ async def create_doc(
     for i in payload.items:
         di = DocumentItem(
             document_id=doc.id, product_id=i.product_id, name=i.name, barcode=i.barcode,
-            qty=i.qty, price=i.price, cost=i.cost, tax_rate=i.tax_rate,
+            qty=i.qty, price=i.price, cost=i.cost, tax_rate=i.tax_rate, tenant_id=tenant_id,
         )
         session.add(di)
         doc_items.append(di)
@@ -159,7 +167,8 @@ async def update_doc_status(
     user: User = Depends(get_current_user),
 ):
     _cfg(kind)
-    stmt = select(Document).where(Document.id == doc_id, Document.kind == kind)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Document).where(Document.id == doc_id, Document.kind == kind, Document.tenant_id == tenant_id)
     doc = (await session.execute(stmt)).scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="No encontrado")
@@ -183,7 +192,8 @@ async def convert_doc_to_sale(
     if kind not in DOC_CFG or kind == "collection_accounts":
         raise HTTPException(status_code=400, detail="Este documento no se convierte a venta")
 
-    stmt = select(Document).where(Document.id == doc_id, Document.kind == kind)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Document).where(Document.id == doc_id, Document.kind == kind, Document.tenant_id == tenant_id)
     doc = (await session.execute(stmt)).scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="No encontrado")
@@ -200,7 +210,7 @@ async def convert_doc_to_sale(
         sale_items.append(SaleItem(
             sale_id="",  # set after sale.id is known
             product_id=i.product_id or "manual", name=i.name, barcode=i.barcode,
-            qty=i.qty, price=i.price, tax_rate=tax_rate, subtotal=subtotal,
+            qty=i.qty, price=i.price, tax_rate=tax_rate, subtotal=subtotal, tenant_id=tenant_id,
         ))
 
     subtotal_total = sum(it.subtotal for it in sale_items)

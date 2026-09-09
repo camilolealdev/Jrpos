@@ -270,17 +270,22 @@ async def import_invoice_to_inventory(
     user: User = Depends(get_current_user),
 ):
     """Given confirmed invoice items, upsert products (by barcode or name) and increment stock."""
+    tenant_id = user.tenant_id or "tenant-default-001"
     imported = 0
     updated = 0
     supplier_id = None
     if payload.supplier_name:
         existing = (
             await session.execute(
-                select(Contact).where(Contact.name == payload.supplier_name, Contact.kind == "supplier")
+                select(Contact).where(
+                    Contact.name == payload.supplier_name,
+                    Contact.kind == "supplier",
+                    Contact.tenant_id == tenant_id,
+                )
             )
         ).scalar_one_or_none()
         if not existing:
-            supplier = Contact(kind="supplier", name=payload.supplier_name, document=payload.supplier_nit)
+            supplier = Contact(kind="supplier", name=payload.supplier_name, document=payload.supplier_nit, tenant_id=tenant_id)
             session.add(supplier)
             await session.flush()
             supplier_id = supplier.id
@@ -315,11 +320,11 @@ async def import_invoice_to_inventory(
         existing_p = None
         if barcode:
             existing_p = (
-                await session.execute(select(Product).where(Product.barcode == barcode))
+                await session.execute(select(Product).where(Product.barcode == barcode, Product.tenant_id == tenant_id))
             ).scalar_one_or_none()
         if not existing_p:
             existing_p = (
-                await session.execute(select(Product).where(Product.name == name))
+                await session.execute(select(Product).where(Product.name == name, Product.tenant_id == tenant_id))
             ).scalar_one_or_none()
 
         if existing_p:
@@ -345,6 +350,7 @@ async def import_invoice_to_inventory(
                 supplier_id=supplier_id,
                 margin_percent=margin_percent,
                 units_per_package=units_per_package,
+                tenant_id=tenant_id,
             ))
             imported += 1
 
@@ -354,6 +360,7 @@ async def import_invoice_to_inventory(
         supplier_nit=payload.supplier_nit,
         invoice_number=payload.invoice_number,
         date=payload.date,
+        tenant_id=tenant_id,
     )
     session.add(inv)
     await session.flush()
@@ -361,6 +368,7 @@ async def import_invoice_to_inventory(
     for it in payload.items:
         session.add(PurchaseInvoiceItem(
             purchase_invoice_id=inv.id,
+            tenant_id=tenant_id,
             name=(it.get("name") or "").strip() or "Producto",
             barcode=(it.get("barcode") or "").strip() or None,
             quantity=float(it.get("quantity", 0) or 0),
@@ -428,6 +436,7 @@ async def create_support_doc(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     # original computed total from item "price" (frontend always sends price == cost for this form)
     total = round(
         sum(float(i.qty) * float(i.price if i.price is not None else (i.cost or 0)) for i in payload.items), 2
@@ -438,7 +447,7 @@ async def create_support_doc(
 
     doc = SupportDoc(
         number=number, supplier_name=payload.supplier_name, supplier_doc=payload.supplier_doc,
-        total=total, status="simulada", cude=cude,
+        total=total, status="simulada", cude=cude, tenant_id=tenant_id,
     )
     session.add(doc)
     await session.flush()
@@ -446,7 +455,7 @@ async def create_support_doc(
     for it in payload.items:
         session.add(SupportDocItem(
             support_doc_id=doc.id, name=it.name, barcode=it.barcode, qty=it.qty,
-            cost=it.cost if it.cost is not None else it.price,
+            cost=it.cost if it.cost is not None else it.price, tenant_id=tenant_id,
         ))
 
     await session.commit()
@@ -458,7 +467,13 @@ async def list_support_docs(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(SupportDoc).order_by(SupportDoc.created_at.desc()).limit(300)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = (
+        select(SupportDoc)
+        .where(SupportDoc.tenant_id == tenant_id)
+        .order_by(SupportDoc.created_at.desc())
+        .limit(300)
+    )
     docs = (await session.execute(stmt)).scalars().all()
     return [await _support_doc_out(session, d) for d in docs]
 
@@ -468,7 +483,13 @@ async def list_purchase_invoices(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(PurchaseInvoice).order_by(PurchaseInvoice.created_at.desc()).limit(200)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = (
+        select(PurchaseInvoice)
+        .where(PurchaseInvoice.tenant_id == tenant_id)
+        .order_by(PurchaseInvoice.created_at.desc())
+        .limit(200)
+    )
     invoices = (await session.execute(stmt)).scalars().all()
     result = []
     for inv in invoices:

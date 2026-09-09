@@ -45,6 +45,7 @@ async def create_payslip(
     if not payload.employee_name:
         raise HTTPException(status_code=400, detail="Empleado requerido")
 
+    tenant_id = user.tenant_id or "tenant-default-001"
     salary = float(payload.salary or 0)
     bonuses = float(payload.bonuses or 0)
     # salud+pensión 8% by default when not explicitly provided
@@ -57,6 +58,7 @@ async def create_payslip(
     doc = Payroll(
         number=number, employee_name=payload.employee_name, period=payload.period,
         salary=salary, bonuses=bonuses, deductions=deductions, net=net, status="simulada",
+        tenant_id=tenant_id,
     )
     session.add(doc)
     await session.commit()
@@ -69,6 +71,7 @@ async def list_payroll(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    stmt = select(Payroll).order_by(Payroll.created_at.desc()).limit(300)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = select(Payroll).where(Payroll.tenant_id == tenant_id).order_by(Payroll.created_at.desc()).limit(300)
     res = await session.execute(stmt)
     return res.scalars().all()
