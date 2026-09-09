@@ -33,6 +33,7 @@ import {
   X,
   Sparkles,
   Layers,
+  CreditCard,
 } from "lucide-react";
 import { whatsappUrl } from "@/lib/format";
 
@@ -101,6 +102,7 @@ export default function SuperAdmin() {
   const [stats, setStats] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -110,6 +112,10 @@ export default function SuperAdmin() {
   const [selectedTenantForModules, setSelectedTenantForModules] = useState(null);
   const [modulesDraft, setModulesDraft] = useState({});
 
+  // Modal para activar la suscripción pagada de un tenant
+  const [selectedTenantForActivation, setSelectedTenantForActivation] = useState(null);
+  const [activationDraft, setActivationDraft] = useState({ plan_id: "", months: 1 });
+
   // Modal para gestionar ticket
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [ticketAdminNotes, setTicketAdminNotes] = useState("");
@@ -118,14 +124,16 @@ export default function SuperAdmin() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [statsRes, tenantsRes, ticketsRes] = await Promise.all([
+      const [statsRes, tenantsRes, ticketsRes, plansRes] = await Promise.all([
         axios.get(`${API}/superadmin/stats`, { withCredentials: true }),
         axios.get(`${API}/superadmin/tenants`, { withCredentials: true }),
         axios.get(`${API}/superadmin/tickets`, { withCredentials: true }).catch(() => ({ data: [] })),
+        axios.get(`${API}/billing/plans`, { withCredentials: true }).catch(() => ({ data: [] })),
       ]);
       setStats(statsRes.data);
       setTenants(tenantsRes.data);
       setTickets(ticketsRes.data || []);
+      setPlans(plansRes.data || []);
     } catch (err) {
       console.error("Error loading superadmin data", err);
     } finally {
@@ -187,6 +195,29 @@ export default function SuperAdmin() {
       await loadData();
     } catch (err) {
       alert("Error al guardar la configuración de módulos.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const openActivationModal = (tenant) => {
+    setSelectedTenantForActivation(tenant);
+    setActivationDraft({ plan_id: plans[0]?.id || "", months: 1 });
+  };
+
+  const saveActivation = async () => {
+    if (!selectedTenantForActivation || !activationDraft.plan_id) return;
+    setActionLoading(true);
+    try {
+      await axios.post(
+        `${API}/billing/superadmin/tenants/${selectedTenantForActivation.id}/activate`,
+        { plan_id: activationDraft.plan_id, months: Number(activationDraft.months) || 1 },
+        { withCredentials: true }
+      );
+      setSelectedTenantForActivation(null);
+      await loadData();
+    } catch (err) {
+      alert("Error al activar la suscripción.");
     } finally {
       setActionLoading(false);
     }
@@ -513,6 +544,15 @@ export default function SuperAdmin() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            onClick={() => openActivationModal(t)}
+                            title="Registrar plan pagado y periodo de suscripción"
+                            className="h-7 text-[10px] bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/20"
+                          >
+                            <CreditCard className="w-3 h-3 mr-1" /> Activar Plan
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             onClick={() => impersonateTenant(t.id)}
                             title="Entrar a la tienda como soporte asistido"
                             className="h-7 text-[10px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20"
@@ -778,6 +818,79 @@ export default function SuperAdmin() {
                 className="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-5"
               >
                 {actionLoading ? "Guardando..." : "Guardar Módulos"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ACTIVAR SUSCRIPCIÓN PAGADA */}
+      {selectedTenantForActivation && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/15 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex justify-between items-start border-b border-white/10 pb-4">
+              <div>
+                <h3 className="text-lg font-bold text-white font-['Outfit'] flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-sky-400" />
+                  <span>Activar Plan para {selectedTenantForActivation.business_name}</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Registra el plan y periodo tras verificar el pago manual (QR/transferencia).
+                </p>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setSelectedTenantForActivation(null)}
+                className="text-slate-400 hover:text-white rounded-full w-8 h-8"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Plan</label>
+                <select
+                  value={activationDraft.plan_id}
+                  onChange={(e) => setActivationDraft((prev) => ({ ...prev, plan_id: e.target.value }))}
+                  className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-3 h-9 text-xs text-white focus:outline-none focus:border-sky-500/50"
+                >
+                  {plans.length === 0 && <option value="">Sin planes disponibles</option>}
+                  {plans.map((p) => (
+                    <option key={p.id} value={p.id} className="bg-slate-900">
+                      {p.name} — ${Number(p.price_cop).toLocaleString("es-CO")}/mes
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Meses pagados</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={activationDraft.months}
+                  onChange={(e) => setActivationDraft((prev) => ({ ...prev, months: e.target.value }))}
+                  className="bg-slate-950/60 border-white/10 text-white h-9 text-xs rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedTenantForActivation(null)}
+                className="text-xs bg-white/5 border-white/10 text-slate-300"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={saveActivation}
+                disabled={actionLoading || !activationDraft.plan_id}
+                className="text-xs bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold px-5"
+              >
+                {actionLoading ? "Activando..." : "Confirmar Activación"}
               </Button>
             </div>
           </div>
