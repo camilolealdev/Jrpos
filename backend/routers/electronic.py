@@ -1,6 +1,7 @@
 import hashlib
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
@@ -28,11 +29,14 @@ async def electronic_invoice(
     user: User = Depends(get_current_user),
 ):
     """Genera CUFE y XML UBL SIMULADOS para la venta. No válido ante la DIAN real."""
+    tenant_id = user.tenant_id or "tenant-default-001"
     sale = await session.get(Sale, sale_id)
-    if not sale:
+    if not sale or sale.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-    st = await session.get(SettingsElectronic, 1) or _ElectronicSettingsDefaults()
+    st = (
+        await session.execute(select(SettingsElectronic).where(SettingsElectronic.tenant_id == tenant_id))
+    ).scalar_one_or_none() or _ElectronicSettingsDefaults()
 
     number = f"{st.prefijo or 'FE'}{sale.number or ''}"
     date = sale.created_at.isoformat() if sale.created_at else ""
