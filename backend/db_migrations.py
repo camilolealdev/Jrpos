@@ -178,16 +178,16 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS close_notes TEXT;
 
     -- 4. Siembra de Planes SaaS por Defecto
-    INSERT INTO platform_plans (id, name, description, price_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled)
-    VALUES ('basico', 'Plan Emprendedor', 'Ideal para tiendas de barrio y pequeños comercios', 49000, 490000, 1, 2, 2000, TRUE, FALSE)
+    INSERT INTO platform_plans (id, name, description, price_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
+    VALUES ('basico', 'Plan Emprendedor', 'Ideal para tiendas de barrio y pequeños comercios', 49000, 490000, 1, 2, 2000, TRUE, FALSE, TRUE, now())
     ON CONFLICT (id) DO NOTHING;
 
-    INSERT INTO platform_plans (id, name, description, price_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled)
-    VALUES ('pro', 'Plan Negocio Pro', 'Para minimercados, droguerías y comercios en crecimiento', 89000, 890000, 3, 10, 20000, TRUE, TRUE)
+    INSERT INTO platform_plans (id, name, description, price_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
+    VALUES ('pro', 'Plan Negocio Pro', 'Para minimercados, droguerías y comercios en crecimiento', 89000, 890000, 3, 10, 20000, TRUE, TRUE, TRUE, now())
     ON CONFLICT (id) DO NOTHING;
 
-    INSERT INTO platform_plans (id, name, description, price_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled)
-    VALUES ('franquicia', 'Plan Franquicia Multi-Sede', 'Para cadenas, distribuidoras y múltiples sucursales', 189000, 1890000, 10, 50, 100000, TRUE, TRUE)
+    INSERT INTO platform_plans (id, name, description, price_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
+    VALUES ('franquicia', 'Plan Franquicia Multi-Sede', 'Para cadenas, distribuidoras y múltiples sucursales', 189000, 1890000, 10, 50, 100000, TRUE, TRUE, TRUE, now())
     ON CONFLICT (id) DO NOTHING;
 
     -- 5. Siembra del Tenant por Defecto para retrocompatibilidad
