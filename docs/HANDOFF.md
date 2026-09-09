@@ -39,6 +39,18 @@ Login y registro con Google, con onboarding obligatorio para cuentas nuevas (pid
 - **VPS**: todo esto se validó en Docker local (`docker compose`), no se ha desplegado al VPS real todavía. Ver `docs/DEPLOY_RUNBOOK.md` para esos pasos.
 - **Certificado local de Caddy**: para probar `https://localhost` sin errores de certificado hay que instalar el CA local de Caddy en el almacén de confianza de Windows (se generó y entregó al usuario en esta sesión, no se vuelve a necesitar si ya lo instaló).
 
+## Auditoría de aislamiento multi-tenant (sesión 2026-09-09) + Row-Level Security
+
+Se auditaron los 22 routers del backend buscando queries que reciben `user`/`admin` pero no filtran por `tenant_id`. Se encontraron y corrigieron fugas reales entre tenants en `invoices.py` (el peor: `import_invoice_to_inventory` podía sobrescribir stock/precio de productos de OTRO tenant), `radian.py`, `payroll.py`, `docs.py` y `electronic.py`. El resto de routers ya estaban correctos.
+
+Como segunda capa de defensa (para que un bug futuro similar no vuelva a filtrar datos aunque el código lo permita), se implementó **PostgreSQL Row-Level Security** en las 33 tablas realmente tenant-scoped (`backend/db_migrations.py`), con el contexto fijado en `backend/auth.py::get_current_user`/`_provision_tenant` vía `set_config('app.current_tenant_id', ...)`.
+
+**Trampa crítica encontrada al verificar (no asumir que "ENABLE + FORCE ROW LEVEL SECURITY" ya es suficiente):** Postgres crea el rol de `POSTGRES_USER` **siempre como superusuario** durante el bootstrap del contenedor, y no se le puede quitar después (`ALTER ROLE ... NOSUPERUSER` falla explícitamente contra el bootstrap user: *"The bootstrap user must have the SUPERUSER attribute"*). Un superusuario **ignora RLS sin importar `FORCE`**. Si el backend se sigue conectando con ese rol, todas las políticas de RLS son un placebo — solo se detecta probando con SQL crudo *sin* el `WHERE` que el código ya pone, no con requests normales de la app (que seguían dando el resultado correcto gracias al filtro de código, ocultando el problema).
+
+La solución fue crear un segundo rol, `jrpos_app` (sin `SUPERUSER`/`BYPASSRLS`), dueño de las tablas — `docker/postgres-init.sh` lo crea automático en un volumen nuevo (VPS, `down -v`), y `DATABASE_URL`/`DATABASE_URL_UNPOOLED` en `.env` ahora apuntan a `jrpos_app`, no a `jrpos`. `jrpos` (superusuario) sigue existiendo solo como bootstrap del cluster.
+
+**Cómo verificar que RLS realmente bloquea (no solo que existan las políticas):** conectar por psql con el rol de la app, fijar `app.current_tenant_id` a un tenant distinto, y correr un `SELECT count(*)` **sin ningún `WHERE`** sobre una tabla con datos de otro tenant — debe dar 0. Si da el conteo real, alguna sesión sigue conectándose como superusuario/con `BYPASSRLS`.
+
 ## Lección operativa: Docker Desktop bajo carga
 
 Durante esta sesión, lanzar más de un `docker compose build` en paralelo (o encima de uno que ya estaba corriendo) dejó a Docker Desktop/WSL2 en un estado degradado: builds colgados por 10+ minutos, `docker info`/`docker compose ps` sin responder, DNS interno fallando (`Temporary failure in name resolution` resolviendo `postgres` desde el backend), contenedores en crash-loop. La única solución fue matar los procesos de Docker Desktop y relanzarlo. **No lanzar builds de Docker en paralelo** — esperar a que termine uno antes de lanzar el siguiente.
