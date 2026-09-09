@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Camera, Barcode, X } from "lucide-react";
@@ -17,7 +16,7 @@ const playScanBeep = () => {
     const gain = ctx.createGain();
     osc.type = "sine";
     osc.frequency.setValueAtTime(1850, ctx.currentTime);
-    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.setValueAtTime(0.25, gain.gain.value);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -25,6 +24,13 @@ const playScanBeep = () => {
     osc.stop(ctx.currentTime + 0.14);
   } catch { /* noop */ }
 };
+
+// Formatos soportados por BarcodeDetector (Chrome/Edge). Si el navegador no
+// acepta la lista completa, cae a un detector sin restricción de formatos.
+const NATIVE_FORMATS = [
+  "ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "code_93",
+  "itf", "codabar", "qr_code", "pdf417", "aztec", "data_matrix",
+];
 
 export default function CameraScanner({ open, onOpenChange, onScan, continuous = false }) {
   const [error, setError] = useState("");
@@ -37,7 +43,11 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
   const [manualCode, setManualCode] = useState("");
   const lastScanTimeRef = useRef(0);
   const lastScannedCodeRef = useRef("");
-  const scannerRef = useRef(null);
+  // Motor activo: "native" (BarcodeDetector) | "zxing" (@zxing/browser)
+  const engineRef = useRef(""); // "" | "native" | "zxing"
+  const nativeStreamRef = useRef(null);
+  const nativeLoopRef = useRef(0);
+  const zxingControlsRef = useRef(null);
   const running = useRef(false);
   const rawId = useId();
   const readerId = `camera-reader-${rawId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
@@ -66,28 +76,94 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       setTimeout(() => setFlash(false), 350);
       onScan(cleanText);
     } else {
-      try {
-        if (scannerRef.current && running.current) {
-          scannerRef.current.stop().catch(() => {});
-        }
-      } catch { /* noop */ }
+      stopEngine();
       running.current = false;
       onOpenChange(false);
       onScan(cleanText);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [continuous, onOpenChange, onScan]);
 
-  const stopScanner = async () => {
-    if (scannerRef.current) {
-      try {
-        if (running.current) {
-          await scannerRef.current.stop();
-        }
-        await scannerRef.current.clear();
-      } catch { /* noop */ }
-      running.current = false;
-      scannerRef.current = null;
+  const stopNative = () => {
+    cancelAnimationFrame(nativeLoopRef.current);
+    const stream = nativeStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      nativeStreamRef.current = null;
     }
+  };
+
+  const stopEngine = () => {
+    stopNative();
+    const controls = zxingControlsRef.current;
+    if (controls) {
+      try { controls.stop(); } catch { /* noop */ }
+      zxingControlsRef.current = null;
+    }
+    running.current = false;
+    engineRef.current = "";
+  };
+
+  // Capa 1 — BarcodeDetector nativo (Chrome/Edge Android y desktop):
+  // decodificación acelerada sin cargar librería JS de decodificación.
+  const startNative = async (videoConstraints) => {
+    let detector;
+    try {
+      detector = new window.BarcodeDetector({ formats: NATIVE_FORMATS });
+    } catch {
+      detector = new window.BarcodeDetector();
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
+    nativeStreamRef.current = stream;
+    const holder = document.getElementById(readerId);
+    const video = document.createElement("video");
+    video.className = "w-full min-h-[280px] object-cover";
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+    video.srcObject = stream;
+    holder.replaceChildren(video);
+    await video.play().catch(() => {});
+    running.current = true;
+    engineRef.current = "native";
+    let alive = true;
+    const tick = async () => {
+      if (!alive || engineRef.current !== "native") return;
+      if (video.readyState >= 2) {
+        try {
+          const codes = await detector.detect(video);
+          if (codes && codes.length) handleDetectedText(codes[0].rawValue);
+        } catch { /* frame descartado */ }
+      }
+      nativeLoopRef.current = requestAnimationFrame(tick);
+    };
+    nativeLoopRef.current = requestAnimationFrame(tick);
+  };
+
+  // Capa 2 — @zxing/browser (MIT + core Apache): fallback JS puro para
+  // navegadores sin BarcodeDetector (iOS Safari, Firefox, etc.).
+  // Import dinámico: los dispositivos con detección nativa nunca descargan ZXing.
+  const startZxing = async (videoConstraints) => {
+    const { BrowserMultiFormatReader } = await import("@zxing/browser");
+    const reader = new BrowserMultiFormatReader();
+    const holder = document.getElementById(readerId);
+    const video = document.createElement("video");
+    video.className = "w-full min-h-[280px] object-cover";
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+    holder.replaceChildren(video);
+
+    const controls = await reader.decodeFromConstraints(
+      { video: videoConstraints, audio: false },
+      video,
+      (result) => {
+        if (result) handleDetectedText(result.getText());
+      }
+    );
+    zxingControlsRef.current = controls;
+    running.current = true;
+    engineRef.current = "zxing";
   };
 
   const startWithCamera = async (camSource) => {
@@ -102,29 +178,23 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     }
 
     try {
-      await stopScanner();
+      stopEngine();
 
-      // Por defecto html5-qrcode activa todos los formatos 1D y 2D (EAN, UPC, Code128, QR, etc.)
-      const scanner = new Html5Qrcode(readerId, {
-        verbose: false,
-      });
-      scannerRef.current = scanner;
+      // facingMode → constraints directas; deviceId (string) → constraint exacta
+      const videoConstraints =
+        camSource && typeof camSource === "object"
+          ? camSource
+          : { deviceId: { exact: camSource } };
 
-      const config = {
-        fps: 25,
-        videoConstraints: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      };
+      if ("BarcodeDetector" in window) {
+        try {
+          await startNative(videoConstraints);
+          setStarting(false);
+          return;
+        } catch { /* sin capa nativa: continúa a zxing */ }
+      }
 
-      await scanner.start(
-        camSource,
-        config,
-        (text) => handleDetectedText(text),
-        () => {} // frame descartado
-      );
-      running.current = true;
+      await startZxing(videoConstraints);
     } catch (err) {
       const errName = err?.name || "";
       const msg = err?.message || String(err);
@@ -135,18 +205,17 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       } else if (errName === "NotReadableError" || msg.includes("Could not start video source")) {
         setError("La cámara está siendo usada por otra aplicación (Zoom, Meet, Teams, etc.). Ciérrala y reintenta.");
       } else {
-        // Fallback a constraints generales si el ID falló
-        if (typeof camSource === "string") {
-          try {
-            const scanner = new Html5Qrcode(readerId, { verbose: false });
-            scannerRef.current = scanner;
-            await scanner.start({ facingMode: "user" }, { fps: 20 }, (t) => handleDetectedText(t), () => {});
-            running.current = true;
-            setError("");
+        // Fallback final: constraints genéricas
+        try {
+          if ("BarcodeDetector" in window) {
+            await startNative({ facingMode: "user" });
             setStarting(false);
             return;
-          } catch { /* noop */ }
-        }
+          }
+          await startZxing({ facingMode: "user" });
+          setStarting(false);
+          return;
+        } catch { /* noop */ }
         setError("No se pudo iniciar la cámara: " + msg);
       }
     } finally {
@@ -154,9 +223,24 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     }
   };
 
+  // Listado de cámaras sin depender de html5-qrcode: getUserMedia para pedir
+  // permiso (los labels solo llegan con permiso concedido) + enumerateDevices.
+  const listCameras = async () => {
+    try {
+      const tmp = await navigator.mediaDevices.getUserMedia({ video: true });
+      tmp.getTracks().forEach((t) => t.stop());
+    } catch { /* el flujo principal maneja el error de permiso */ }
+    const devs = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+    return devs
+      .filter((d) => d.kind === "videoinput")
+      .map((d, i) => ({ id: d.deviceId, label: d.label || "" }))
+      .filter((d, i, arr) => d.id && arr.findIndex((x) => x.id === d.id) === i)
+      .map((d, i) => ({ ...d, label: d.label || `Cámara ${i + 1}` }));
+  };
+
   useEffect(() => {
     if (!open) {
-      stopScanner();
+      stopEngine();
       setScannedCount(0);
       setLastCode("");
       lastScannedCodeRef.current = "";
@@ -185,27 +269,20 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       }
 
       try {
-        // Enlistar cámaras disponibles para el selector manual (útil en PC con varios webcams)
-        const devices = await Html5Qrcode.getCameras().catch(() => []);
-        if (cancelled) return;
-        if (devices && devices.length > 0) setCameras(devices);
-
-        // Arrancar por facingMode en vez de por label: en la mayoría de navegadores
-        // móviles el label del dispositivo llega vacío hasta que ya se dio permiso de
-        // cámara antes, así que buscar "back/trasera/rear/environment" en el label
-        // casi siempre falla y termina usando devices[0] (la frontal en muchos Android).
-        // facingMode deja que el navegador resuelva la cámara trasera de forma nativa.
+        // Arrancar por facingMode: en móviles el label llega vacío hasta que ya
+        // se concedió permiso; facingMode deja que el navegador resuelva la
+        // cámara trasera de forma nativa.
         await startWithCamera({ facingMode: { ideal: "environment" } });
+        if (cancelled) return;
 
-        if (!cancelled && devices && devices.length > 0) {
-          // Solo para reflejar la selección en el dropdown manual (labels ya disponibles
-          // tras conceder el permiso arriba)
-          const backCam = devices.find((d) =>
-            /back|trasera|rear|environment/i.test(d.label || "")
-          );
+        const devices = await listCameras();
+        if (cancelled) return;
+        if (devices.length > 0) {
+          setCameras(devices);
+          const backCam = devices.find((d) => /back|trasera|rear|environment/i.test(d.label));
           setSelectedCamId(backCam ? backCam.id : devices[0].id);
         }
-      } catch (e) {
+      } catch {
         if (!cancelled) {
           startWithCamera({ facingMode: "user" });
         }
@@ -217,7 +294,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
-      stopScanner();
+      stopEngine();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -264,9 +341,9 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
               onChange={handleCameraChange}
               className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
             >
-              {cameras.map((c, idx) => (
+              {cameras.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.label || `Cámara ${idx + 1}`}
+                  {c.label}
                 </option>
               ))}
             </select>
@@ -274,7 +351,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
         )}
 
         <div className={`relative overflow-hidden rounded-xl bg-slate-950 min-h-[280px] shadow-inner transition-all duration-300 ${flash ? "ring-4 ring-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.8)]" : ""}`}>
-          <div id={readerId} className="w-full min-h-[280px] overflow-hidden" />
+          <div id={readerId} className="w-full min-h-[280px] overflow-hidden [&>video]:w-full [&>video]:min-h-[280px] [&>video]:object-cover" />
 
           {/* Guía visual con recuadro y línea láser animada */}
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
