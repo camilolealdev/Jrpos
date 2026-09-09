@@ -55,6 +55,7 @@ class PlatformPlan(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     price_cop: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    price_quarterly_cop: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     price_annual_cop: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     max_branches: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     max_users: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
@@ -363,7 +364,7 @@ class PurchaseInvoiceItem(Base):
 class SettingsElectronic(Base):
     __tablename__ = "settings_electronic"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     nit: Mapped[str | None] = mapped_column(String(50), nullable=True)
     razon_social: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -377,7 +378,7 @@ class SettingsElectronic(Base):
 class SettingsTimeclockSchedule(Base):
     __tablename__ = "settings_timeclock_schedule"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     entry_time: Mapped[str] = mapped_column(String(5), nullable=False, default="08:00")
     exit_time: Mapped[str] = mapped_column(String(5), nullable=False, default="18:00")
@@ -387,7 +388,7 @@ class SettingsTimeclockSchedule(Base):
 class SettingsGeneral(Base):
     __tablename__ = "settings_general"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     store_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default="JRPOS")
     store_slogan: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -426,7 +427,7 @@ class SettingsGeneral(Base):
 class SettingsCertificate(Base):
     __tablename__ = "settings_certificate"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     size: Mapped[int | None] = mapped_column(Integer, nullable=True)

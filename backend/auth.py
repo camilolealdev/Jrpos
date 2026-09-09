@@ -14,16 +14,32 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
-from models_sql import Branch, LoginAttempt, PlatformPlan, SettingsGeneral, Tenant, TenantSubscription, User, new_uuid, utcnow
+from models_sql import Branch, LoginAttempt, SettingsGeneral, Tenant, TenantSubscription, User, new_uuid, utcnow
 from observability import logger, tenant_id_ctx, user_id_ctx
 
 JWT_ALGORITHM = "HS256"
 
 
+def _is_production_env() -> bool:
+    return (
+        os.environ.get("ENV") == "production"
+        or os.environ.get("RAILWAY_ENVIRONMENT") is not None
+        or os.environ.get("VERCEL") == "1"
+    )
+
+
+def _to_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def get_jwt_secret() -> str:
     secret = os.environ.get("JWT_SECRET")
     if not secret:
-        if os.environ.get("ENV") == "production":
+        if _is_production_env():
             raise RuntimeError("FATAL: JWT_SECRET environment variable must be set in production.")
         return "jrpos-dev-secret-key-change-in-production-min-32-chars-ok"
     return secret
@@ -40,7 +56,10 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
 
 
 def create_access_token(user_id: str, email: str, role: str, tenant_id: str | None = None) -> str:
@@ -48,7 +67,7 @@ def create_access_token(user_id: str, email: str, role: str, tenant_id: str | No
         "sub": user_id,
         "email": email,
         "role": role,
-        "tenant_id": tenant_id or "tenant-default-001",
+        "tenant_id": tenant_id if tenant_id is not None else (None if role == "superadmin_platform" else "tenant-default-001"),
         "exp": datetime.now(timezone.utc) + timedelta(hours=8),
         "type": "access",
     }
@@ -65,7 +84,7 @@ def create_refresh_token(user_id: str) -> str:
 
 
 def _cookie_flags() -> tuple[bool, str]:
-    is_prod = os.environ.get("ENV") == "production" or os.environ.get("RAILWAY_ENVIRONMENT") is not None or os.environ.get("VERCEL") == "1"
+    is_prod = _is_production_env()
     return is_prod, ("none" if is_prod else "lax")
 
 
@@ -89,7 +108,10 @@ async def _set_tenant_context(session: AsyncSession, *, tenant_id: str | None, i
     commit sin contexto (RLS las bloquearia por error, no por diseño).
     No-op en SQLite (fallback de desarrollo sin Docker): no soporta RLS.
     """
-    if session.get_bind().dialect.name != "postgresql":
+    bind = session.get_bind()
+    dialect_name = getattr(bind, "dialect", None)
+    dialect_str = dialect_name.name if dialect_name else ""
+    if dialect_str != "postgresql":
         return
     await session.execute(
         text("SELECT set_config('app.current_tenant_id', :tid, false), set_config('app.is_superadmin', :sa, false)"),
@@ -120,7 +142,8 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
         if user.role != "superadmin_platform" and user.tenant_id:
             tenant = (await session.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one_or_none()
             if tenant:
-                expired = tenant.status == "trial" and tenant.trial_ends_at and tenant.trial_ends_at < utcnow()
+                trial_end = _to_utc(tenant.trial_ends_at)
+                expired = tenant.status == "trial" and trial_end is not None and trial_end < utcnow()
                 suspended = tenant.status in ("suspended", "cancelled")
                 if expired or suspended:
                     raise HTTPException(
@@ -175,6 +198,10 @@ class GoogleAuthRequest(BaseModel):
     name: str | None = None
     phone: str | None = None
     business_type: str | None = None
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str | None = None
 
 
 auth_router = APIRouter(prefix="/api/auth")
@@ -260,6 +287,19 @@ async def _provision_tenant(
     )
     session.add(sub)
 
+    # 6. Configuración General Inicial para la Tienda
+    general_settings = SettingsGeneral(
+        tenant_id=tenant_id,
+        store_name=business_name.strip(),
+        support_phone=phone.strip() if phone else None,
+        iva_default=19,
+        printer_width=58,
+        accent="emerald",
+        business_type=business_type or "abarrotes",
+        ticket_footer="¡Gracias por su compra!",
+    )
+    session.add(general_settings)
+
     await session.commit()
     return user, tenant
 
@@ -307,11 +347,7 @@ async def _tenant_info_for(session: AsyncSession, user: User) -> dict | None:
     tenant = await session.get(Tenant, user.tenant_id)
     if not tenant:
         return None
-    trial_end = tenant.trial_ends_at
-    if trial_end and trial_end.tzinfo is None:
-        # SQLite (y algunos drivers) devuelven datetimes naive; trátalos como UTC
-        # para evitar TypeError al restar contra utcnow() (aware).
-        trial_end = trial_end.replace(tzinfo=timezone.utc)
+    trial_end = _to_utc(tenant.trial_ends_at)
     days_left = max(0, (trial_end - utcnow()).days) if trial_end else 0
     return {
         "id": tenant.id,
@@ -330,8 +366,9 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, session: A
 
     try:
         idinfo = google_id_token.verify_oauth2_token(payload.credential, google_requests.Request(), client_id)
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Token de Google inválido")
+    except (ValueError, Exception) as e:
+        logger.warning("Google Auth: error al verificar token: %s", e)
+        raise HTTPException(status_code=401, detail="Token de Google inválido o no verificable")
 
     if not idinfo.get("email_verified"):
         raise HTTPException(status_code=401, detail="El correo de Google no está verificado")
@@ -408,13 +445,18 @@ async def login(payload: LoginRequest, request: Request, response: Response, ses
         raise HTTPException(status_code=429, detail="Demasiados intentos desde esta red. Espera un minuto.")
     email = payload.email.strip().lower()
     attempt = await session.get(LoginAttempt, email)
-    if attempt and attempt.count >= LOCKOUT_THRESHOLD:
-        if attempt.locked_until and attempt.locked_until > utcnow():
-            raise HTTPException(
-                status_code=429,
-                detail="Cuenta bloqueada temporalmente por demasiados intentos. Espera 15 minutos.",
-                headers={"Retry-After": "900"},
-            )
+    if attempt:
+        locked_until = _to_utc(attempt.locked_until)
+        if locked_until and locked_until <= utcnow():
+            attempt.count = 0
+            attempt.locked_until = None
+        elif attempt.count >= LOCKOUT_THRESHOLD:
+            if locked_until and locked_until > utcnow():
+                raise HTTPException(
+                    status_code=429,
+                    detail="Cuenta bloqueada temporalmente por demasiados intentos. Espera 15 minutos.",
+                    headers={"Retry-After": "900"},
+                )
 
     user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if not user or not verify_password(payload.password, user.password_hash):
@@ -449,8 +491,9 @@ async def login(payload: LoginRequest, request: Request, response: Response, ses
 
 @auth_router.post("/logout")
 async def logout(response: Response):
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    is_secure, same_site = _cookie_flags()
+    response.delete_cookie("access_token", path="/", secure=is_secure, samesite=same_site, httponly=True)
+    response.delete_cookie("refresh_token", path="/", secure=is_secure, samesite=same_site, httponly=True)
     return {"ok": True}
 
 
@@ -467,8 +510,19 @@ async def me(user: User = Depends(get_current_user), session: AsyncSession = Dep
 
 
 @auth_router.post("/refresh")
-async def refresh(request: Request, response: Response, session: AsyncSession = Depends(get_session)):
+async def refresh(
+    request: Request,
+    response: Response,
+    payload: RefreshRequest | None = None,
+    session: AsyncSession = Depends(get_session),
+):
     token = request.cookies.get("refresh_token")
+    if not token and payload and payload.refresh_token:
+        token = payload.refresh_token.strip()
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
     if not token:
         raise HTTPException(status_code=401, detail="Sin refresh token")
     try:
@@ -488,6 +542,12 @@ async def refresh(request: Request, response: Response, session: AsyncSession = 
 
 
 async def seed_admin(session: AsyncSession) -> None:
+    # Bootstrap sin usuario autenticado: se ejecuta en el lifespan de arranque,
+    # así que hay que fijar el contexto de RLS como superadmin explícitamente
+    # (igual que hace /auth/register en su propia transacción) o las políticas
+    # tenant_isolation con FORCE ROW LEVEL SECURITY rechazan los INSERT de abajo.
+    await _set_tenant_context(session, tenant_id=None, is_superadmin=True)
+
     # 1. Garantizar Usuario SuperAdmin Global de Plataforma SaaS
     superadmin_email = (os.environ.get("SUPERADMIN_EMAIL") or "superadmin@jrpos.co").strip().lower()
     superadmin_password = os.environ.get("SUPERADMIN_PASSWORD") or "superadmin123"
@@ -527,6 +587,29 @@ async def seed_admin(session: AsyncSession) -> None:
         )
         session.add(tenant)
         await session.flush()
+
+    branch = (await session.execute(select(Branch).where(Branch.tenant_id == default_tenant_id))).scalars().first()
+    if not branch:
+        session.add(Branch(
+            id=new_uuid(),
+            tenant_id=default_tenant_id,
+            name="Sede Principal",
+            phone="3001234567",
+            is_active=True,
+        ))
+
+    general_settings = (await session.execute(select(SettingsGeneral).where(SettingsGeneral.tenant_id == default_tenant_id))).scalars().first()
+    if not general_settings:
+        session.add(SettingsGeneral(
+            tenant_id=default_tenant_id,
+            store_name="Minimarket El Progreso",
+            support_phone="3001234567",
+            iva_default=19,
+            printer_width=58,
+            accent="emerald",
+            business_type="abarrotes",
+            ticket_footer="¡Gracias por su compra!",
+        ))
 
     existing = (await session.execute(select(User).where(User.email == admin_email))).scalar_one_or_none()
     if existing is None:

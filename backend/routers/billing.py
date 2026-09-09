@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/billing", tags=["billing"])
 
 class CheckoutRequest(BaseModel):
     plan_id: str
-    period: str = "monthly"  # monthly | annual
+    period: str = "monthly"  # monthly | quarterly | annual
     payment_method: str = "wompi"
 
 
@@ -63,6 +63,7 @@ async def get_platform_plans(session: AsyncSession = Depends(get_session)):
             "name": p.name,
             "description": p.description,
             "price_cop": p.price_cop,
+            "price_quarterly_cop": p.price_quarterly_cop,
             "price_annual_cop": p.price_annual_cop,
             "max_branches": p.max_branches,
             "max_users": p.max_users,
@@ -81,7 +82,12 @@ async def create_checkout_session(payload: CheckoutRequest, user: User = Depends
     if not plan:
         raise HTTPException(status_code=404, detail="Plan no encontrado")
 
-    amount = plan.price_annual_cop if payload.period == "annual" else plan.price_cop
+    if payload.period == "annual":
+        amount = plan.price_annual_cop
+    elif payload.period == "quarterly":
+        amount = plan.price_quarterly_cop
+    else:
+        amount = plan.price_cop
 
     # Simulación lista para webhook de Wompi / PSE / Tarjeta
     return {
@@ -116,9 +122,13 @@ async def payment_info(session: AsyncSession = Depends(get_session)):
         "qr_url": os.environ.get("PAYMENT_QR_URL", ""),
         "bank_info": os.environ.get("PAYMENT_BANK_INFO", ""),
         "whatsapp": os.environ.get("PAYMENT_WHATSAPP", ""),
+        "nequi_number": os.environ.get("PAYMENT_NEQUI_NUMBER", ""),
+        "breb_key": os.environ.get("PAYMENT_BREB_KEY", ""),
         "plans": [
             {
                 "id": pl.id, "name": pl.name, "price_cop": pl.price_cop,
+                "price_quarterly_cop": pl.price_quarterly_cop,
+                "price_annual_cop": pl.price_annual_cop,
                 "description": getattr(pl, "description", "") or "",
                 "max_users": getattr(pl, "max_users", None),
                 "max_products": getattr(pl, "max_products", None),

@@ -114,6 +114,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
 
     -- 2. Añadir columna tenant_id a tablas operativas
     ALTER TABLE tenants ADD COLUMN IF NOT EXISTS modules_config JSON;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS price_quarterly_cop FLOAT NOT NULL DEFAULT 0.0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
     -- El CHECK constraint de "role" se creó con la tabla original (solo admin/cajero)
@@ -215,6 +216,12 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     VALUES ('franquicia', 'Plan Franquicia Multi-Sede', 'Para cadenas, distribuidoras y múltiples sucursales', 189000, 1890000, 10, 50, 100000, TRUE, TRUE, TRUE, now())
     ON CONFLICT (id) DO NOTHING;
 
+    -- Precio trimestral (~11-12% de descuento vs. 3x mensual); UPDATE idempotente
+    -- porque el INSERT ...ON CONFLICT DO NOTHING de arriba no toca filas existentes.
+    UPDATE platform_plans SET price_quarterly_cop = 130000 WHERE id = 'basico';
+    UPDATE platform_plans SET price_quarterly_cop = 237000 WHERE id = 'pro';
+    UPDATE platform_plans SET price_quarterly_cop = 499000 WHERE id = 'franquicia';
+
     -- 5. Siembra del Tenant por Defecto para retrocompatibilidad
     INSERT INTO tenants (id, slug, business_name, nit_rut, phone, email, business_type, status, trial_ends_at)
     VALUES ('tenant-default-001', 'tienda-principal', 'Tienda Principal', '222222222', '3000000000', 'admin@jrpos.local', 'abarrotes', 'trial', '{trial_expiry}')
@@ -264,6 +271,14 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     CREATE SEQUENCE IF NOT EXISTS purchase_orders_number_seq;
     CREATE SEQUENCE IF NOT EXISTS payroll_number_seq;
     CREATE SEQUENCE IF NOT EXISTS support_docs_number_seq;
+
+    -- settings_general.id se creó sin IDENTITY/SERIAL (herencia del seed manual
+    -- de arriba, "id=1"); backend/auth.py (register y seed_admin) inserta filas
+    -- vía ORM sin id explícito para tenants nuevos, lo que revienta con
+    -- NotNullViolationError si no hay una secuencia por defecto en la columna.
+    CREATE SEQUENCE IF NOT EXISTS settings_general_id_seq OWNED BY settings_general.id;
+    ALTER TABLE settings_general ALTER COLUMN id SET DEFAULT nextval('settings_general_id_seq');
+    SELECT setval('settings_general_id_seq', COALESCE((SELECT MAX(id) FROM settings_general), 0) + 1, false);
     """
 
     try:

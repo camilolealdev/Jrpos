@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { applyAccent } from "@/pages/Settings";
 import { HIDDEN_MODULE_TIDS_BY_TYPE } from "@/lib/businessTypes";
 import BusinessTypeModal from "@/components/BusinessTypeModal";
+import TrialEndingModal from "@/components/TrialEndingModal";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -366,6 +367,7 @@ export default function Layout() {
   const [fullSettings, setFullSettings] = useState(null);
   const [showBusinessTypeModal, setShowBusinessTypeModal] = useState(false);
   const [savingBusinessType, setSavingBusinessType] = useState(false);
+  const [showTrialEndedModal, setShowTrialEndedModal] = useState(false);
 
   // SuperAdmin mode state (auto-active if path is /superadmin or user is superadmin_platform)
   const [isSuperAdminMode, setIsSuperAdminMode] = useState(() => {
@@ -480,6 +482,29 @@ export default function Layout() {
     }
   }, [fullSettings, showBusinessTypeModal, businessType]);
 
+  useEffect(() => {
+    const tenant = user?.tenant;
+    if (!tenant || isSuperAdminMode) return;
+    const daysLeft = tenant.days_left;
+    if (tenant.status === "trial" && daysLeft <= 0) {
+      setShowTrialEndedModal(true);
+      return;
+    }
+    setShowTrialEndedModal(false);
+    if (tenant.status === "trial" && daysLeft > 0 && daysLeft <= 3) {
+      const today = new Date().toISOString().slice(0, 10);
+      const key = `jrpos_trial_warn_${today}`;
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, "1");
+        toast.warning(
+          daysLeft === 1
+            ? "Tu prueba gratuita termina mañana. Activa tu plan para no perder acceso."
+            : `Tu prueba gratuita termina en ${daysLeft} días. Activa tu plan para no perder acceso.`
+        );
+      }
+    }
+  }, [user, isSuperAdminMode]);
+
   return (
     <div className="min-h-screen bg-background grain-bg flex text-slate-800">
       {/* Desktop sidebar */}
@@ -546,9 +571,20 @@ export default function Layout() {
 
             {/* Trial countdown badge */}
             {user?.tenant?.days_left !== undefined && !isSuperAdminMode && (
-              <div className="hidden md:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-800">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                <span>Prueba Gratuita: {user.tenant.days_left} días restantes</span>
+              <div
+                className={cn(
+                  "hidden md:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border",
+                  user.tenant.days_left <= 3
+                    ? "bg-red-500/10 border-red-500/30 text-red-700"
+                    : "bg-amber-500/10 border-amber-500/30 text-amber-800"
+                )}
+              >
+                <Sparkles className={cn("w-3.5 h-3.5 animate-pulse", user.tenant.days_left <= 3 ? "text-red-600" : "text-amber-600")} />
+                <span>
+                  {user.tenant.days_left <= 0
+                    ? "Prueba Gratuita vencida"
+                    : `Prueba Gratuita: ${user.tenant.days_left} días restantes`}
+                </span>
               </div>
             )}
 
@@ -601,6 +637,7 @@ export default function Layout() {
         onSelect={handleBusinessTypeSelect}
         saving={savingBusinessType}
       />
+      <TrialEndingModal open={showTrialEndedModal} />
     </div>
   );
 }
