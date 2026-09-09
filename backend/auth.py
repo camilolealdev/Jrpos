@@ -3,6 +3,7 @@ import re
 import secrets
 import unicodedata
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 import bcrypt
 import jwt
@@ -95,9 +96,10 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 
-def _cookie_flags() -> tuple[bool, str]:
+def _cookie_flags() -> tuple[bool, Literal["lax", "none", "strict"]]:
     is_prod = _is_production_env()
-    return is_prod, ("none" if is_prod else "lax")
+    same_site: Literal["lax", "none", "strict"] = "none" if is_prod else "lax"
+    return is_prod, same_site
 
 
 def set_auth_cookies(response: Response, user: User) -> None:
@@ -227,10 +229,10 @@ async def _provision_tenant(
     *,
     business_name: str,
     email: str,
-    name: str,
-    phone: str | None,
-    business_type: str | None,
-    password_hash: str,
+    name: str | None = None,
+    phone: str | None = None,
+    business_type: str | None = None,
+    password_hash: str = "",
     google_id: str | None = None,
 ) -> tuple[User, Tenant]:
     # 1. Generar slug único para el tenant
@@ -538,13 +540,17 @@ async def refresh(
     if not token:
         raise HTTPException(status_code=401, detail="Sin refresh token")
     try:
-        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
-        if payload.get("type") != "refresh":
+        decoded_payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if decoded_payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Token inválido")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token inválido")
 
-    user = (await session.execute(select(User).where(User.id == payload["sub"]))).scalar_one_or_none()
+    sub = decoded_payload.get("sub")
+    if not sub:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    user = (await session.execute(select(User).where(User.id == str(sub)))).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
     access = create_access_token(user.id, user.email, user.role, user.tenant_id)
