@@ -368,7 +368,10 @@ async def list_categories(
     res = (await session.execute(stmt)).all()
 
     # Get category metadata (emoji, pinned, order)
-    meta_res = (await session.execute(select(CategoryMeta))).scalars().all()
+    meta_stmt = select(CategoryMeta).where(
+        (CategoryMeta.tenant_id == tenant_id) | (CategoryMeta.tenant_id.is_(None))
+    )
+    meta_res = (await session.execute(meta_stmt)).scalars().all()
     meta_map = {m.name: m for m in meta_res}
 
     items = []
@@ -399,6 +402,7 @@ async def upsert_category_meta(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    tenant_id = user.tenant_id or "tenant-default-001"
     updates = {k: v for k, v in payload.model_dump().items() if v is not None and k != "name"}
     if not updates:
         raise HTTPException(status_code=400, detail="Nada para actualizar")
@@ -407,8 +411,10 @@ async def upsert_category_meta(
     if meta:
         for key, value in updates.items():
             setattr(meta, key, value)
+        if not meta.tenant_id:
+            meta.tenant_id = tenant_id
     else:
-        meta = CategoryMeta(name=payload.name, **updates)
+        meta = CategoryMeta(name=payload.name, tenant_id=tenant_id, **updates)
         session.add(meta)
     await session.commit()
     await session.refresh(meta)

@@ -92,3 +92,7 @@ credentials.json
 .credentials
 .env*
 !.env.example
+*.db
+*.sqlite
+*.sqlite3
+

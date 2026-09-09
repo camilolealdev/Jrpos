@@ -10,11 +10,23 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
-from models_sql import Branch, LoginAttempt, SettingsGeneral, Tenant, TenantSubscription, User, new_uuid, utcnow
+from models_sql import (
+    Branch,
+    CategoryMeta,
+    Contact,
+    LoginAttempt,
+    Product,
+    SettingsGeneral,
+    Tenant,
+    TenantSubscription,
+    User,
+    new_uuid,
+    utcnow,
+)
 from observability import logger, tenant_id_ctx, user_id_ctx
 
 JWT_ALGORITHM = "HS256"
@@ -632,4 +644,18 @@ async def seed_admin(session: AsyncSession) -> None:
         if not existing.tenant_id:
             existing.tenant_id = default_tenant_id
 
+    # 3. Garantizar Catálogo Demo Inicial para la Tienda Principal (si no tiene productos)
+    prod_count = (await session.execute(select(func.count(Product.id)).where(Product.tenant_id == default_tenant_id))).scalar_one()
+    if prod_count == 0:
+        from routers.products import _SEED_CATEGORIES, _SEED_CONTACTS, _SEED_PRODUCTS
+        for cat in _SEED_CATEGORIES:
+            cat_row = await session.get(CategoryMeta, cat["name"])
+            if not cat_row:
+                session.add(CategoryMeta(tenant_id=default_tenant_id, **cat))
+        for p in _SEED_PRODUCTS:
+            session.add(Product(tenant_id=default_tenant_id, **p))
+        for c in _SEED_CONTACTS:
+            session.add(Contact(tenant_id=default_tenant_id, **c))
+
     await session.commit()
+
