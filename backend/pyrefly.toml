@@ -1,0 +1,6 @@
+# Pyrefly — resuelve imports contra el venv del proyecto, no el Python global.
+# (backend/.venv tiene sqlalchemy, fastapi, bcrypt, etc. instalados por requirements.txt)
+# Documentación: https://pyrefly.org/en/docs/configuration/
+
+[interpreter]
+interpreters = [".venv/Scripts/python.exe"]

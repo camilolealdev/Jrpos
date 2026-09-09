@@ -64,3 +64,12 @@
 2. ~~SuperAdminRoute sin uso~~: ruta `/superadmin` ahora usa `SuperAdminRoute`.
 3. ~~**Pendiente:** Login 500 en producción~~ **RESUELTO** — causa raíz identificada y corregida: `DATABASE_URL` tenía la URL del proyecto Supabase (`https://...supabase.co`) en vez del connection string Postgres del pooler. Corregir la variable en Vercel → Settings → Environment Variables (ver `docs/DEPLOY_RUNBOOK.md` § 3). Suite de tests local: **72 passed / 2 skipped**.
 
+## 🗺️ Análisis de arquitectura (nuevo)
+
+**`docs/ANALISIS_ARQUITECTURA_7_CAPAS.md`** — Gap analysis contra la arquitectura ecosistémica objetivo de 7 capas (Edge → IAM → Middleware → Dominio → RLS → Async → Observabilidad). Hallazgos clave:
+
+- **🔴 URGENTE:** IDOR cross-tenant en `backend/routers/electronic.py` (falta chequeo de `tenant_id` al resolver la venta) — fix de 30 min, ver doc §2.
+- **🟡 Gap principal:** sin RLS en Postgres (Capa 5) — aislamiento hoy solo a nivel aplicación; plan por fases A/B/C con `set_config('app.current_tenant_id', ..., true)` compatible con Supavisor.
+- **🟡 Faltan para SaaS real:** webhook Wompi idempotente + dunning automático (Capa 4), rate-limit por plan (Capa 1), logging contextual JSON con `tenant_id/trace_id` (Capa 7).
+- Incluye roadmap priorizado (12 acciones con esfuerzo y si bloquean deploy) y reparto por rol del equipo.
+

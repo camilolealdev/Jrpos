@@ -1,9 +1,15 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
+
+from observability import RequestContextMiddleware, configure_logging
+
+# Capa 7 — logs JSON con request_id/tenant_id/user_id en cada linea
+configure_logging(level=logging.DEBUG if os.environ.get("LOG_LEVEL", "INFO").upper() == "DEBUG" else logging.INFO)
 
 from auth import auth_router, seed_admin
 from db import SessionLocal
@@ -41,6 +47,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="JRPOS API", lifespan=lifespan)
+
+# Capa 7 — primero en el stack = lo ultimo en ejecutarse: envuelve a todos los
+# middlewares de abajo, asi request_id/tenant_id cubren CORS/GZip/headers tambien.
+app.add_middleware(RequestContextMiddleware)
 
 app.include_router(auth_router)
 app.include_router(billing_router)

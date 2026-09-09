@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
 from models_sql import Branch, LoginAttempt, PlatformPlan, SettingsGeneral, Tenant, TenantSubscription, User, new_uuid, utcnow
+from observability import logger, tenant_id_ctx, user_id_ctx
 
 JWT_ALGORITHM = "HS256"
 
@@ -90,7 +91,11 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
             raise HTTPException(status_code=401, detail="Tipo de token inválido")
         user = (await session.execute(select(User).where(User.id == payload["sub"]))).scalar_one_or_none()
         if not user:
+            logger.warning("Auth: usuario del token no existe")
             raise HTTPException(status_code=401, detail="Usuario no encontrado")
+        # Capa 7: amarrar contexto de tenant/user para todos los logs del request
+        tenant_id_ctx.set(user.tenant_id)
+        user_id_ctx.set(user.id)
         # Bloqueo por trial vencido (superadmin y admins de tenants activos/suscritos pasan)
         if user.role != "superadmin_platform" and user.tenant_id:
             tenant = (await session.execute(select(Tenant).where(Tenant.id == user.tenant_id))).scalar_one_or_none()
