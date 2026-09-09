@@ -22,16 +22,17 @@ target_metadata = Base.metadata
 
 
 def _migration_url() -> str:
-    # Migrations run from Vercel's build/runtime, which is IPv4-only —
-    # Supabase's direct connection (db.<project_ref>.supabase.co:5432) is
-    # IPv6-only by default and unreachable from there. Use Supavisor
-    # SESSION mode instead (aws-0-<region>.pooler.supabase.com:5432):
-    # it's IPv4, and unlike transaction mode (port 6543, used by the app at
-    # request time) it supports DDL/prepared statements reliably.
-    url = os.environ["DATABASE_URL_UNPOOLED"]
+    # Migrations run from Vercel's build/runtime or Docker / CI.
+    # Prefer DATABASE_URL_UNPOOLED (Supavisor SESSION mode / direct IPv4 for DDL)
+    # Fallback to DATABASE_URL or local SQLite if not explicitly set.
+    url = (
+        os.environ.get("DATABASE_URL_UNPOOLED")
+        or os.environ.get("DATABASE_URL")
+        or "sqlite+aiosqlite:///./jrpos.db"
+    ).strip()
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+asyncpg://", 1)
-    elif url.startswith("postgresql://"):
+    elif url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return url
 
