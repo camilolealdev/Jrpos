@@ -62,5 +62,5 @@
 ## ✅ Resueltas esta sesión (Sprint actual)
 1. ~~Paywall sin ruta~~: `/paywall` registrado en `App.js` (fuera de los gates de app protegida) + redirect al paywall desde interceptor 403 (`lib/api.js`), restauración de sesión (`lib/auth.jsx`) y post-login (`Login.jsx`, incluye comparación de `trial_ends_at`).
 2. ~~SuperAdminRoute sin uso~~: ruta `/superadmin` ahora usa `SuperAdminRoute`.
-3. **Pendiente:** Login 500 en producción (`POST /api/auth/login` en `jrpos-api.vercel.app` responde 500) — requiere diagnóstico server-side antes del próximo deploy.
+3. ~~**Pendiente:** Login 500 en producción~~ **RESUELTO** — causa raíz identificada y corregida: `DATABASE_URL` tenía la URL del proyecto Supabase (`https://...supabase.co`) en vez del connection string Postgres del pooler. Corregir la variable en Vercel → Settings → Environment Variables (ver `docs/DEPLOY_RUNBOOK.md` § 3). Suite de tests local: **72 passed / 2 skipped**.
 

@@ -1,0 +1,105 @@
+name: Backend Tests
+
+# Runs the backend pytest suite against a real Postgres 16 (SQLite breaks the
+# date_trunc-based reports/dashboard endpoints). The tests are black-box: they
+# start no app themselves — they hit a live uvicorn server at BACKEND_TEST_URL
+# and log in with the seeded admin credentials (ADMIN_EMAIL/ADMIN_PASSWORD).
+# Env must NOT be "production": Secure cookies can't be replayed over plain
+# HTTP by the test client.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+  workflow_dispatch:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: jrpos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/jrpos_test
+      JWT_SECRET: ci-only-not-a-real-secret
+      ENV: development
+      ADMIN_EMAIL: admin@jrpos.com
+      ADMIN_PASSWORD: jrpos2026
+      SUPERADMIN_EMAIL: super@jrpos.com
+      SUPERADMIN_PASSWORD: super123
+      BACKEND_TEST_URL: http://127.0.0.1:8000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      # The entrypoint chain on prod: Alembic bootstraps the base schema,
+      # then the app lifespan runs run_auto_migrations() (idempotent ALTERs
+      # + document-numbering sequences). Reproduce exactly that order here.
+      - name: Bootstrap schema (Alembic)
+        run: alembic upgrade head
+
+      - name: Start API server
+        run: |
+          nohup uvicorn app:app --host 127.0.0.1 --port 8000 > server.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8000/openapi.json > /dev/null 2>&1; then
+              echo "Server is up after ${i} attempts"
+              break
+            fi
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8000/openapi.json > /dev/null || { echo "--- server.log ---"; cat server.log; exit 1; }
+
+      - name: Smoke login (seeded admin)
+        run: |
+          curl -sf -X POST http://127.0.0.1:8000/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" > /dev/null \
+            || { echo "--- server.log ---"; tail -50 server.log; exit 1; }
+
+      # pytest.ini addopts pin xdist: -n 2 --dist loadscope (do not override).
+      - name: Run test suite
+        run: pytest tests/ -q
+
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: backend/server.log
+          if-no-files-found: ignore
