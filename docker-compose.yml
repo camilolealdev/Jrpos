@@ -8,8 +8,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-jrpos}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-jrpos}
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:-jrpos_app}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/01-app-role.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jrpos}"]
       interval: 5s

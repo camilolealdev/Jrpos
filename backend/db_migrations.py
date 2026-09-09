@@ -154,6 +154,31 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE payroll ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE commission_rules ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
 
+    -- 2b. Row-Level Security: segunda capa de defensa contra fugas cross-tenant
+    -- (complementa, no reemplaza, el filtro por tenant_id que ya debe existir
+    -- en cada router). backend/auth.py fija app.current_tenant_id/app.is_superadmin
+    -- via set_config en cada request autenticado (get_current_user / _provision_tenant).
+    -- "users", "tenants", "login_attempts" y "platform_plans" quedan exentas a
+    -- proposito: login y el registro de un tenant nuevo necesitan resolver
+    -- filas antes de que exista un tenant_id de contexto.
+    {"".join(f'''
+    UPDATE {t} SET tenant_id = 'tenant-default-001' WHERE tenant_id IS NULL;
+    ALTER TABLE {t} ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE {t} FORCE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS tenant_isolation ON {t};
+    CREATE POLICY tenant_isolation ON {t}
+        USING (tenant_id = current_setting('app.current_tenant_id', true) OR current_setting('app.is_superadmin', true) = 'true')
+        WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true) OR current_setting('app.is_superadmin', true) = 'true');
+    ''' for t in (
+        "tenant_subscriptions", "branches", "tenant_audit_logs", "support_tickets",
+        "products", "category_meta", "contacts", "sales", "sale_items", "payments",
+        "held_sales", "held_sale_items", "expenses", "purchase_invoices", "purchase_invoice_items",
+        "settings_electronic", "settings_timeclock_schedule", "settings_general", "settings_certificate",
+        "timeclock", "cash_sessions", "cash_pickups", "promotions", "documents", "document_items",
+        "credit_notes", "warranties", "purchase_orders", "purchase_order_items",
+        "support_docs", "support_doc_items", "payroll", "commission_rules",
+    ))}
+
     -- 3. Settings columns existentes
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS store_slogan VARCHAR(255);
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS store_nit VARCHAR(50);

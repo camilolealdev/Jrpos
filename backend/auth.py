@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
@@ -77,6 +77,26 @@ def set_auth_cookies(response: Response, user: User) -> None:
     response.set_cookie("refresh_token", refresh, httponly=True, secure=is_secure, samesite=same_site, max_age=7 * 86400, path="/")
 
 
+async def _set_tenant_context(session: AsyncSession, *, tenant_id: str | None, is_superadmin: bool) -> None:
+    """Fija el contexto de tenant para Postgres Row-Level Security (backend/db_migrations.py).
+
+    Usa set_config con is_local=False (alcance de conexion, no de transaccion):
+    el engine de Postgres usa NullPool (backend/db.py) -- cada request abre su
+    propia conexion fisica y la cierra al terminar, así que no hay riesgo de
+    fuga de contexto entre requests. is_local=True se pierde en cada
+    session.commit(), y varios endpoints hacen mas de un commit por request
+    (ej. login, invoices.py), lo que dejaria las queries posteriores al primer
+    commit sin contexto (RLS las bloquearia por error, no por diseño).
+    No-op en SQLite (fallback de desarrollo sin Docker): no soporta RLS.
+    """
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    await session.execute(
+        text("SELECT set_config('app.current_tenant_id', :tid, false), set_config('app.is_superadmin', :sa, false)"),
+        {"tid": tenant_id or "", "sa": "true" if is_superadmin else "false"},
+    )
+
+
 async def get_current_user(request: Request, session: AsyncSession = Depends(get_session)) -> User:
     token = request.cookies.get("access_token")
     if not token:
@@ -107,6 +127,7 @@ async def get_current_user(request: Request, session: AsyncSession = Depends(get
                         status_code=403,
                         detail="Trial vencido o cuenta suspendida. Activa tu plan para continuar.",
                     )
+        await _set_tenant_context(session, tenant_id=user.tenant_id, is_superadmin=user.role == "superadmin_platform")
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Sesión expirada")
@@ -183,6 +204,11 @@ async def _provision_tenant(
 
     # 2. Crear Tenant con 30 días de prueba gratuita
     tenant_id = new_uuid()
+    # Aún no existe un usuario autenticado del que heredar el contexto de RLS
+    # (se está creando en esta misma transacción) -- se fija explícitamente
+    # con el tenant_id recién generado para que los INSERT de abajo pasen el
+    # WITH CHECK de las políticas RLS (backend/db_migrations.py).
+    await _set_tenant_context(session, tenant_id=tenant_id, is_superadmin=False)
     trial_days = int(os.environ.get("TRIAL_DAYS", "365"))
     trial_ends = utcnow() + timedelta(days=trial_days)
     tenant = Tenant(
