@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from db import get_session
-from models_sql import Document, DocumentItem, Product, Sale, SaleItem, User
+from models_sql import Document, DocumentItem, Product, Sale, SaleItem, StockMovement, User
 from routers.sales import SaleOut, _sale_out
 
 docs_router = APIRouter(prefix="/api", tags=["docs"])
@@ -173,12 +173,11 @@ async def update_doc_status(
     if not doc:
         raise HTTPException(status_code=404, detail="No encontrado")
 
-    doc.status = payload.status
-    await session.commit()
-    await session.refresh(doc)
-
     items_stmt = select(DocumentItem).where(DocumentItem.document_id == doc.id)
     items = (await session.execute(items_stmt)).scalars().all()
+
+    doc.status = payload.status
+    await session.commit()
     return _doc_out(doc, items)
 
 
@@ -237,9 +236,16 @@ async def convert_doc_to_sale(
         if it.product_id and it.product_id != "manual":
             product = await session.get(Product, it.product_id)
             if product and not product.is_service:
+                previous_stock = float(product.stock)
+                new_stock = previous_stock - it.qty
                 await session.execute(
                     update(Product).where(Product.id == it.product_id).values(stock=Product.stock - it.qty)
                 )
+                session.add(StockMovement(
+                    tenant_id=tenant_id, product_id=it.product_id, type="sale", qty=-it.qty,
+                    previous_stock=previous_stock, new_stock=new_stock, user_id=user.id,
+                    reason=f"Venta {number} (desde {doc.number})",
+                ))
 
     doc.status = "convertida"
     doc.sale_id = sale.id

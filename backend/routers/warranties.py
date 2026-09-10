@@ -61,7 +61,6 @@ async def create_warranty(
     )
     session.add(warranty)
     await session.commit()
-    await session.refresh(warranty)
     return warranty
 
 
@@ -91,5 +90,4 @@ async def update_warranty(
     if payload.resolution is not None:
         warranty.resolution = payload.resolution
     await session.commit()
-    await session.refresh(warranty)
     return warranty

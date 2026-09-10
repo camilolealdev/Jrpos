@@ -20,6 +20,7 @@ from models_sql import (
     PurchaseInvoice,
     PurchaseInvoiceItem,
     SettingsGeneral,
+    StockMovement,
     SupportDoc,
     SupportDocItem,
     User,
@@ -328,7 +329,14 @@ async def import_invoice_to_inventory(
             ).scalar_one_or_none()
 
         if existing_p:
-            existing_p.stock = float(existing_p.stock) + total_units
+            previous_stock = float(existing_p.stock)
+            existing_p.stock = previous_stock + total_units
+            if total_units:
+                session.add(StockMovement(
+                    tenant_id=tenant_id, product_id=existing_p.id, type="purchase", qty=total_units,
+                    previous_stock=previous_stock, new_stock=float(existing_p.stock), user_id=user.id,
+                    reason="Escaneo de factura de compra (IA)",
+                ))
             existing_p.cost = unit_cost if unit_cost is not None else existing_p.cost
             existing_p.price = unit_price
             existing_p.units_per_package = units_per_package

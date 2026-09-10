@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from db import get_session
-from models_sql import CreditNote, Product, Sale, SaleItem, User
+from models_sql import CreditNote, Product, Sale, SaleItem, StockMovement, User
 
 credit_notes_router = APIRouter(prefix="/api", tags=["credit_notes"])
 
@@ -79,9 +79,17 @@ async def create_credit_note(
     if ntype == "credito" and payload.restock:
         items = (await session.execute(select(SaleItem).where(SaleItem.sale_id == sale.id, SaleItem.tenant_id == tenant_id))).scalars().all()
         for it in items:
+            product = await session.get(Product, it.product_id)
+            previous_stock = float(product.stock) if product else 0.0
+            new_stock = previous_stock + it.qty
             await session.execute(
                 update(Product).where(Product.id == it.product_id, Product.tenant_id == tenant_id).values(stock=Product.stock + it.qty)
             )
+            session.add(StockMovement(
+                tenant_id=tenant_id, product_id=it.product_id, type="return", qty=it.qty,
+                previous_stock=previous_stock, new_stock=new_stock, user_id=user.id,
+                reason=f"Devolución {number} (venta {sale.number})",
+            ))
 
     # Si la venta era a crédito, bajar el saldo pendiente.
     if ntype == "credito" and sale.is_credit:
@@ -90,7 +98,6 @@ async def create_credit_note(
         sale.credit_status = "paid" if new_bal <= 0 else "partial"
 
     await session.commit()
-    await session.refresh(note)
     return note
 
 

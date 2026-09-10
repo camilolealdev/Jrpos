@@ -47,7 +47,6 @@ async def create_expense(
     e = Expense(tenant_id=tenant_id, **payload.model_dump())
     session.add(e)
     await session.commit()
-    await session.refresh(e)
     return e
 
 

@@ -187,6 +187,24 @@ class Product(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class StockMovement(Base):
+    __tablename__ = "stock_movements"
+    __table_args__ = (
+        Index("ix_stock_movements_tenant_product", "tenant_id", "product_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    product_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(String(20), nullable=False)  # sale|purchase|adjustment|return|waste
+    qty: Mapped[float] = mapped_column(Float, nullable=False)
+    previous_stock: Mapped[float] = mapped_column(Float, nullable=False)
+    new_stock: Mapped[float] = mapped_column(Float, nullable=False)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class CategoryMeta(Base):
     __tablename__ = "category_meta"
 

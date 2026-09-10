@@ -1,6 +1,18 @@
-# JRPOS 🏪 — Sistema POS para Tiendas de Abarrotes en Colombia
+<div align="center">
+  <img src="frontend/src/assets/logo.webp" alt="Logo de JRPOS" width="180" />
+
+  # JRPOS 🏪
+
+  ### Sistema POS para Tiendas de Abarrotes en Colombia
+
+  ![Backend](https://img.shields.io/badge/backend-FastAPI-009688) ![Frontend](https://img.shields.io/badge/frontend-React%2019-61DAFB) ![DB](https://img.shields.io/badge/db-PostgreSQL%2016-4169E1) ![PWA](https://img.shields.io/badge/PWA-instalable-5A0FC8)
+</div>
 
 Sistema POS integral, modular y 100% responsivo (PWA instalable en dispositivos móviles, tablets y escritorios) diseñado para el comercio minorista y tiendas de abarrotes en Colombia.
+
+<div align="center">
+  <img src="frontend/src/assets/hero-banner.webp" alt="Vista previa de JRPOS" width="720" />
+</div>
 
 ---
 
@@ -150,8 +162,8 @@ uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 
 # 3. Iniciar Frontend (React)
 cd ../frontend
-yarn install
-yarn start
+npm install --legacy-peer-deps
+npm start
 ```
 Accede a `http://localhost:3000` en tu navegador.
 

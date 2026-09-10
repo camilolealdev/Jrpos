@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user, require_admin
 from db import get_session
-from models_sql import CategoryMeta, Contact, Product, User, utcnow
+from models_sql import CategoryMeta, Contact, Product, StockMovement, User, utcnow
 from pricing import compute_unit_pricing
 
 products_router = APIRouter(prefix="/api", tags=["products"])
@@ -286,7 +286,6 @@ async def create_product(
     )
     session.add(product)
     await session.commit()
-    await session.refresh(product)
     return product
 
 
@@ -309,6 +308,17 @@ async def update_product(
     margin_percent = data.pop("margin_percent", None)
     price_sent = data.get("price")
 
+    # Ajuste manual de stock (edición directa desde Inventario): registrar el
+    # movimiento antes de sobrescribir, si el nuevo valor difiere del actual.
+    new_stock = data.get("stock")
+    if new_stock is not None and float(new_stock) != float(product.stock):
+        session.add(StockMovement(
+            tenant_id=tenant_id, product_id=product.id, type="adjustment",
+            qty=float(new_stock) - float(product.stock),
+            previous_stock=float(product.stock), new_stock=float(new_stock),
+            user_id=user.id, reason="Ajuste manual desde Inventario",
+        ))
+
     for key, value in data.items():
         setattr(product, key, value)
 
@@ -328,8 +338,38 @@ async def update_product(
     product.updated_at = utcnow()
 
     await session.commit()
-    await session.refresh(product)
     return product
+
+
+class StockMovementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    product_id: str
+    type: str
+    qty: float
+    previous_stock: float
+    new_stock: float
+    user_id: Optional[str] = None
+    reason: Optional[str] = None
+    created_at: datetime
+
+
+@products_router.get("/products/{product_id}/stock-movements", response_model=List[StockMovementOut])
+async def list_stock_movements(
+    product_id: str,
+    limit: int = Query(200, le=1000),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    tenant_id = user.tenant_id or "tenant-default-001"
+    stmt = (
+        select(StockMovement)
+        .where(StockMovement.product_id == product_id, StockMovement.tenant_id == tenant_id)
+        .order_by(StockMovement.created_at.desc())
+        .limit(limit)
+    )
+    return (await session.execute(stmt)).scalars().all()
 
 
 @products_router.delete("/products/{product_id}")
@@ -417,7 +457,6 @@ async def upsert_category_meta(
         meta = CategoryMeta(name=payload.name, tenant_id=tenant_id, **updates)
         session.add(meta)
     await session.commit()
-    await session.refresh(meta)
     return {"name": meta.name, "emoji": meta.emoji, "pinned": meta.pinned, "order": meta.order}
 
 
@@ -450,7 +489,14 @@ async def bulk_load_products(
             existing.price = unit_price
             existing.cost = unit_cost
             existing.category = it.category or existing.category
-            existing.stock = existing.stock + float(it.stock)
+            added_stock = float(it.stock)
+            if added_stock:
+                session.add(StockMovement(
+                    tenant_id=tenant_id, product_id=existing.id, type="purchase", qty=added_stock,
+                    previous_stock=float(existing.stock), new_stock=float(existing.stock) + added_stock,
+                    user_id=admin.id, reason="Carga masiva de inventario",
+                ))
+            existing.stock = existing.stock + added_stock
             if it.margin_percent is not None:
                 existing.margin_percent = it.margin_percent
             if it.units_per_package is not None:
@@ -502,7 +548,13 @@ async def bulk_update_products(
         if payload.set_tax is not None:
             p.tax_rate = float(payload.set_tax)
         if payload.add_stock is not None:
+            previous_stock = float(p.stock)
             p.stock = round(p.stock + payload.add_stock, 2)
+            session.add(StockMovement(
+                tenant_id=tenant_id, product_id=p.id, type="adjustment", qty=payload.add_stock,
+                previous_stock=previous_stock, new_stock=float(p.stock), user_id=admin.id,
+                reason="Actualización masiva de inventario",
+            ))
         p.updated_at = utcnow()
         count += 1
 

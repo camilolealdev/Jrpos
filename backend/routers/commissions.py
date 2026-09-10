@@ -52,7 +52,6 @@ async def create_commission_rule(
     )
     session.add(rule)
     await session.commit()
-    await session.refresh(rule)
     return rule
 
 

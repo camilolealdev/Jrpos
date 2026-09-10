@@ -62,7 +62,6 @@ async def create_payslip(
     )
     session.add(doc)
     await session.commit()
-    await session.refresh(doc)
     return doc
 
 

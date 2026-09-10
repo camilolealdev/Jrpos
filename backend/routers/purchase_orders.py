@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from db import get_session
-from models_sql import Product, PurchaseOrder, PurchaseOrderItem, User, utcnow
+from models_sql import Product, PurchaseOrder, PurchaseOrderItem, StockMovement, User, utcnow
 
 purchase_orders_router = APIRouter(prefix="/api", tags=["purchase-orders"])
 
@@ -142,9 +142,15 @@ async def receive_purchase_order(
             ).scalar_one_or_none()
 
         if existing:
-            existing.stock = float(existing.stock) + float(it.qty)
+            previous_stock = float(existing.stock)
+            existing.stock = previous_stock + float(it.qty)
             existing.cost = float(it.cost)
             existing.updated_at = utcnow()
+            session.add(StockMovement(
+                tenant_id=tenant_id, product_id=existing.id, type="purchase", qty=float(it.qty),
+                previous_stock=previous_stock, new_stock=float(existing.stock), user_id=user.id,
+                reason=f"Recepción orden de compra {po.number}",
+            ))
         else:
             session.add(Product(
                 tenant_id=tenant_id,

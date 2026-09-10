@@ -191,7 +191,13 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
           await startNative(videoConstraints);
           setStarting(false);
           return;
-        } catch { /* sin capa nativa: continúa a zxing */ }
+        } catch {
+          // La capa nativa pudo fallar después de tomar la cámara (getUserMedia
+          // ya concedido antes de que reventara, ej. holder aún no montado):
+          // libera ese stream o la cámara queda encendida mientras zxing pide
+          // uno nuevo.
+          stopNative();
+        }
       }
 
       await startZxing(videoConstraints);

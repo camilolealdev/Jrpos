@@ -110,7 +110,6 @@ async def mark_timeclock(
     )
     session.add(mark)
     await session.commit()
-    await session.refresh(mark)
     return mark
 
 

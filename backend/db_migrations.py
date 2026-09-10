@@ -177,7 +177,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
         "settings_electronic", "settings_timeclock_schedule", "settings_general", "settings_certificate",
         "timeclock", "cash_sessions", "cash_pickups", "promotions", "documents", "document_items",
         "credit_notes", "warranties", "purchase_orders", "purchase_order_items",
-        "support_docs", "support_doc_items", "payroll", "commission_rules",
+        "support_docs", "support_doc_items", "payroll", "commission_rules", "stock_movements",
     ))}
 
     -- 3. Settings columns existentes
@@ -278,7 +278,6 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     -- NotNullViolationError si no hay una secuencia por defecto en la columna.
     CREATE SEQUENCE IF NOT EXISTS settings_general_id_seq OWNED BY settings_general.id;
     ALTER TABLE settings_general ALTER COLUMN id SET DEFAULT nextval('settings_general_id_seq');
-    SELECT setval('settings_general_id_seq', COALESCE((SELECT MAX(id) FROM settings_general), 0) + 1, false);
     """
 
     try:
@@ -306,3 +305,32 @@ async def run_auto_migrations(session: AsyncSession) -> None:
                     except Exception:
                         await session.rollback()
                 logger.debug("Migration fallback step info: %s", inner_e)
+
+    # Resync de settings_general_id_seq como sentencia propia y aislada: metida
+    # dentro del batch_script de arriba (un solo session.execute con decenas de
+    # sentencias) el SELECT setval(...) no surtía efecto de forma confiable
+    # (motivo no confirmado -- posiblemente el driver descarta el resultado de
+    # un SELECT intermedio en una ejecucion multi-statement), dejando la
+    # secuencia desincronizada y causando UniqueViolationError en cada tenant
+    # nuevo registrado via /auth/register-tenant. Como execute() propio y
+    # aislado (igual que al probarlo a mano con psql) sí funciona siempre.
+    # GREATEST contra el valor actual: nunca debe RETROCEDER la secuencia (eso
+    # colisionaria con filas ya insertadas por un arranque anterior), solo
+    # adelantarla si hay filas con id mayor al que ya tenia.
+    try:
+        await session.execute(text(
+            """
+            SELECT setval(
+                'settings_general_id_seq',
+                GREATEST(
+                    COALESCE((SELECT MAX(id) FROM settings_general), 0) + 1,
+                    (SELECT last_value + CASE WHEN is_called THEN 1 ELSE 0 END FROM settings_general_id_seq)
+                ),
+                false
+            )
+            """
+        ))
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        logger.debug("settings_general_id_seq resync skipped: %s", e)

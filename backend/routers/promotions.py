@@ -96,7 +96,6 @@ async def create_promotion(
     )
     session.add(promo)
     await session.commit()
-    await session.refresh(promo)
     return _promo_dict(promo)
 
 
@@ -115,7 +114,6 @@ async def update_promotion(
     for key, value in updates.items():
         setattr(promo, key, value)
     await session.commit()
-    await session.refresh(promo)
     return _promo_dict(promo)
 
 

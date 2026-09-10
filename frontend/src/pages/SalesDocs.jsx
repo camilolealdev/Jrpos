@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, ArrowRightLeft, Trash2, ShieldQuestion } from "lucide-react";
+import { Plus, ArrowRightLeft, Trash2, ShieldQuestion, FileDown } from "lucide-react";
+import { exportDocPdf } from "@/lib/pdfExport";
 
 const CFG = {
   cotizaciones: { kind: "quotes", title: "Cotizaciones", statuses: ["borrador", "enviada", "aceptada", "vencida"] },
@@ -165,6 +166,9 @@ export default function SalesDocs({ defaultTab = "cotizaciones" }) {
                         <td className="p-3 text-right font-mono">{formatCOP(d.total || d.amount)}</td>
                         <td className="p-3"><Badge variant="outline" className="capitalize">{d.status}{d.type ? ` · ${d.type}` : ""}</Badge></td>
                         <td className="p-3 text-right whitespace-nowrap">
+                          {cfg.kind && (
+                            <Button size="sm" variant="outline" onClick={() => exportDocPdf(d)} data-testid={`pdf-${d.id}`}><FileDown className="w-3 h-3 mr-1" /> PDF</Button>
+                          )}
                           {cfg.kind && tab !== "cuentas" && !["convertida", "anulada"].includes(d.status) && (
                             <Button size="sm" variant="outline" onClick={() => convert(d)} data-testid={`convert-${d.id}`}><ArrowRightLeft className="w-3 h-3 mr-1" /> A venta</Button>
                           )}

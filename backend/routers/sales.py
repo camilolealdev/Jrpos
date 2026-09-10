@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from db import get_session
-from models_sql import Contact, Payment, Product, Promotion, Sale, SaleItem, User
+from models_sql import Contact, Payment, Product, Promotion, Sale, SaleItem, StockMovement, User
 
 sales_router = APIRouter(prefix="/api", tags=["sales"])
 
@@ -171,11 +171,34 @@ async def create_sale(
     if payload.customer_id:
         contact_check = (
             await session.execute(
-                select(Contact.id).where(Contact.id == payload.customer_id, Contact.tenant_id == tenant_id)
+                select(Contact).where(Contact.id == payload.customer_id, Contact.tenant_id == tenant_id)
             )
         ).scalar_one_or_none()
         if not contact_check:
             raise HTTPException(status_code=400, detail="El cliente seleccionado no pertenece a tu tienda")
+
+        # Cupo de crédito: 0/sin definir = sin límite (comportamiento previo
+        # intacto para todos los clientes que nunca configuraron un cupo).
+        if is_credit and contact_check.credit_limit and contact_check.credit_limit > 0:
+            current_debt = (
+                await session.execute(
+                    select(func.sum(Sale.balance_due)).where(
+                        Sale.tenant_id == tenant_id,
+                        Sale.customer_id == payload.customer_id,
+                        Sale.is_credit == True,  # noqa: E712
+                        Sale.credit_status != "paid",
+                    )
+                )
+            ).scalar_one() or 0
+            if float(current_debt) + total > float(contact_check.credit_limit):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Cupo de crédito excedido: {contact_check.name} debe "
+                        f"{round(float(current_debt), 2)} de un cupo de {contact_check.credit_limit}; "
+                        f"esta venta lo dejaría en {round(float(current_debt) + total, 2)}."
+                    ),
+                )
 
     # Atomic sequence con fallback seguro para SQLite / pruebas locales
     try:
@@ -204,9 +227,16 @@ async def create_sale(
     for it in items:
         product = product_map.get(it.product_id)
         if product and not product.is_service:
+            previous_stock = float(product.stock)
+            new_stock = previous_stock - it.qty
             await session.execute(
                 update(Product).where(Product.id == it.product_id, Product.tenant_id == tenant_id).values(stock=Product.stock - it.qty)
             )
+            session.add(StockMovement(
+                tenant_id=tenant_id, product_id=it.product_id, type="sale", qty=-it.qty,
+                previous_stock=previous_stock, new_stock=new_stock, user_id=user.id,
+                reason=f"Venta {number}",
+            ))
 
     await session.commit()
 
@@ -295,7 +325,6 @@ async def register_payment(
     )
     session.add(pay)
     await session.commit()
-    await session.refresh(pay)
     return pay
 
 

@@ -2,12 +2,12 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from db import get_session
-from models_sql import Contact, User
+from models_sql import Contact, Sale, User
 
 contacts_router = APIRouter(prefix="/api", tags=["contacts"])
 
@@ -26,6 +26,7 @@ class ContactOut(BaseModel):
     address: Optional[str] = None
     city: Optional[str] = None
     credit_limit: Optional[float] = 0.0
+    current_debt: Optional[float] = 0.0
     notes: Optional[str] = None
 
 
@@ -52,7 +53,6 @@ async def create_contact(
     contact = Contact(tenant_id=tenant_id, **payload.model_dump())
     session.add(contact)
     await session.commit()
-    await session.refresh(contact)
     return contact
 
 
@@ -68,7 +68,21 @@ async def list_contacts(
         stmt = stmt.where(Contact.kind == kind)
     stmt = stmt.limit(1000)
     res = await session.execute(stmt)
-    return res.scalars().all()
+    contacts = res.scalars().all()
+
+    # Deuda vigente por cliente a partir de las ventas a crédito sin saldar
+    # (usado por el POS para el aviso/bloqueo de cupo de crédito).
+    debt_rows = (
+        await session.execute(
+            select(Sale.customer_id, func.sum(Sale.balance_due))
+            .where(Sale.tenant_id == tenant_id, Sale.is_credit == True, Sale.credit_status != "paid")  # noqa: E712
+            .group_by(Sale.customer_id)
+        )
+    ).all()
+    debt_by_customer = {row[0]: float(row[1] or 0) for row in debt_rows}
+    for c in contacts:
+        c.current_debt = debt_by_customer.get(c.id, 0.0)
+    return contacts
 
 
 @contacts_router.put("/contacts/{contact_id}", response_model=ContactOut)
@@ -86,7 +100,6 @@ async def update_contact(
     for key, value in payload.model_dump().items():
         setattr(contact, key, value)
     await session.commit()
-    await session.refresh(contact)
     return contact
 
 

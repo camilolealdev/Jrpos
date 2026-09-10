@@ -132,7 +132,6 @@ async def open_cash(
     except IntegrityError:
         await session.rollback()
         raise HTTPException(status_code=400, detail="Ya tienes una caja abierta. Ciérrala primero.")
-    await session.refresh(cs)
     return _session_dict(cs, [])
 
 
@@ -177,7 +176,6 @@ async def cash_pickup(
     )
     session.add(pickup)
     await session.commit()
-    await session.refresh(pickup)
     return _pickup_dict(pickup)
 
 
@@ -269,7 +267,6 @@ async def close_cash(
     cs.z_report_snapshot = json.dumps(snapshot)
 
     await session.commit()
-    await session.refresh(cs)
     return _session_dict(cs, pickups)
 
 
