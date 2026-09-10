@@ -1,0 +1,14 @@
+# Pyrefly root configuration for Antigravity IDE / VS Code
+project-includes = ["backend"]
+project-excludes = [
+    "**/__pyrefly_virtual__/**",
+    "**/inmemory/**",
+    "**/*inmemory*/**",
+    "**/.*/**",
+    "**/.venv/**",
+    "**/node_modules/**"
+]
+use-ignore-files = true
+
+[interpreter]
+interpreters = ["backend/.venv/Scripts/python.exe"]

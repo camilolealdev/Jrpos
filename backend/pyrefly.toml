@@ -2,5 +2,15 @@
 # (backend/.venv tiene sqlalchemy, fastapi, bcrypt, etc. instalados por requirements.txt)
 # Documentación: https://pyrefly.org/en/docs/configuration/
 
+project-includes = ["."]
+project-excludes = [
+    "**/__pyrefly_virtual__/**",
+    "**/inmemory/**",
+    "**/*inmemory*/**",
+    "**/.*/**",
+    "**/.venv/**"
+]
+use-ignore-files = true
+
 [interpreter]
 interpreters = [".venv/Scripts/python.exe"]
