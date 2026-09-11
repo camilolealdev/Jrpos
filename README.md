@@ -129,7 +129,14 @@ mindmap
 
 **Entrypoint real de la API: `app.py` (`uvicorn app:app`), sobre PostgreSQL.** Es el único que registra los 20 routers de `backend/routers/` y todo lo construido desde la migración a Postgres en adelante (incluye el reset de contraseña de admin, RBAC, etc.).
 
-### Despliegue en Vercel (Frontend & Serverless API) — fuente de verdad actual
+### Despliegue en VPS con Docker + Traefik — fuente de verdad actual
+Ver [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) para el procedimiento completo. Resumen:
+`docker-compose.traefik.yml` levanta el reverse proxy con TLS automático (Let's Encrypt), y
+`docker-compose.prod.yml` levanta el stack de la app (`postgres` + `redis` + `backend` + `web`)
+usando las imágenes publicadas en GHCR por [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml)
+en cada push a `main`.
+
+### Despliegue en Vercel (Frontend & Serverless API) — alterno, no sincronizado activamente
 1. Conecta el repositorio GitHub en Vercel.
 2. [`vercel.json`](vercel.json) define el servicio `backend` con `"entrypoint": "app:app"` — correcto — y el build del frontend (`CI=false yarn build`) con las reescrituras SPA.
 3. Configura las siguientes Variables de Entorno en el panel de Vercel:

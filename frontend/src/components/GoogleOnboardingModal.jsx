@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Store, User, Phone, ShoppingBag } from "lucide-react";
+import { BUSINESS_TYPES } from "@/lib/businessTypes";
 
 export default function GoogleOnboardingModal({ open, google, saving, error, onSubmit }) {
   const [businessName, setBusinessName] = useState("");
@@ -92,13 +93,9 @@ export default function GoogleOnboardingModal({ open, google, saving, error, onS
               disabled={saving}
               className="w-full border border-slate-200 rounded-md px-3 h-10 text-sm focus:outline-none focus:border-emerald-500"
             >
-              <option value="abarrotes">Tienda de Abarrotes / Minimercado</option>
-              <option value="drogueria">Droguería / Farmacia</option>
-              <option value="licorera">Licorera / Bar / Estanco</option>
-              <option value="ferreteria">Ferretería / Materiales</option>
-              <option value="cafeteria">Cafetería / Panadería / Restaurante</option>
-              <option value="ropa">Boutique / Ropa y Calzado</option>
-              <option value="otro">Otro Comercio Minorista</option>
+              {BUSINESS_TYPES.map((bt) => (
+                <option key={bt.id} value={bt.id}>{bt.label}</option>
+              ))}
             </select>
           </div>
 

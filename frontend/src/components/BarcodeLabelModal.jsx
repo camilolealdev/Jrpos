@@ -1,35 +1,41 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import JsBarcode from "jsbarcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCOP } from "@/lib/format";
 import { Printer, Barcode, X } from "lucide-react";
 
-// Generador visual simple de código de barras SVG tipo Code 128 / EAN simulado para etiquetas
-function SvgBarcode({ code, height = 40 }) {
-  if (!code) return null;
-  // Genera un patrón determinista de barras a partir del string del código
-  const bars = [];
-  let currentX = 0;
-  for (let i = 0; i < code.length; i++) {
-    const charCode = code.charCodeAt(i);
-    const pattern = [(charCode % 3) + 1, ((charCode >> 1) % 3) + 1, ((charCode >> 2) % 2) + 1];
-    pattern.forEach((width, idx) => {
-      if (idx % 2 === 0) {
-        bars.push(<rect key={`${i}-${idx}`} x={currentX} y={0} width={width * 1.5} height={height} fill="black" />);
-      }
-      currentX += width * 1.5 + 1;
-    });
-  }
+// Elige la simbología real según la forma del código: EAN-13/EAN-8/UPC exigen
+// una cantidad exacta de dígitos y checksum válido; CODE128 acepta cualquier
+// texto y es el fallback universal (SKUs alfanuméricos, códigos internos, etc.)
+function pickBarcodeFormat(code) {
+  if (/^\d{13}$/.test(code)) return "EAN13";
+  if (/^\d{12}$/.test(code)) return "UPC";
+  if (/^\d{8}$/.test(code)) return "EAN8";
+  return "CODE128";
+}
 
-  return (
-    <div className="flex flex-col items-center">
-      <svg width={Math.max(120, currentX)} height={height} className="overflow-visible">
-        {bars}
-      </svg>
-      <span className="font-mono text-xs tracking-widest mt-1 text-slate-800">{code}</span>
-    </div>
-  );
+// Renderiza un código de barras real (Code128/EAN/UPC) con jsbarcode.
+// Si el formato detectado falla (ej. dígitos con checksum EAN inválido),
+// reintenta con CODE128 en vez de mostrar una gráfica rota o falsa.
+function RealBarcode({ code, height = 50 }) {
+  const svgRef = useRef(null);
+
+  useEffect(() => {
+    if (!code || !svgRef.current) return;
+    const opts = { height, displayValue: true, fontSize: 13, margin: 6, background: "#ffffff" };
+    try {
+      JsBarcode(svgRef.current, code, { ...opts, format: pickBarcodeFormat(code) });
+    } catch {
+      try {
+        JsBarcode(svgRef.current, code, { ...opts, format: "CODE128" });
+      } catch { /* código con caracteres no soportados ni por CODE128 */ }
+    }
+  }, [code, height]);
+
+  if (!code) return null;
+  return <svg ref={svgRef} className="max-w-full" />;
 }
 
 export default function BarcodeLabelModal({ open, onOpenChange, product }) {
@@ -42,6 +48,24 @@ export default function BarcodeLabelModal({ open, onOpenChange, product }) {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
+    // Renderiza el código real UNA vez a PNG (offscreen canvas) y lo reusa en
+    // todas las copias — todas comparten el mismo producto/código.
+    const code = product.barcode || "";
+    let barcodeImg = "";
+    if (code) {
+      const canvas = document.createElement("canvas");
+      try {
+        JsBarcode(canvas, code, { format: pickBarcodeFormat(code), height: 45, displayValue: false, margin: 4 });
+        barcodeImg = canvas.toDataURL("image/png");
+      } catch {
+        try {
+          JsBarcode(canvas, code, { format: "CODE128", height: 45, displayValue: false, margin: 4 });
+          barcodeImg = canvas.toDataURL("image/png");
+        } catch { /* código con caracteres no representables: se imprime solo el texto */ }
+      }
+    }
+    const barcodeHtml = barcodeImg ? `<img class="barcode-img" src="${barcodeImg}" alt="${code}" />` : "";
+
     const itemsHtml = Array.from({ length: Number(copies) || 1 })
       .map(
         () => `
@@ -49,8 +73,8 @@ export default function BarcodeLabelModal({ open, onOpenChange, product }) {
           <div class="store-name">JRPOS</div>
           <div class="prod-name">${product.name}</div>
           <div class="barcode-container">
-            <div class="barcode-lines">|||||||||||||||||||||||||||||||||||||</div>
-            <div class="barcode-num">${product.barcode || "SIN CÓDIGO"}</div>
+            ${barcodeHtml}
+            <div class="barcode-num">${code || "SIN CÓDIGO"}</div>
           </div>
           <div class="prod-price">${formatCOP(product.price)}</div>
         </div>
@@ -81,7 +105,7 @@ export default function BarcodeLabelModal({ open, onOpenChange, product }) {
             }
             .store-name { font-size: 8px; text-transform: uppercase; color: #666; letter-spacing: 0.5px; }
             .prod-name { font-size: 11px; font-weight: bold; margin: 2px 0; max-height: 28px; overflow: hidden; }
-            .barcode-lines { font-family: monospace; font-size: 20px; letter-spacing: -2px; font-weight: bold; line-height: 1; }
+            .barcode-img { max-width: 100%; height: 45px; }
             .barcode-num { font-family: monospace; font-size: 10px; margin-top: 1px; }
             .prod-price { font-size: 14px; font-weight: bold; color: #15803d; margin-top: 3px; font-family: monospace; }
           </style>
@@ -115,7 +139,13 @@ export default function BarcodeLabelModal({ open, onOpenChange, product }) {
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">JRPOS</div>
             <div className="font-bold text-sm text-slate-900 mt-0.5">{product.name}</div>
             <div className="my-2 flex justify-center">
-              <SvgBarcode code={product.barcode || "7702001000000"} />
+              {product.barcode ? (
+                <RealBarcode code={product.barcode} />
+              ) : (
+                <span className="text-xs text-amber-600 font-medium py-3">
+                  Este producto no tiene código de barras asignado
+                </span>
+              )}
             </div>
             <div className="font-mono font-bold text-lg text-emerald-700">{formatCOP(product.price)}</div>
           </div>

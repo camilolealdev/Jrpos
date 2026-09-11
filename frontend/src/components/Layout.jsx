@@ -4,8 +4,6 @@ import { startOnboarding, ONBOARDING_KEY } from "@/lib/onboarding";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { applyAccent } from "@/pages/Settings";
-import { HIDDEN_MODULE_TIDS_BY_TYPE } from "@/lib/businessTypes";
-import BusinessTypeModal from "@/components/BusinessTypeModal";
 import TrialEndingModal from "@/components/TrialEndingModal";
 import {
   LayoutDashboard,
@@ -158,12 +156,12 @@ function SidebarContent({
   storeName = "Mi Tienda",
   storeSub = "Punto de Venta",
   role = "admin",
-  businessType = "abarrotes",
+  hiddenModuleTids = [],
   isSuperAdminMode,
   setIsSuperAdminMode,
 }) {
   const location = useLocation();
-  const hiddenTids = HIDDEN_MODULE_TIDS_BY_TYPE[businessType] || [];
+  const hiddenTids = hiddenModuleTids;
 
   // Collapsed sections management
   const [collapsedGroups, setCollapsedGroups] = useState(() => {
@@ -363,10 +361,8 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const [storeName, setStoreName] = useState("JRPOS");
   const [storeSub, setStoreSub] = useState("Punto de Venta");
-  const [businessType, setBusinessType] = useState("abarrotes");
+  const [hiddenModuleTids, setHiddenModuleTids] = useState([]);
   const [fullSettings, setFullSettings] = useState(null);
-  const [showBusinessTypeModal, setShowBusinessTypeModal] = useState(false);
-  const [savingBusinessType, setSavingBusinessType] = useState(false);
   const [showTrialEndedModal, setShowTrialEndedModal] = useState(false);
 
   // SuperAdmin mode state (auto-active if path is /superadmin or user is superadmin_platform)
@@ -390,7 +386,7 @@ export default function Layout() {
     setFullSettings(data);
     if (data.store_name) setStoreName(data.store_name);
     if (data.store_slogan) setStoreSub(data.store_slogan);
-    if (data.business_type) setBusinessType(data.business_type);
+    setHiddenModuleTids(Array.isArray(data.hidden_module_tids) ? data.hidden_module_tids : []);
     if (data.accent) applyAccent(data.accent);
   };
 
@@ -407,9 +403,6 @@ export default function Layout() {
       .then((r) => {
         applyData(r.data);
         localStorage.setItem("jrpos_settings", JSON.stringify(r.data));
-        if (user?.role === "admin" && !localStorage.getItem("jrpos_business_type_asked")) {
-          setShowBusinessTypeModal(true);
-        }
       })
       .catch(() => {});
 
@@ -419,25 +412,6 @@ export default function Layout() {
     window.addEventListener("jrpos_settings_updated", handleSettingsUpdate);
     return () => window.removeEventListener("jrpos_settings_updated", handleSettingsUpdate);
   }, [user]);
-
-  const handleBusinessTypeSelect = async (chosen) => {
-    setSavingBusinessType(true);
-    try {
-      const payload = { ...(fullSettings || {}), business_type: chosen };
-      const r = await api.put("/settings/general", payload);
-      const data = r.data || payload;
-      setBusinessType(chosen);
-      setFullSettings(data);
-      localStorage.setItem("jrpos_settings", JSON.stringify(data));
-      localStorage.setItem("jrpos_business_type_asked", "1");
-      window.dispatchEvent(new CustomEvent("jrpos_settings_updated", { detail: data }));
-    } catch {
-      localStorage.setItem("jrpos_business_type_asked", "1");
-    } finally {
-      setSavingBusinessType(false);
-      setShowBusinessTypeModal(false);
-    }
-  };
 
   const doLogout = async () => {
     await logout();
@@ -472,15 +446,15 @@ export default function Layout() {
   }, []);
 
   useEffect(() => {
-    if (!fullSettings || showBusinessTypeModal) return;
+    if (!fullSettings) return;
     if (!localStorage.getItem(ONBOARDING_KEY) && window.innerWidth >= 1024) {
       const t = setTimeout(() => {
-        startOnboarding(HIDDEN_MODULE_TIDS_BY_TYPE[businessType] || []);
+        startOnboarding(hiddenModuleTids);
         localStorage.setItem(ONBOARDING_KEY, "1");
       }, 800);
       return () => clearTimeout(t);
     }
-  }, [fullSettings, showBusinessTypeModal, businessType]);
+  }, [fullSettings, hiddenModuleTids]);
 
   useEffect(() => {
     const tenant = user?.tenant;
@@ -513,7 +487,7 @@ export default function Layout() {
           storeName={storeName}
           storeSub={storeSub}
           role={user?.role}
-          businessType={businessType}
+          hiddenModuleTids={hiddenModuleTids}
           isSuperAdminMode={isSuperAdminMode}
           setIsSuperAdminMode={setIsSuperAdminMode}
         />
@@ -533,7 +507,7 @@ export default function Layout() {
               storeName={storeName}
               storeSub={storeSub}
               role={user?.role}
-              businessType={businessType}
+              hiddenModuleTids={hiddenModuleTids}
               isSuperAdminMode={isSuperAdminMode}
               setIsSuperAdminMode={setIsSuperAdminMode}
             />
@@ -615,7 +589,7 @@ export default function Layout() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => startOnboarding(HIDDEN_MODULE_TIDS_BY_TYPE[businessType] || [])}
+                onClick={() => startOnboarding(hiddenModuleTids)}
                 data-testid="start-onboarding-btn"
                 title="Ver guía de módulos"
               >
@@ -632,11 +606,6 @@ export default function Layout() {
         </div>
       </main>
 
-      <BusinessTypeModal
-        open={showBusinessTypeModal}
-        onSelect={handleBusinessTypeSelect}
-        saving={savingBusinessType}
-      />
       <TrialEndingModal open={showTrialEndedModal} />
     </div>
   );

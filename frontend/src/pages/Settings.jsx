@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import logoWhite from "@/assets/logo2.webp";
 import logoDark from "@/assets/logo.webp";
-import { BUSINESS_TYPES } from "@/lib/businessTypes";
+import { BUSINESS_TYPES, HIDEABLE_MODULES } from "@/lib/businessTypes";
 
 export const ACCENTS = {
   emerald: { label: "Esmeralda", hsl: "142 72% 29%", hex: "#15803D" },
@@ -140,6 +140,7 @@ export default function Settings() {
     pos_require_credit_customer: true,
 
     business_type: "abarrotes",
+    hidden_module_tids: [],
   });
 
   const [showApiKey, setShowApiKey] = useState(false);
@@ -228,6 +229,14 @@ export default function Settings() {
   const update = (changes) => {
     dirty.current = true;
     setForm((prev) => ({ ...prev, ...changes }));
+  };
+
+  // Un módulo "visible" es uno que NO está en hidden_module_tids.
+  const toggleModuleVisible = (tid, visible) => {
+    const current = form.hidden_module_tids || [];
+    update({
+      hidden_module_tids: visible ? current.filter((t) => t !== tid) : [...current, tid],
+    });
   };
 
   const currentProviderConfig = useMemo(() => {
@@ -689,6 +698,26 @@ export default function Settings() {
                 </div>
                 <Switch checked={form.pos_ask_clear_cart} onCheckedChange={(v) => update({ pos_ask_clear_cart: v })} />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Módulos Visibles en el Menú</CardTitle>
+              <CardDescription>
+                Oculta del menú lateral los módulos que no uses en tu negocio. Puedes reactivarlos cuando quieras.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {HIDEABLE_MODULES.map((mod) => {
+                const visible = !(form.hidden_module_tids || []).includes(mod.tid);
+                return (
+                  <div key={mod.tid} className="flex items-center justify-between p-3 rounded-lg border bg-slate-50/50">
+                    <div className="font-semibold text-sm text-slate-900">{mod.label}</div>
+                    <Switch checked={visible} onCheckedChange={(v) => toggleModuleVisible(mod.tid, v)} data-testid={`module-toggle-${mod.tid}`} />
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </TabsContent>

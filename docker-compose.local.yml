@@ -1,3 +1,4 @@
+# Compose para desarrollo local (con build de imágenes en local)
 services:
   postgres:
     image: postgres:16-alpine
@@ -6,10 +7,10 @@ services:
     command: postgres -N 150 -c shared_buffers=256MB -c work_mem=4MB -c checkpoint_completion_target=0.9
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-jrpos}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-testpass123}
       POSTGRES_DB: ${POSTGRES_DB:-jrpos}
       POSTGRES_APP_USER: ${POSTGRES_APP_USER:-jrpos_app}
-      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-AppRoleLocalTest2026Star}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/01-app-role.sh:ro
@@ -24,8 +25,6 @@ services:
         max-size: "10m"
         max-file: "3"
     mem_limit: 1g
-    networks:
-      - internal
 
   redis:
     image: redis:7-alpine
@@ -47,28 +46,16 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    networks:
-      - internal
 
   backend:
-    image: ghcr.io/camilolealdev/jrpos-backend:latest
+    build:
+      context: ./backend
     container_name: jrpos-backend
     restart: unless-stopped
     env_file:
-      - path: .env
-        required: false
+      - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-jrpos}
-      DATABASE_URL_UNPOOLED: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-jrpos}
       REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:-local-smoke-test-secret-32-chars-min}
-      ENV: ${ENV:-production}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@jrpos.co}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-testpass123}
-      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-super@jrpos.co}
-      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-SuperAdmin2026*}
-      FRONTEND_URL: https://${DOMAIN}
-      DOMAIN: ${DOMAIN}
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,19 +69,20 @@ services:
         max-size: "10m"
         max-file: "3"
     mem_limit: 768m
-    networks:
-      - internal
 
   web:
-    image: ghcr.io/camilolealdev/jrpos-web:latest
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
     container_name: jrpos-web
     restart: unless-stopped
     environment:
-      DOMAIN: ${DOMAIN}
+      DOMAIN: ${DOMAIN:-localhost}
     depends_on:
       - backend
-    expose:
-      - "80"
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
       - caddy_data:/data
       - caddy_config:/config
@@ -104,26 +92,9 @@ services:
         max-size: "10m"
         max-file: "3"
     mem_limit: 256m
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=traefik_public"
-      - "traefik.http.routers.jrpos.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.jrpos.entrypoints=websecure"
-      - "traefik.http.routers.jrpos.tls=true"
-      - "traefik.http.routers.jrpos.tls.certresolver=letsencrypt"
-      - "traefik.http.services.jrpos.loadbalancer.server.port=80"
-    networks:
-      - internal
-      - traefik_public
 
 volumes:
   postgres_data:
   redis_data:
   caddy_data:
   caddy_config:
-
-networks:
-  internal:
-    driver: bridge
-  traefik_public:
-    external: true

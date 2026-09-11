@@ -114,6 +114,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
 
     -- 2. Añadir columna tenant_id a tablas operativas
     ALTER TABLE tenants ADD COLUMN IF NOT EXISTS modules_config JSON;
+    ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS hidden_module_tids JSON;
     ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS price_quarterly_cop FLOAT NOT NULL DEFAULT 0.0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;

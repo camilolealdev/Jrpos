@@ -13,6 +13,7 @@ import heroShowcase from "@/assets/hero-showcase.jpg";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import GoogleOnboardingModal from "@/components/GoogleOnboardingModal";
 import { useGoogleAuthFlow } from "@/lib/useGoogleAuthFlow";
+import { BUSINESS_TYPES } from "@/lib/businessTypes";
 
 export default function RegisterTenant() {
   const { setUser } = useAuth();
@@ -200,13 +201,9 @@ export default function RegisterTenant() {
                   onChange={(e) => setBusinessType(e.target.value)}
                   className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 h-10 text-xs text-white focus:outline-none focus:border-emerald-500/50"
                 >
-                  <option value="abarrotes" className="bg-slate-900 text-white">Tienda de Abarrotes / Minimercado</option>
-                  <option value="drogueria" className="bg-slate-900 text-white">Droguería / Farmacia</option>
-                  <option value="licorera" className="bg-slate-900 text-white">Licorera / Bar / Estanco</option>
-                  <option value="ferreteria" className="bg-slate-900 text-white">Ferretería / Materiales</option>
-                  <option value="cafeteria" className="bg-slate-900 text-white">Cafetería / Panadería / Restaurante</option>
-                  <option value="ropa" className="bg-slate-900 text-white">Boutique / Ropa y Calzado</option>
-                  <option value="otro" className="bg-slate-900 text-white">Otro Comercio Minorista</option>
+                  {BUSINESS_TYPES.map((bt) => (
+                    <option key={bt.id} value={bt.id} className="bg-slate-900 text-white">{bt.label}</option>
+                  ))}
                 </select>
               </div>
 

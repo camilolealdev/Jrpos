@@ -54,28 +54,44 @@ que exige Supavisor. Obtén el string exacto en **Supabase → Connect → Conne
 
 ---
 
-## 2. Opción A — VPS con Docker Compose (recomendado para SaaS)
+## 2. Opción A — VPS con Docker Compose + Traefik (recomendado para SaaS)
+
+`docker-compose.prod.yml` **no levanta Traefik** — asume que ya existe, corriendo en la red externa
+`traefik_public`, con un certresolver llamado `letsencrypt`. `docker-compose.traefik.yml` (este repo)
+provee exactamente eso. Si Traefik no está corriendo primero, el stack de la app no arranca
+(la red externa no existe) y aunque arrancara, nadie llegaría al sitio (`web` solo hace `expose`, no
+publica puertos — Traefik es el único punto de entrada en 80/443).
 
 ### Requisitos
 - VPS con Docker + Docker Compose plugin
-- Dominio con registro DNS `A` → IP del VPS (Caddy gestiona el certificado TLS solo)
+- Dominio con registro DNS `A` → IP del VPS
+- Un Personal Access Token de GitHub con scope `read:packages` para hacer `docker login ghcr.io`
+  (los paquetes `jrpos-backend`/`jrpos-web` en GHCR son privados por defecto)
 
 ### Pasos
 
 ```bash
-# 1. Clonar y configurar
+# 0. Clonar y configurar
 git clone <repo> && cd jrpos
 cp .env.example .env
-nano .env   # completa DATABASE_URL, JWT_SECRET, DOMAIN, POSTGRES_PASSWORD, seeds...
+nano .env   # completa DATABASE_URL, JWT_SECRET, DOMAIN, POSTGRES_PASSWORD, ACME_EMAIL, seeds...
 
-# 2. Levantar el stack (postgres + redis + backend + web/Caddy)
-docker compose up -d --build
+# 1. Login a GHCR (una sola vez por VPS) para poder hacer pull de las imágenes privadas
+echo "<GITHUB_PAT>" | docker login ghcr.io -u <tu-usuario-github> --password-stdin
 
-# 3. Verificar salud
-docker compose ps          # los 4 servicios deben estar healthy/running
-docker compose logs backend --tail 50   # debe terminar en "Uvicorn running on..."
+# 2. Levantar Traefik (crea la red externa `traefik_public` y gestiona TLS)
+docker compose -f docker-compose.traefik.yml up -d
 
-# 4. Smoke test
+# 3. Levantar el stack de la app (postgres + redis + backend + web/Caddy)
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+
+# 4. Verificar salud
+docker compose -f docker-compose.traefik.yml -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs backend --tail 50   # debe terminar en "Uvicorn running on..."
+docker compose -f docker-compose.traefik.yml logs traefik --tail 50   # confirma que emitió el certificado ACME
+
+# 5. Smoke test
 curl -s https://TU-DOMINIO/api/openapi.json | head -c 200
 # Login (debe devolver 200 + cookies):
 curl -s -i -X POST https://TU-DOMINIO/api/auth/login \
@@ -84,22 +100,29 @@ curl -s -i -X POST https://TU-DOMINIO/api/auth/login \
 ```
 
 ### Qué hace cada pieza
+- **`traefik`** (`docker-compose.traefik.yml`) — único servicio con los puertos 80/443 publicados.
+  Termina TLS con Let's Encrypt (challenge HTTP-01) y enruta por `Host()` según las labels de `web`.
 - **`postgres:16`** — base de datos con volumen persistente (`postgres_data`)
 - **`redis:7`** — caché/limitadores, degrada grácilmente si falla
 - **`backend`** — `docker-entrypoint.sh` ejecuta `alembic upgrade head` (tablas base) y luego
   `run_auto_migrations()` (ALTERs idempotentes + **creación de secuencias** de numeración)
-- **`web` (Caddy)** — sirve el build del SPA (`CI=false yarn build`, yarn clásico tolera el
-  peer-dep de react-day-picker con React 19) y hace reverse-proxy de `/api/*` al backend
-  desde **el mismo origen** (resuelve el problema de cookies cross-site del deploy split de Vercel)
+- **`web` (Caddy)** — sirve el build del SPA y hace reverse-proxy de `/api/*` al backend desde
+  **el mismo origen** (resuelve el problema de cookies cross-site del deploy split de Vercel).
+  Caddy ya no gestiona TLS (escucha `:80` plano) — eso ahora es responsabilidad de Traefik.
 
 ### HTTPS
-Caddy emite y renueva certificados automáticamente con el valor de `DOMAIN`.
-En local sin dominio (`DOMAIN=localhost`) usa certificado self-signed — el navegador pedirá aceptarlo.
+Traefik emite y renueva los certificados automáticamente contra `DOMAIN` usando `ACME_EMAIL`.
+Sin Traefik corriendo, no hay HTTPS ni forma de llegar al `web` desde fuera del VPS.
 
 ### Actualizar el deploy
 ```bash
-git pull && docker compose up -d --build
+git pull
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
 ```
+(Las imágenes se reconstruyen en GitHub Actions al hacer push a `main` — `pull` trae la última `:latest`
+publicada por `.github/workflows/docker-publish.yml`. Solo se necesita rebuild local si se edita
+`docker-compose.prod.yml`/`docker-compose.traefik.yml` en sí.)
 
 ### Backups
 ```bash

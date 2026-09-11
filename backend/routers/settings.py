@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -177,6 +177,7 @@ class GeneralSettingsIn(BaseModel):
 
     # Tipo de negocio (gating de módulos de la sidebar)
     business_type: Optional[str] = "abarrotes"
+    hidden_module_tids: list = Field(default_factory=list)
 
 
 from db_migrations import run_auto_migrations

@@ -440,6 +440,9 @@ class SettingsGeneral(Base):
 
     # Tipo de negocio (gating de módulos de la sidebar)
     business_type: Mapped[str | None] = mapped_column(String(20), nullable=True, default="abarrotes")
+    # tids de nav ocultos para este tenant -- sembrado por tipo de negocio al
+    # registrar (backend/business_types.py), editable luego desde Configuración
+    hidden_module_tids: Mapped[list | None] = mapped_column(JSON, nullable=True, default=list)
 
 
 class SettingsCertificate(Base):

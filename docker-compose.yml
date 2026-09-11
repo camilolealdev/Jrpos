@@ -24,6 +24,8 @@ services:
         max-size: "10m"
         max-file: "3"
     mem_limit: 1g
+    networks:
+      - internal
 
   redis:
     image: redis:7-alpine
@@ -45,16 +47,28 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - internal
 
   backend:
-    build:
-      context: ./backend
+    image: ghcr.io/camilolealdev/jrpos-backend:latest
     container_name: jrpos-backend
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
+      DATABASE_URL: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-jrpos}
+      DATABASE_URL_UNPOOLED: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-jrpos}
       REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-local-smoke-test-secret-32-chars-min}
+      ENV: ${ENV:-production}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@jrpos.co}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-testpass123}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-super@jrpos.co}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-SuperAdmin2026*}
+      FRONTEND_URL: https://${DOMAIN}
+      DOMAIN: ${DOMAIN}
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,20 +82,19 @@ services:
         max-size: "10m"
         max-file: "3"
     mem_limit: 768m
+    networks:
+      - internal
 
   web:
-    build:
-      context: .
-      dockerfile: docker/web.Dockerfile
+    image: ghcr.io/camilolealdev/jrpos-web:latest
     container_name: jrpos-web
     restart: unless-stopped
     environment:
-      DOMAIN: ${DOMAIN:-localhost}
+      DOMAIN: ${DOMAIN}
     depends_on:
       - backend
-    ports:
-      - "80:80"
-      - "443:443"
+    expose:
+      - "80"
     volumes:
       - caddy_data:/data
       - caddy_config:/config
@@ -91,9 +104,26 @@ services:
         max-size: "10m"
         max-file: "3"
     mem_limit: 256m
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_public"
+      - "traefik.http.routers.jrpos.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.jrpos.entrypoints=websecure"
+      - "traefik.http.routers.jrpos.tls=true"
+      - "traefik.http.routers.jrpos.tls.certresolver=letsencrypt"
+      - "traefik.http.services.jrpos.loadbalancer.server.port=80"
+    networks:
+      - internal
+      - traefik_public
 
 volumes:
   postgres_data:
   redis_data:
   caddy_data:
   caddy_config:
+
+networks:
+  internal:
+    driver: bridge
+  traefik_public:
+    external: true

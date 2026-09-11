@@ -476,6 +476,12 @@ export default function POS() {
         setCamOpen(true);
         return;
       }
+      // F3: Escaneo continuo por cámara
+      if (e.key === "F3") {
+        e.preventDefault();
+        setCamOpen(true);
+        return;
+      }
       // F4: Proceder al pago
       if (e.key === "F4" && cart.length > 0) {
         e.preventDefault();

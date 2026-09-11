@@ -14,6 +14,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from business_types import HIDDEN_MODULES_BY_BUSINESS_TYPE
 from db import get_session
 from models_sql import (
     Branch,
@@ -310,6 +311,7 @@ async def _provision_tenant(
         printer_width=58,
         accent="emerald",
         business_type=business_type or "abarrotes",
+        hidden_module_tids=HIDDEN_MODULES_BY_BUSINESS_TYPE.get(business_type or "abarrotes", []),
         ticket_footer="¡Gracias por su compra!",
     )
     session.add(general_settings)
