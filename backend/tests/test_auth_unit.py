@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, AsyncMock, patch
 
 import anyio
 import pytest
-from fastapi import Response
+from fastapi import HTTPException, Response
 
 # Asegurar que backend está en el path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -291,6 +291,29 @@ def test_seed_admin_creates_branch_and_settings():
         assert settings[0].store_name == "Minimarket El Progreso"
 
         assert len(users) >= 2  # Superadmin y Admin
+
+    anyio.run(_test)
+
+
+def test_google_auth_handles_unexpected_verification_error():
+    from auth import GoogleAuthRequest, google_auth
+
+    async def _test():
+        payload = GoogleAuthRequest(credential="broken-token")
+        mock_response = MagicMock()
+        mock_session = MagicMock()
+
+        # google.auth.exceptions.GoogleAuthError (certificados JWK caidos,
+        # reloj desincronizado, timeouts) no es un ValueError -- debe
+        # traducirse a 401 igual, no a un 500 sin manejar.
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "test-client-id"}), \
+             patch("auth.google_id_token.verify_oauth2_token", side_effect=Exception("JWK fetch timed out")):
+            with pytest.raises(HTTPException) as exc_info:
+                await google_auth(payload, mock_response, mock_session)
+
+        assert exc_info.value.status_code == 401
+        assert "Google" in exc_info.value.detail
+        mock_session.execute.assert_not_called()
 
     anyio.run(_test)
 

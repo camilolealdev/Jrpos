@@ -380,7 +380,7 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, session: A
 
     try:
         idinfo = google_id_token.verify_oauth2_token(payload.credential, google_requests.Request(), client_id)
-    except (ValueError, Exception) as e:
+    except Exception as e:
         logger.warning("Google Auth: error al verificar token: %s", e)
         raise HTTPException(status_code=401, detail="Token de Google inválido o no verificable")
 
