@@ -1,16 +1,18 @@
-:80 {
+{$DOMAIN:localhost} {
 	encode gzip
 	log {
 		output stdout
 		format console
 	}
 
-	# API requests go to the backend container. Caddy auto-provisions
-	# HTTPS via Let's Encrypt for a real domain (falls back to a local
-	# self-signed cert for "localhost").
+	header {
+		Cross-Origin-Opener-Policy same-origin-allow-popups
+	}
+
+	# API requests go to the backend container.
 	@api path /api /api/*
 	handle @api {
-		reverse_proxy backend:8000
+		reverse_proxy jrpos-backend:8000
 	}
 
 	# Everything else is the React SPA build.
