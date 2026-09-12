@@ -1,0 +1,124 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jrpos-postgres
+    restart: unless-stopped
+    command: postgres -N 150 -c shared_buffers=256MB -c work_mem=4MB -c checkpoint_completion_target=0.9
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jrpos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-jrpos}
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:-jrpos_app}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/01-app-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jrpos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 1g
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: jrpos-redis
+    restart: unless-stopped
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    mem_limit: 192m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+
+  backend:
+    image: ghcr.io/camilolealdev/jrpos-backend:latest
+    container_name: jrpos-backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-jrpos}
+      DATABASE_URL_UNPOOLED: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-jrpos}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-local-smoke-test-secret-32-chars-min}
+      ENV: ${ENV:-production}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@jrpos.co}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-testpass123}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-super@jrpos.co}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-SuperAdmin2026*}
+      FRONTEND_URL: https://${DOMAIN}
+      DOMAIN: ${DOMAIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 768m
+    networks:
+      - internal
+
+  # Sin Traefik por delante: Caddy publica 80/443 directamente al host y
+  # gestiona su propio certificado Let's Encrypt para $DOMAIN (ver Caddyfile).
+  # Pensado para un VPS de un solo proyecto (p.ej. Hostinger Docker Manager),
+  # donde no hay un reverse proxy externo administrando varios stacks a la vez.
+  web:
+    image: ghcr.io/camilolealdev/jrpos-web:latest
+    container_name: jrpos-web
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 256m
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge
