@@ -56,6 +56,34 @@ def get_redis():
     return _client()
 
 
+async def delete_key(key: str) -> None:
+    """Elimina una clave de cache. Never-fail."""
+    r = _client()
+    if r is None:
+        return
+    try:
+        await r.delete(key)
+    except Exception:
+        pass
+
+
+async def delete_pattern(pattern: str) -> None:
+    """Elimina claves coincidentes con un patrón usando SCAN iterativo (sin bloquear Redis)."""
+    r = _client()
+    if r is None:
+        return
+    try:
+        cursor = 0
+        while True:
+            cursor, keys = await r.scan(cursor=cursor, match=pattern, count=100)
+            if keys:
+                await r.delete(*keys)
+            if cursor == 0:
+                break
+    except Exception:
+        pass
+
+
 async def rate_limit(key: str, limit: int, window: int) -> bool:
     """True = permitido. No-op (True) sin Redis. Never-fail."""
     r = _client()
@@ -68,3 +96,4 @@ async def rate_limit(key: str, limit: int, window: int) -> bool:
         return n <= limit
     except Exception:
         return True
+

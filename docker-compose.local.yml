@@ -4,7 +4,7 @@ services:
     image: postgres:16-alpine
     container_name: jrpos-postgres
     restart: unless-stopped
-    command: postgres -N 150 -c shared_buffers=256MB -c work_mem=4MB -c checkpoint_completion_target=0.9
+    command: postgres -N 60 -c shared_buffers=256MB -c effective_cache_size=768MB -c work_mem=8MB -c maintenance_work_mem=64MB -c random_page_cost=1.1 -c wal_buffers=16MB -c checkpoint_completion_target=0.9 -c autovacuum_vacuum_scale_factor=0.05 -c autovacuum_analyze_scale_factor=0.02
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-jrpos}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-testpass123}
@@ -56,6 +56,8 @@ services:
       - .env
     environment:
       REDIS_URL: redis://redis:6379/0
+      DB_POOL_SIZE: 15
+      DB_MAX_OVERFLOW: 20
     depends_on:
       postgres:
         condition: service_healthy

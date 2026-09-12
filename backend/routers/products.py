@@ -11,6 +11,7 @@ from auth import get_current_user, require_admin
 from db import get_session
 from models_sql import CategoryMeta, Contact, Product, StockMovement, User, utcnow
 from pricing import compute_unit_pricing
+from redis_client import get_json, set_json, delete_key
 
 products_router = APIRouter(prefix="/api", tags=["products"])
 
@@ -290,6 +291,7 @@ async def create_product(
     )
     session.add(product)
     await session.commit()
+    await delete_key(f"cache:categories:{tenant_id}")
     return product
 
 
@@ -342,6 +344,7 @@ async def update_product(
     product.updated_at = utcnow()
 
     await session.commit()
+    await delete_key(f"cache:categories:{tenant_id}")
     return product
 
 
@@ -389,6 +392,7 @@ async def delete_product(
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     await session.delete(product)
     await session.commit()
+    await delete_key(f"cache:categories:{tenant_id}")
     return {"ok": True}
 
 
@@ -399,6 +403,11 @@ async def list_categories(
     user: User = Depends(get_current_user),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
+    cache_key = f"cache:categories:{tenant_id}"
+    cached = await get_json(cache_key)
+    if cached is not None:
+        return [CategoryInfo(**c) for c in cached]
+
     # Group products by category scoped by tenant
     stmt = (
         select(
@@ -437,6 +446,7 @@ async def list_categories(
 
     # Sort: pinned first (by order asc); non-pinned ties break by count desc only
     items.sort(key=lambda x: (not x.pinned, x.order if x.pinned else 0, -x.count))
+    await set_json(cache_key, [it.model_dump() for it in items], ttl=60)
     return items
 
 
@@ -460,6 +470,7 @@ async def upsert_category_meta(
         meta = CategoryMeta(name=payload.name, tenant_id=tenant_id, **updates)
         session.add(meta)
     await session.commit()
+    await delete_key(f"cache:categories:{tenant_id}")
     return {"name": meta.name, "emoji": meta.emoji, "pinned": meta.pinned, "order": meta.order}
 
 
@@ -531,6 +542,7 @@ async def bulk_load_products(
             created += 1
 
     await session.commit()
+    await delete_key(f"cache:categories:{tenant_id}")
     return {"ok": True, "created": created, "updated": updated, "total": len(items)}
 
 
@@ -566,6 +578,7 @@ async def bulk_update_products(
         count += 1
 
     await session.commit()
+    await delete_key(f"cache:categories:{tenant_id}")
     return {"ok": True, "updated": count}
 
 

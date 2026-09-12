@@ -296,6 +296,34 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     -- NotNullViolationError si no hay una secuencia por defecto en la columna.
     CREATE SEQUENCE IF NOT EXISTS settings_general_id_seq OWNED BY settings_general.id;
     ALTER TABLE settings_general ALTER COLUMN id SET DEFAULT nextval('settings_general_id_seq');
+
+    -- 8. Índices Compuestos Multi-Tenant de Alto Rendimiento (RLS Query Optimization)
+    CREATE INDEX IF NOT EXISTS ix_products_tenant_barcode ON products (tenant_id, barcode);
+    CREATE INDEX IF NOT EXISTS ix_products_tenant_category ON products (tenant_id, category);
+    CREATE INDEX IF NOT EXISTS ix_products_tenant_name ON products (tenant_id, name);
+    CREATE INDEX IF NOT EXISTS ix_payments_tenant_sale ON payments (tenant_id, sale_id);
+    CREATE INDEX IF NOT EXISTS ix_payments_tenant_created ON payments (tenant_id, created_at);
+    CREATE INDEX IF NOT EXISTS ix_payments_tenant_customer ON payments (tenant_id, customer_id);
+    CREATE INDEX IF NOT EXISTS ix_purchase_invoices_tenant_created ON purchase_invoices (tenant_id, created_at);
+    CREATE INDEX IF NOT EXISTS ix_purchase_items_tenant_invoice ON purchase_invoice_items (tenant_id, purchase_invoice_id);
+    CREATE INDEX IF NOT EXISTS ix_doc_items_tenant_doc ON document_items (tenant_id, document_id);
+    CREATE INDEX IF NOT EXISTS ix_credit_notes_tenant_sale ON credit_notes (tenant_id, sale_id);
+    CREATE INDEX IF NOT EXISTS ix_warranties_tenant_sale ON warranties (tenant_id, sale_id);
+    CREATE INDEX IF NOT EXISTS ix_purchase_orders_tenant_created ON purchase_orders (tenant_id, created_at);
+    CREATE INDEX IF NOT EXISTS ix_po_items_tenant_order ON purchase_order_items (tenant_id, purchase_order_id);
+    CREATE INDEX IF NOT EXISTS ix_users_tenant_role ON users (tenant_id, role);
+    CREATE INDEX IF NOT EXISTS ix_contacts_tenant_kind ON contacts (tenant_id, kind);
+    CREATE INDEX IF NOT EXISTS ix_contacts_tenant_document ON contacts (tenant_id, document);
+    CREATE INDEX IF NOT EXISTS ix_sales_tenant_created ON sales (tenant_id, created_at);
+    CREATE INDEX IF NOT EXISTS ix_sales_tenant_customer ON sales (tenant_id, customer_id);
+    CREATE INDEX IF NOT EXISTS ix_sales_tenant_credit ON sales (tenant_id, is_credit);
+    CREATE INDEX IF NOT EXISTS ix_sale_items_tenant_sale ON sale_items (tenant_id, sale_id);
+    CREATE INDEX IF NOT EXISTS ix_sale_items_tenant_product ON sale_items (tenant_id, product_id);
+    CREATE INDEX IF NOT EXISTS ix_stock_movements_tenant_product ON stock_movements (tenant_id, product_id);
+    CREATE INDEX IF NOT EXISTS ix_expenses_tenant_created ON expenses (tenant_id, created_at);
+    CREATE INDEX IF NOT EXISTS ix_expenses_tenant_category ON expenses (tenant_id, category);
+    CREATE INDEX IF NOT EXISTS ix_cash_sessions_tenant_status ON cash_sessions (tenant_id, status);
+    CREATE INDEX IF NOT EXISTS ix_cash_sessions_tenant_opened ON cash_sessions (tenant_id, opened_at);
     """
 
     try:
@@ -352,3 +380,16 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     except Exception as e:
         await session.rollback()
         logger.debug("settings_general_id_seq resync skipped: %s", e)
+
+    # 9. Actualización de estadísticas del optimizador de PostgreSQL
+    try:
+        bind = session.get_bind()
+        dialect_name = getattr(bind, "dialect", None)
+        dialect_str = dialect_name.name if dialect_name else ""
+        if dialect_str == "postgresql":
+            await session.execute(text("ANALYZE"))
+            await session.commit()
+    except Exception as e:
+        await session.rollback()
+        logger.debug("PostgreSQL ANALYZE skipped: %s", e)
+

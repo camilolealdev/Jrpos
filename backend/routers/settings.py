@@ -181,6 +181,7 @@ class GeneralSettingsIn(BaseModel):
 
 
 from db_migrations import run_auto_migrations
+from redis_client import get_json, set_json, delete_key
 
 
 def _general_defaults() -> dict:
@@ -196,6 +197,15 @@ async def get_general_settings(
     user: User = Depends(get_current_user),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
+    cache_key = f"cache:settings_general:{tenant_id}"
+    cached = await get_json(cache_key)
+    if cached is not None:
+        result = dict(cached)
+        if user.role != "admin":
+            for key in ADMIN_ONLY_GENERAL_FIELDS:
+                result.pop(key, None)
+        return result
+
     base = _general_defaults()
     try:
         stmt = select(SettingsGeneral).where(SettingsGeneral.tenant_id == tenant_id)
@@ -218,10 +228,15 @@ async def get_general_settings(
                         base[key] = val
         except Exception:
             pass
+
+    # Guardar en Redis con TTL de 120s
+    await set_json(cache_key, base, ttl=120)
+
+    result = dict(base)
     if user.role != "admin":
         for key in ADMIN_ONLY_GENERAL_FIELDS:
-            base.pop(key, None)
-    return base
+            result.pop(key, None)
+    return result
 
 
 @settings_router.put("/settings/general")
@@ -268,6 +283,9 @@ async def save_general_settings(
             for key, value in data.items():
                 setattr(row, key, value)
         await session.commit()
+
+    # Invalidar cache inmediatamente
+    await delete_key(f"cache:settings_general:{tenant_id}")
 
     return {"ok": True}
 

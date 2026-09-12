@@ -139,6 +139,7 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("role IN ('superadmin_platform', 'admin', 'supervisor', 'cajero', 'contador')", name="ck_users_role"),
+        Index("ix_users_tenant_role", "tenant_id", "role"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
@@ -291,6 +292,11 @@ class SaleItem(Base):
 
 class Payment(Base):
     __tablename__ = "payments"
+    __table_args__ = (
+        Index("ix_payments_tenant_sale", "tenant_id", "sale_id"),
+        Index("ix_payments_tenant_created", "tenant_id", "created_at"),
+        Index("ix_payments_tenant_customer", "tenant_id", "customer_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -356,6 +362,9 @@ class Expense(Base):
 
 class PurchaseInvoice(Base):
     __tablename__ = "purchase_invoices"
+    __table_args__ = (
+        Index("ix_purchase_invoices_tenant_created", "tenant_id", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -368,6 +377,9 @@ class PurchaseInvoice(Base):
 
 class PurchaseInvoiceItem(Base):
     __tablename__ = "purchase_invoice_items"
+    __table_args__ = (
+        Index("ix_purchase_items_tenant_invoice", "tenant_id", "purchase_invoice_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -561,6 +573,9 @@ class Document(Base):
 
 class DocumentItem(Base):
     __tablename__ = "document_items"
+    __table_args__ = (
+        Index("ix_doc_items_tenant_doc", "tenant_id", "document_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -576,6 +591,9 @@ class DocumentItem(Base):
 
 class CreditNote(Base):
     __tablename__ = "credit_notes"
+    __table_args__ = (
+        Index("ix_credit_notes_tenant_sale", "tenant_id", "sale_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -592,6 +610,9 @@ class CreditNote(Base):
 
 class Warranty(Base):
     __tablename__ = "warranties"
+    __table_args__ = (
+        Index("ix_warranties_tenant_sale", "tenant_id", "sale_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -607,6 +628,9 @@ class Warranty(Base):
 
 class PurchaseOrder(Base):
     __tablename__ = "purchase_orders"
+    __table_args__ = (
+        Index("ix_purchase_orders_tenant_created", "tenant_id", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
@@ -621,6 +645,9 @@ class PurchaseOrder(Base):
 
 class PurchaseOrderItem(Base):
     __tablename__ = "purchase_order_items"
+    __table_args__ = (
+        Index("ix_po_items_tenant_order", "tenant_id", "purchase_order_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)

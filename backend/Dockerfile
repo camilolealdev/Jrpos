@@ -21,10 +21,10 @@ ENV PYTHONUNBUFFERED=1 \
 COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
-COPY . .
+RUN groupadd -r jrpos && useradd -r -g jrpos jrpos
 
-RUN chmod +x docker-entrypoint.sh \
-    && groupadd -r jrpos && useradd -r -g jrpos jrpos && chown -R jrpos:jrpos /app
+COPY --chown=jrpos:jrpos . .
+RUN chmod +x docker-entrypoint.sh
 USER jrpos
 
 EXPOSE 8000
