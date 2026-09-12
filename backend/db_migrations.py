@@ -157,6 +157,22 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE payroll ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE commission_rules ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
 
+    -- Asegurar que category_meta tenga clave primaria compuesta (tenant_id, name)
+    ALTER TABLE category_meta ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
+    UPDATE category_meta SET tenant_id = 'tenant-default-001' WHERE tenant_id IS NULL;
+    ALTER TABLE category_meta ALTER COLUMN tenant_id SET NOT NULL;
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'category_meta_pkey'
+        ) THEN
+            ALTER TABLE category_meta DROP CONSTRAINT category_meta_pkey;
+        END IF;
+        ALTER TABLE category_meta ADD CONSTRAINT category_meta_pkey PRIMARY KEY (tenant_id, name);
+    EXCEPTION
+        WHEN OTHERS THEN NULL;
+    END $$;
+
     -- 2b. Row-Level Security: segunda capa de defensa contra fugas cross-tenant
     -- (complementa, no reemplaza, el filtro por tenant_id que ya debe existir
     -- en cada router). backend/auth.py fija app.current_tenant_id/app.is_superadmin
