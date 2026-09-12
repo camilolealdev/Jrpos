@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { toast } from "sonner";
-import { Plus, ArrowRightLeft, Trash2, ShieldQuestion, FileDown } from "lucide-react";
+import { Plus, ArrowRightLeft, Trash2, ShieldQuestion, FileDown, ShoppingCart } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { exportDocPdf } from "@/lib/pdfExport";
 
 const CFG = {
@@ -52,6 +52,7 @@ function ItemsEditor({ items, setItems, products, priceField = "price" }) {
 }
 
 export default function SalesDocs({ defaultTab = "cotizaciones" }) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState(defaultTab);
   const [docs, setDocs] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -126,6 +127,27 @@ export default function SalesDocs({ defaultTab = "cotizaciones" }) {
       toast.success(`Convertida a venta ${data.number}`); load();
     } catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
   };
+
+  const loadIntoPos = (d) => {
+    let parsedItems = [];
+    if (typeof d.items === "string") {
+      try { parsedItems = JSON.parse(d.items); } catch {}
+    } else if (Array.isArray(d.items)) {
+      parsedItems = d.items;
+    }
+    if (parsedItems.length === 0) {
+      return toast.error("El documento no contiene productos");
+    }
+    navigate("/pos", {
+      state: {
+        loadItems: parsedItems,
+        customerId: d.customer_id,
+        customerName: d.customer_name,
+        docOrigin: `${cfg.title || "Documento"} ${d.number}`,
+      },
+    });
+    toast.success(`Cargando ${parsedItems.length} producto(s) en el POS...`);
+  };
   const setStatus = async (d, st) => { await api.put(`/docs/${cfg.kind}/${d.id}`, { status: st }); load(); };
   const setWarrantyStatus = async (w, st) => { await api.put(`/warranties/${w.id}`, { status: st, resolution: w.resolution }); load(); };
 
@@ -168,6 +190,18 @@ export default function SalesDocs({ defaultTab = "cotizaciones" }) {
                         <td className="p-3 text-right whitespace-nowrap">
                           {cfg.kind && (
                             <Button size="sm" variant="outline" onClick={() => exportDocPdf(d)} data-testid={`pdf-${d.id}`}><FileDown className="w-3 h-3 mr-1" /> PDF</Button>
+                          )}
+                          {cfg.kind && tab !== "cuentas" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => loadIntoPos(d)}
+                              title="Cargar productos directamente al carrito del POS"
+                              data-testid={`load-pos-${d.id}`}
+                              className="text-emerald-700 hover:text-emerald-800 border-emerald-300 dark:border-emerald-700"
+                            >
+                              <ShoppingCart className="w-3 h-3 mr-1 text-emerald-600" /> Cargar al POS
+                            </Button>
                           )}
                           {cfg.kind && tab !== "cuentas" && !["convertida", "anulada"].includes(d.status) && (
                             <Button size="sm" variant="outline" onClick={() => convert(d)} data-testid={`convert-${d.id}`}><ArrowRightLeft className="w-3 h-3 mr-1" /> A venta</Button>

@@ -269,12 +269,17 @@ async def update_support_ticket(
     return {"ok": True, "ticket_id": ticket.id, "status": ticket.status, "admin_notes": ticket.admin_notes}
 
 
+class ImpersonateRequest(BaseModel):
+    reason: str = Field(..., min_length=10, max_length=500, description="Motivo documentado de la asistencia técnica")
+
+
 @router.post("/impersonate/{tenant_id}")
 async def impersonate_tenant(
     tenant_id: str,
+    payload: ImpersonateRequest,
     response: Response,
     admin: User = Depends(require_superadmin),
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
 ):
     tenant = await session.get(Tenant, tenant_id)
     if not tenant:
@@ -294,11 +299,15 @@ async def impersonate_tenant(
     if not tenant_admin:
         raise HTTPException(status_code=404, detail="No hay usuarios registrados en esta tienda")
 
+    # Emitir token de corta duración (30 min) con trazabilidad de actor
     access_token = create_access_token(
         user_id=tenant_admin.id,
         email=tenant_admin.email,
         role=tenant_admin.role,
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
+        expires_delta=timedelta(minutes=30),
+        actor_id=admin.id,
+        is_impersonated=True,
     )
 
     is_secure, same_site = _cookie_flags()
@@ -308,12 +317,26 @@ async def impersonate_tenant(
         httponly=True,
         secure=is_secure,
         samesite=same_site,
-        max_age=8 * 3600,
+        max_age=1800,  # 30 minutos
         path="/"
     )
 
-    _audit(session, admin=admin, tenant_id=tenant_id, action="impersonate", entity_type="user",
-           entity_id=tenant_admin.id, details={"impersonated_email": tenant_admin.email, "impersonated_role": tenant_admin.role})
+    _audit(
+        session,
+        admin=admin,
+        tenant_id=tenant_id,
+        action="impersonate",
+        entity_type="user",
+        entity_id=tenant_admin.id,
+        details={
+            "reason": payload.reason,
+            "actor_id": admin.id,
+            "actor_email": admin.email,
+            "impersonated_email": tenant_admin.email,
+            "impersonated_role": tenant_admin.role,
+            "expires_in_minutes": 30,
+        },
+    )
     await session.commit()
 
     return {
@@ -325,6 +348,11 @@ async def impersonate_tenant(
             "role": tenant_admin.role,
             "tenant_id": tenant_id,
             "business_name": tenant.business_name,
+        },
+        "session": {
+            "is_impersonated": True,
+            "actor_id": admin.id,
+            "expires_in_seconds": 1800,
         }
     }
 

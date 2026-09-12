@@ -17,6 +17,26 @@ class CheckoutRequest(BaseModel):
     payment_method: str = "wompi"
 
 
+class ActivateRequest(BaseModel):
+    plan_id: str
+    months: int = 1
+
+
+class PlatformPlanCreate(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    price_cop: float = 0.0
+    price_quarterly_cop: float = 0.0
+    price_annual_cop: float = 0.0
+    max_branches: int = 1
+    max_users: int = 3
+    max_products: int = 5000
+    ai_ocr_enabled: bool = True
+    dian_enabled: bool = False
+    is_active: bool = True
+
+
 @router.get("/status")
 async def get_subscription_status(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
     tenant_id = user.tenant_id or "tenant-default-001"
@@ -201,3 +221,20 @@ async def activate_subscription(
         "period_end": sub.current_period_end.isoformat(),
         "amount_cop": amount,
     }
+
+
+@router.post("/superadmin/plans")
+async def create_or_update_plan(
+    payload: PlatformPlanCreate,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_superadmin),
+):
+    plan = await session.get(PlatformPlan, payload.id)
+    if plan:
+        for k, v in payload.model_dump().items():
+            setattr(plan, k, v)
+    else:
+        plan = PlatformPlan(**payload.model_dump())
+        session.add(plan)
+    await session.commit()
+    return {"ok": True, "plan_id": plan.id}

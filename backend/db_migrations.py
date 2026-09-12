@@ -123,7 +123,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     -- modelo ORM; sin este ALTER, insertar cualquiera de esos roles revienta el
     -- arranque del backend con IntegrityError.
     ALTER TABLE users DROP CONSTRAINT IF EXISTS ck_users_role;
-    ALTER TABLE users ADD CONSTRAINT ck_users_role CHECK (role IN ('superadmin_platform', 'admin', 'supervisor', 'cajero', 'contador'));
+    ALTER TABLE users ADD CONSTRAINT ck_users_role CHECK (role IN ('superadmin_platform', 'admin', 'supervisor', 'cajero', 'contador', 'mesero'));
     ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS margin_percent FLOAT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_package FLOAT NOT NULL DEFAULT 1.0;
@@ -296,6 +296,21 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     -- NotNullViolationError si no hay una secuencia por defecto en la columna.
     CREATE SEQUENCE IF NOT EXISTS settings_general_id_seq OWNED BY settings_general.id;
     ALTER TABLE settings_general ALTER COLUMN id SET DEFAULT nextval('settings_general_id_seq');
+
+    -- Mismo arreglo para el resto de tablas con PK autoincremental del ORM:
+    -- sin secuencia, cualquier INSERT vía ORM (sin id explícito) revienta con
+    -- NotNullViolationError. Idempotente: SET DEFAULT no borra datos.
+    CREATE SEQUENCE IF NOT EXISTS settings_electronic_id_seq OWNED BY settings_electronic.id;
+    ALTER TABLE settings_electronic ALTER COLUMN id SET DEFAULT nextval('settings_electronic_id_seq');
+
+    CREATE SEQUENCE IF NOT EXISTS settings_timeclock_schedule_id_seq OWNED BY settings_timeclock_schedule.id;
+    ALTER TABLE settings_timeclock_schedule ALTER COLUMN id SET DEFAULT nextval('settings_timeclock_schedule_id_seq');
+
+    CREATE SEQUENCE IF NOT EXISTS settings_certificate_id_seq OWNED BY settings_certificate.id;
+    ALTER TABLE settings_certificate ALTER COLUMN id SET DEFAULT nextval('settings_certificate_id_seq');
+
+    CREATE SEQUENCE IF NOT EXISTS platform_plans_id_seq OWNED BY platform_plans.id;
+    ALTER TABLE platform_plans ALTER COLUMN id SET DEFAULT nextval('platform_plans_id_seq');
 
     -- 8. Índices Compuestos Multi-Tenant de Alto Rendimiento (RLS Query Optimization)
     CREATE INDEX IF NOT EXISTS ix_products_tenant_barcode ON products (tenant_id, barcode);

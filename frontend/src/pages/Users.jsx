@@ -12,8 +12,16 @@ import { Plus, Trash2, ShieldCheck, UserCog, KeyRound } from "lucide-react";
 
 const empty = { name: "", email: "", password: "", role: "cajero" };
 
+const roleLabel = (role, staffLabels = {}) => {
+  if (!role) return "";
+  if (role === "admin") return "Administrador";
+  return (staffLabels && staffLabels[role]) || (role.charAt(0).toUpperCase() + role.slice(1));
+};
+
 export default function Users() {
   const { user } = useAuth();
+  const staffRoles = user?.tenant?.staff_roles?.length ? user.tenant.staff_roles : ["cajero"];
+  const staffLabels = user?.tenant?.staff_role_labels || {};
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
@@ -65,9 +73,11 @@ export default function Users() {
       <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><UserCog className="w-6 h-6 text-emerald-700" /> Permisos de Usuarios</h1>
-          <p className="text-sm text-slate-500">Roles: <b>admin</b> (todo) · <b>cajero</b> (POS, clientes, créditos, reportes).</p>
+          <p className="text-sm text-slate-500">
+            Roles: <b>admin</b> (todo) · <b>{staffRoles.map((r) => roleLabel(r, staffLabels)).join(" / ")}</b> (POS y funciones operativas de esta tienda).
+          </p>
         </div>
-        <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={() => setOpen(true)} data-testid="new-user-btn"><Plus className="w-4 h-4 mr-1" /> Nuevo usuario</Button>
+        <Button className="bg-emerald-700 hover:bg-emerald-800" onClick={() => { setForm({ ...empty, role: staffRoles[0] }); setOpen(true); }} data-testid="new-user-btn"><Plus className="w-4 h-4 mr-1" /> Nuevo usuario</Button>
       </div>
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
@@ -81,7 +91,7 @@ export default function Users() {
                 <td className="p-3">{u.email}</td>
                 <td className="p-3">
                   <Badge variant="outline" className={u.role === "admin" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : ""}>
-                    {u.role === "admin" && <ShieldCheck className="w-3 h-3 mr-1" />}{u.role}
+                    {u.role === "admin" && <ShieldCheck className="w-3 h-3 mr-1" />}{roleLabel(u.role, staffLabels)}
                   </Badge>
                 </td>
                 <td className="p-3 text-right space-x-1">
@@ -110,7 +120,9 @@ export default function Users() {
               <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
                 <SelectTrigger data-testid="u-role"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cajero">Cajero</SelectItem>
+                  {staffRoles.map((r) => (
+                    <SelectItem key={r} value={r}>{roleLabel(r, staffLabels)}</SelectItem>
+                  ))}
                   <SelectItem value="admin">Administrador</SelectItem>
                 </SelectContent>
               </Select></div>

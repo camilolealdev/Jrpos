@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth import get_current_user
 from db import get_session
 from models_sql import Product, PurchaseOrder, PurchaseOrderItem, StockMovement, User, utcnow
+from permissions import require_permission
 
 purchase_orders_router = APIRouter(prefix="/api", tags=["purchase-orders"])
 
@@ -68,7 +69,7 @@ async def _po_out(session: AsyncSession, po: PurchaseOrder) -> PurchaseOrderOut:
 async def create_purchase_order(
     payload: PurchaseOrderCreate,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("inventory:purchase")),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
     if not payload.items:
@@ -100,7 +101,7 @@ async def create_purchase_order(
 @purchase_orders_router.get("/purchase-orders", response_model=List[PurchaseOrderOut])
 async def list_purchase_orders(
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("inventory:purchase")),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
     stmt = select(PurchaseOrder).where(PurchaseOrder.tenant_id == tenant_id).order_by(PurchaseOrder.created_at.desc()).limit(300)
@@ -112,7 +113,7 @@ async def list_purchase_orders(
 async def receive_purchase_order(
     oid: str,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("inventory:purchase")),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
     po = await session.get(PurchaseOrder, oid)
@@ -135,11 +136,13 @@ async def receive_purchase_order(
         if it.barcode:
             existing = (
                 await session.execute(select(Product).where(Product.barcode == it.barcode, Product.tenant_id == tenant_id))
-            ).scalar_one_or_none()
+            ).scalars().first()
         if not existing:
             existing = (
-                await session.execute(select(Product).where(Product.name == it.name, Product.tenant_id == tenant_id))
-            ).scalar_one_or_none()
+                await session.execute(
+                    select(Product).where(Product.name == it.name, Product.tenant_id == tenant_id).order_by(Product.created_at.desc())
+                )
+            ).scalars().first()
 
         if existing:
             previous_stock = float(existing.stock)

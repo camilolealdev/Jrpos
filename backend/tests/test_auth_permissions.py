@@ -4,10 +4,14 @@ import time
 import pytest
 import requests
 
-BASE_URL = os.environ.get('BACKEND_TEST_URL', 'http://127.0.0.1:8000').rstrip('/')
+BASE_URL = os.environ.get('BACKEND_TEST_URL', 'https://localhost').rstrip('/')
 API = f"{BASE_URL}/api"
 
-ADMIN = {"email": "admin@jrpos.com", "password": "jrpos2026"}
+# Credenciales del admin sembrado por seed_admin() (ver auth.py y .env).
+ADMIN = {
+    "email": os.environ.get("ADMIN_EMAIL", "admin@jrpos.co"),
+    "password": os.environ.get("ADMIN_PASSWORD", "testpass123"),
+}
 OLD_ADMIN_EMAIL = "camiloleal.opx@gmail.com"
 CAJERO = {"email": "cajero@jrpos.co", "password": "cajero123"}
 

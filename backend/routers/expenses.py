@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth import get_current_user
 from db import get_session
 from models_sql import Expense, User
+from permissions import require_permission
 
 expenses_router = APIRouter(prefix="/api", tags=["expenses"])
 
@@ -41,7 +42,7 @@ class ExpenseOut(BaseModel):
 async def create_expense(
     payload: ExpenseCreate,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("expenses:create")),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
     e = Expense(tenant_id=tenant_id, **payload.model_dump())
@@ -54,7 +55,7 @@ async def create_expense(
 async def list_expenses(
     limit: int = 300,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("expenses:read")),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
     stmt = select(Expense).where(Expense.tenant_id == tenant_id).order_by(Expense.created_at.desc()).limit(limit)
@@ -88,7 +89,7 @@ async def list_expenses(
 async def delete_expense(
     expense_id: str,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("expenses:delete")),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
     stmt = select(Expense).where(Expense.id == expense_id, Expense.tenant_id == tenant_id)

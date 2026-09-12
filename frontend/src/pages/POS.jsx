@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { formatCOP } from "@/lib/format";
 import { categoryIcon } from "@/lib/categoryIcons";
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, X, Package as PackageIcon, Pause, Play, Users, Camera, Scale } from "lucide-react";
+import { Search, Trash2, Plus, Minus, ScanLine, ShoppingCart, CircleDollarSign, X, Package as PackageIcon, Pause, Play, Users, Camera, Scale, PiggyBank } from "lucide-react";
 
 const getCartStorageKey = () => {
   try {
@@ -55,7 +56,43 @@ export default function POS() {
   const [weighPriceKg, setWeighPriceKg] = useState("");
   const [weighWeight, setWeighWeight] = useState("");
   const [weighUnit, setWeighUnit] = useState("g"); // "g", "kg", "lb"
+  const [cashStatus, setCashStatus] = useState(null); // { open: boolean, session?: ... }
   const barcodeRef = useRef(null);
+  const location = useLocation();
+
+  // Precargar productos desde Cotizaciones / Remisiones si vienen por navegación
+  useEffect(() => {
+    if (location.state?.loadItems && Array.isArray(location.state.loadItems) && location.state.loadItems.length > 0) {
+      const itemsToLoad = location.state.loadItems.map((it) => ({
+        product_id: it.product_id || it.id || `doc_item_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        base_product_id: it.base_product_id || it.product_id || it.id,
+        name: it.name || it.product_name || "Producto",
+        barcode: it.barcode || "",
+        qty: Number(it.qty) || 1,
+        price: Number(it.price) || 0,
+        tax_rate: Number(it.tax_rate) || 0,
+      }));
+      setCart(itemsToLoad);
+      if (location.state.customerId) {
+        setCustomerId(location.state.customerId);
+      }
+      toast.success(`Cargados ${itemsToLoad.length} producto(s) desde ${location.state.docOrigin || "documento"}`);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  const checkCashSession = useCallback(async () => {
+    try {
+      const { data } = await api.get("/cash/current");
+      setCashStatus(data && typeof data === "object" ? data : { open: false });
+    } catch {
+      setCashStatus({ open: false });
+    }
+  }, []);
+
+  useEffect(() => {
+    checkCashSession();
+  }, [checkCashSession]);
 
   useEffect(() => {
     try {
@@ -549,6 +586,21 @@ export default function POS() {
     <div className="min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)] grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0 lg:overflow-hidden" data-testid="pos-page">
       {/* Left: product grid */}
       <div className="p-3 lg:p-5 flex flex-col min-h-0 lg:overflow-hidden">
+        {cashStatus && !cashStatus.open && (
+          <div className="mb-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-2 text-xs text-amber-700 dark:text-amber-300 animate-in fade-in">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <PiggyBank className="w-4 h-4 text-amber-600 shrink-0" />
+              <span className="truncate font-medium">
+                <b>Caja Cerrada:</b> No hay un turno abierto para arqueo. Puedes registrar ventas, pero te sugerimos abrir turno para cuadre Z.
+              </span>
+            </div>
+            <Link to="/recogidas">
+              <Button size="sm" variant="outline" className="h-7 text-xs border-amber-400/50 hover:bg-amber-500/15 text-amber-700 dark:text-amber-200 shrink-0 font-semibold">
+                Abrir Turno
+              </Button>
+            </Link>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-2 mb-1.5">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1206,6 +1258,7 @@ export default function POS() {
                     `Pago: ${receiptSale.payment_method}`,
                   ].filter(Boolean);
 
+                  const pWidth = Number(storeSettings?.printer_width) === 80 ? 48 : 32;
                   await printThermal({
                     title: storeSettings?.store_name || "Mi Tienda",
                     subtitle: storeSettings?.store_slogan || "Ticket de Venta",
@@ -1215,6 +1268,7 @@ export default function POS() {
                     })),
                     totals: [["TOTAL", formatCOP(receiptSale.total)]],
                     footer: storeSettings?.ticket_footer || "¡Gracias por su compra!",
+                    width: pWidth,
                   });
                   toast.success("Enviado a la impresora");
                 } catch (e) {
@@ -1223,7 +1277,7 @@ export default function POS() {
               }}
               data-testid="print-receipt-btn"
             >
-              📱 Bluetooth 58mm
+              📱 Bluetooth ({Number(storeSettings?.printer_width) === 80 ? "80mm" : "58mm"})
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -219,6 +219,7 @@ async def convert_doc_to_sale(
     number = f"POS-{seq:06d}"
 
     sale = Sale(
+        tenant_id=tenant_id,
         number=number, subtotal=round(subtotal_total, 2), tax_total=tax_total, discount=0.0,
         total=round(subtotal_total, 2), payment_method="efectivo", customer_id=doc.customer_id,
         customer_name=doc.customer_name, cashier=user.name, notes=f"Desde {doc.number}",

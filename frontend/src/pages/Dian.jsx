@@ -68,9 +68,20 @@ export default function Dian({ defaultTab = "fe" }) {
 
   return (
     <div className="p-4 lg:p-6 space-y-4" data-testid="dian-page">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-emerald-700" /> Facturación Electrónica DIAN</h1>
-        <p className="text-sm text-amber-700 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> Modo SIMULADO: estructuras de prueba, no válidas ante la DIAN hasta conectar proveedor tecnológico.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+              <FileText className="w-6 h-6 text-emerald-700" /> Facturación Electrónica DIAN
+            </h1>
+            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[11px] font-bold">
+              PRÓXIMO LANZAMIENTO (MODO DEMO)
+            </Badge>
+          </div>
+          <p className="text-sm text-amber-700 flex items-center gap-1 mt-1">
+            <AlertTriangle className="w-4 h-4 shrink-0" /> Módulo en demostración técnica pre-lanzamiento. Estructuras UBL 2.1 y CUFE sintético para prueba. La transmisión real DIAN no está activa en esta versión.
+          </p>
+        </div>
       </div>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap h-auto">

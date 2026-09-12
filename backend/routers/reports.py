@@ -129,7 +129,12 @@ async def report_summary(
         )
     ).all()
     daily_rows = list(reversed(daily_rows))
-    daily_sales = [{"date": day.date().isoformat(), "total": round(float(total), 2)} for day, total in daily_rows]
+    def _format_day(d):
+        if hasattr(d, "date"):
+            return d.date().isoformat()
+        return str(d)[:10] if d else ""
+
+    daily_sales = [{"date": _format_day(day), "total": round(float(total), 2)} for day, total in daily_rows]
 
     low_stock_rows = (
         await session.execute(

@@ -14,13 +14,17 @@ def _load_frontend_env():
                     return line.split("=", 1)[1].strip()
     except Exception:
         pass
-    return os.environ.get("BACKEND_TEST_URL", "http://127.0.0.1:8000")
+    return os.environ.get("BACKEND_TEST_URL", "https://localhost")
 
 
 BASE_URL = _load_frontend_env().rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN = {"email": "admin@jrpos.com", "password": "jrpos2026"}
+# Credenciales del admin sembrado por seed_admin() (ver auth.py y .env).
+ADMIN = {
+    "email": os.environ.get("ADMIN_EMAIL", "admin@jrpos.co"),
+    "password": os.environ.get("ADMIN_PASSWORD", "testpass123"),
+}
 
 
 @pytest.fixture(scope="module")

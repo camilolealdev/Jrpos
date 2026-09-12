@@ -6,8 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import hash_password, require_admin
+from business_types import STAFF_ROLES_BY_BUSINESS_TYPE
 from db import get_session
-from models_sql import LoginAttempt, User
+from models_sql import LoginAttempt, Tenant, User
+from entitlements import check_user_limit
 
 users_router = APIRouter(prefix="/api", tags=["users"])
 
@@ -48,12 +50,18 @@ async def create_user(
     existing = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
+
+    await check_user_limit(session, tenant_id)
+
+    tenant = await session.get(Tenant, tenant_id)
+    staff_roles = STAFF_ROLES_BY_BUSINESS_TYPE.get(tenant.business_type if tenant else None, ["cajero"])
+    allowed_roles = {"admin", "supervisor", "contador", *staff_roles}
     user = User(
         tenant_id=tenant_id,
         email=email,
         password_hash=hash_password(payload.password),
         name=payload.name,
-        role=payload.role if payload.role in ("admin", "cajero", "supervisor", "contador") else "cajero",
+        role=payload.role if payload.role in allowed_roles else staff_roles[0],
     )
     session.add(user)
     await session.commit()

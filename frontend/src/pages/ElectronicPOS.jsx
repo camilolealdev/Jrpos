@@ -45,8 +45,13 @@ export default function ElectronicPOS() {
   return (
     <div className="p-4 lg:p-6 space-y-4" data-testid="electronic-pos-page">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><Receipt className="w-6 h-6 text-emerald-700" /> Facturación POS Electrónica</h1>
-        <p className="text-sm text-slate-500 flex items-center gap-1"><AlertTriangle className="w-4 h-4 text-amber-600" /> Modo SIMULADO: genera estructura XML/CUFE de prueba, NO válido ante la DIAN.</p>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><Receipt className="w-6 h-6 text-emerald-700" /> Facturación POS Electrónica</h1>
+          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[11px] font-bold">
+            PRÓXIMO LANZAMIENTO (DEMO)
+          </Badge>
+        </div>
+        <p className="text-sm text-amber-700 flex items-center gap-1 mt-1"><AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" /> Modo SIMULADO: Estructura UBL 2.1 y CUFE sintético para prueba. La transmisión real DIAN estará disponible en el próximo lanzamiento.</p>
       </div>
 
       <Card>

@@ -36,6 +36,11 @@ export default function Login() {
     setError("");
     try {
       const data = await login(email, password);
+      // Si es SuperAdmin de la plataforma, entrar directamente a la consola SaaS
+      if (data?.role === "superadmin_platform") {
+        navigate("/superadmin");
+        return;
+      }
       // Gate de suscripción: tenant con trial vencido / suspendido → paywall
       const t = data?.tenant;
       const st = t?.status;
@@ -118,6 +123,40 @@ export default function Login() {
                 </div>
 
                 <form onSubmit={submit} className="space-y-4">
+                  {/* Quick-fill credentials for easy testing */}
+                  <div className="bg-white/[0.02] border border-white/10 rounded-xl p-2.5 space-y-1.5">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center justify-between">
+                      <span>Credenciales de Prueba</span>
+                      <span className="text-[9px] text-emerald-400 font-mono">1-clic para auto-rellenar</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmail("admin@jrpos.co");
+                          setPassword("testpass123");
+                          setError("");
+                        }}
+                        className="text-left px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all text-[11px] group"
+                      >
+                        <div className="font-semibold text-emerald-300 group-hover:text-emerald-200">🏪 Admin Tienda</div>
+                        <div className="text-[10px] text-slate-400 font-mono truncate">admin@jrpos.co</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmail("superadmin@jrpos.co");
+                          setPassword("testpass123");
+                          setError("");
+                        }}
+                        className="text-left px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all text-[11px] group"
+                      >
+                        <div className="font-semibold text-amber-300 group-hover:text-amber-200">🛡️ SuperAdmin SaaS</div>
+                        <div className="text-[10px] text-slate-400 font-mono truncate">superadmin@jrpos.co</div>
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-emerald-400" />
@@ -130,7 +169,7 @@ export default function Login() {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                       autoFocus
-                      placeholder="admin@jrpos.com"
+                      placeholder="admin@jrpos.co"
                       className="bg-slate-950/60 border-white/5 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.5),inset_-2px_-2px_6px_rgba(255,255,255,0.02)] focus:border-emerald-500/50 text-white placeholder:text-slate-600 h-10 rounded-xl"
                       data-testid="login-email"
                     />

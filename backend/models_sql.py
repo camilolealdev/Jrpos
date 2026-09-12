@@ -1,7 +1,19 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Index, Integer, JSON, PrimaryKeyConstraint, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    Index,
+    Integer,
+    JSON,
+    PrimaryKeyConstraint,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db import Base
@@ -85,6 +97,21 @@ class TenantSubscription(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class SubscriptionPaymentEvent(Base):
+    __tablename__ = "subscription_payment_events"
+    __table_args__ = (
+        UniqueConstraint("provider", "event_id", name="uq_subscription_payment_event"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)  # epayco, wompi, stripe, manual
+    event_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Branch(Base):
     __tablename__ = "branches"
 
@@ -138,7 +165,7 @@ class SupportTicket(Base):
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint("role IN ('superadmin_platform', 'admin', 'supervisor', 'cajero', 'contador')", name="ck_users_role"),
+        CheckConstraint("role IN ('superadmin_platform', 'admin', 'supervisor', 'cajero', 'contador', 'mesero')", name="ck_users_role"),
         Index("ix_users_tenant_role", "tenant_id", "role"),
     )
 

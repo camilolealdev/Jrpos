@@ -64,8 +64,8 @@ const STORE_GROUPS = [
       { to: "/dashboard", label: "Panel", icon: LayoutDashboard, tid: "nav-dashboard" },
       { to: "/pos", label: "POS Venta", icon: ShoppingCart, tid: "nav-pos" },
       { to: "/facturas", label: "Escanear Factura", icon: Camera, tid: "nav-facturas", badge: "IA" },
-      { to: "/inventario", label: "Inventario", icon: Package, tid: "nav-inventario" },
-      { to: "/reportes", label: "Reportes", icon: LineChart, tid: "nav-reportes" },
+      { to: "/inventario", label: "Inventario", icon: Package, tid: "nav-inventario", hideForRoles: ["mesero"] },
+      { to: "/reportes", label: "Reportes", icon: LineChart, tid: "nav-reportes", hideForRoles: ["mesero"] },
       { to: "/marcacion", label: "Marcación", icon: Clock, tid: "nav-marcacion" },
     ],
   },
@@ -88,7 +88,7 @@ const STORE_GROUPS = [
       { to: "/servicios", label: "Servicios", icon: Wrench, tid: "nav-servicios" },
       { to: "/recogidas", label: "Caja y Recogidas", icon: PiggyBank, tid: "nav-recogidas" },
       { to: "/comisiones", label: "Comisiones", icon: BadgeDollarSign, tid: "nav-comisiones", adminOnly: true },
-      { to: "/gastos", label: "Gastos/Pagos", icon: Wallet, tid: "nav-gastos" },
+      { to: "/gastos", label: "Gastos/Pagos", icon: Wallet, tid: "nav-gastos", hideForRoles: ["mesero"] },
     ],
   },
   {
@@ -104,7 +104,7 @@ const STORE_GROUPS = [
     id: "facturacion_dian",
     label: "Facturación DIAN",
     items: [
-      { to: "/facturacion-electronica", label: "Facturación Electrónica", icon: FileText, tid: "nav-fe", adminOnly: true },
+      { to: "/facturacion-electronica", label: "Facturación Electrónica", icon: FileText, tid: "nav-fe", badge: "Demo", adminOnly: true },
       { to: "/facturacion-pos-electronica", label: "POS Electrónica", icon: Receipt, tid: "nav-pos-electronica", badge: "Demo", adminOnly: true },
       { to: "/remisiones", label: "Remisiones", icon: ClipboardList, tid: "nav-remisiones", adminOnly: true },
       { to: "/nomina-electronica", label: "Nómina Electrónica", icon: FileSignature, tid: "nav-nomina", badge: "Demo", adminOnly: true },
@@ -200,6 +200,7 @@ function SidebarContent({
         items: g.items.filter((it) => {
           if (it.superadminOnly && role !== "superadmin_platform") return false;
           if (it.adminOnly && role !== "admin" && role !== "superadmin_platform") return false;
+          if (it.hideForRoles?.includes(role)) return false;
           return !hiddenTids.includes(it.tid);
         }),
       }))

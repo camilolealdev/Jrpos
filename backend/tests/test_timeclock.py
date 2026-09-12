@@ -1,13 +1,14 @@
 """Tests for Marcación (timeclock) module + login regression."""
 import os
+import os
 import time
 import requests
 import pytest
 
-BASE_URL = os.environ.get("BACKEND_TEST_URL", "http://127.0.0.1:8000").rstrip("/")
+BASE_URL = os.environ.get("BACKEND_TEST_URL", "https://localhost").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN = {"email": "admin@jrpos.com", "password": "jrpos2026"}
+ADMIN = {"email": os.environ.get("TEST_ADMIN_EMAIL", "admin@jrpos.co"), "password": os.environ.get("TEST_ADMIN_PASSWORD", "testpass123")}
 CAJERO = {"email": "cajero@jrpos.co", "password": "cajero123"}
 OLD_ADMIN = {"email": "camiloleal.opx@gmail.com", "password": "jrpos2026"}
 
@@ -53,7 +54,7 @@ class TestLoginRegression:
         _, r = _login(OLD_ADMIN)
         assert r.status_code in (400, 401, 429)
 
-    def test_cajero_works(self):
+    def test_cajero_works(self, cajero_session):
         _, r = _login(CAJERO)
         assert r.status_code == 200
         assert r.json().get("role") == "cajero"

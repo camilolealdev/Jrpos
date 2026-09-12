@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth import get_current_user
 from db import get_session
 from pricing import compute_unit_pricing
+from permissions import require_permission
+from entitlements import check_feature_enabled
 from models_sql import (
     Contact,
     Product,
@@ -43,11 +45,6 @@ OCR_SYSTEM = (
 
 
 def _extract_json(text_: str) -> dict:
-    # find first { ... last }
-    start = text_.find("{")
-    end = text_.rfind("}")
-    if start == -1 or end == -1:
-        return {}
     try:
         return json.loads(text_[start:end + 1])
     except Exception:
@@ -104,10 +101,18 @@ class ImportInvoiceRequest(BaseModel):
 async def ocr_invoice(
     payload: OCRRequest,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("invoices:ocr")),
 ):
-    # Cargar configuración activa de IA en Settings
-    settings_row = await session.get(SettingsGeneral, 1)
+    tenant_id = user.tenant_id or "tenant-default-001"
+    # Validar que el plan comercial incluya IA OCR
+    await check_feature_enabled(session, tenant_id, "ai_ocr")
+
+    # Cargar configuración activa de IA en Settings filtrada por tenant_id
+    settings_stmt = select(SettingsGeneral).where(SettingsGeneral.tenant_id == tenant_id)
+    settings_row = (await session.execute(settings_stmt)).scalars().first()
+    if not settings_row:
+        settings_row = await session.get(SettingsGeneral, 1)
+
     provider = (settings_row.ai_provider if settings_row and settings_row.ai_provider else "gemini").lower()
     api_key = (settings_row.ai_api_key if settings_row and settings_row.ai_api_key else "").strip()
     if not api_key:

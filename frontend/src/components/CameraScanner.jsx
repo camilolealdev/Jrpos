@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Camera, Barcode, X } from "lucide-react";
+import { Camera, Barcode, X, Flashlight, FlashlightOff } from "lucide-react";
 
 // Max time to wait for the Radix Dialog portal to mount the reader div
 const MOUNT_TIMEOUT_MS = 3000;
@@ -25,6 +25,14 @@ const playScanBeep = () => {
   } catch { /* noop */ }
 };
 
+// Vibración corta al detectar código — feedback táctil en celular, donde el
+// beep de audio a menudo pasa desapercibido en un local con ruido ambiente.
+const vibrateScan = () => {
+  try {
+    navigator.vibrate?.(60);
+  } catch { /* noop */ }
+};
+
 // Formatos soportados por BarcodeDetector (Chrome/Edge). Si el navegador no
 // acepta la lista completa, cae a un detector sin restricción de formatos.
 const NATIVE_FORMATS = [
@@ -41,6 +49,8 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
   const [flash, setFlash] = useState(false);
   const [starting, setStarting] = useState(false);
   const [manualCode, setManualCode] = useState("");
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
   const lastScanTimeRef = useRef(0);
   const lastScannedCodeRef = useRef("");
   // Motor activo: "native" (BarcodeDetector) | "zxing" (@zxing/browser)
@@ -49,6 +59,8 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
   const nativeLoopRef = useRef(0);
   const zxingControlsRef = useRef(null);
   const running = useRef(false);
+  const activeTrackRef = useRef(null);
+  const wakeLockRef = useRef(null);
   const rawId = useId();
   const readerId = `camera-reader-${rawId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
@@ -59,6 +71,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     const now = performance.now();
 
     playScanBeep();
+    vibrateScan();
 
     if (continuous) {
       // Cooldown para evitar lecturas duplicadas en ráfaga
@@ -102,6 +115,53 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     }
     running.current = false;
     engineRef.current = "";
+    activeTrackRef.current = null;
+    setTorchOn(false);
+    setTorchSupported(false);
+    releaseWakeLock();
+  };
+
+  // Detecta si la cámara activa soporta linterna (torch) — solo Chrome/Android
+  // por ahora vía MediaStreamTrack capabilities. Se llama tras arrancar cualquiera
+  // de los dos motores, ya que ambos terminan controlando un <video> con un track.
+  const detectTorch = () => {
+    const holder = document.getElementById(readerId);
+    const video = holder?.querySelector("video");
+    const track = video?.srcObject?.getVideoTracks?.()[0];
+    activeTrackRef.current = track || null;
+    try {
+      const caps = track?.getCapabilities?.();
+      setTorchSupported(!!caps?.torch);
+    } catch {
+      setTorchSupported(false);
+    }
+  };
+
+  const toggleTorch = async () => {
+    const track = activeTrackRef.current;
+    if (!track) return;
+    const next = !torchOn;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next }] });
+      setTorchOn(next);
+    } catch {
+      /* dispositivo no soporta torch en runtime pese a anunciar la capability */
+    }
+  };
+
+  // Evita que la pantalla del celular se apague en medio de un escaneo continuo
+  // de caja (el cajero suele soltar el equipo entre productos).
+  const requestWakeLock = async () => {
+    try {
+      wakeLockRef.current = await navigator.wakeLock?.request?.("screen");
+    } catch {
+      wakeLockRef.current = null;
+    }
+  };
+
+  const releaseWakeLock = () => {
+    try { wakeLockRef.current?.release?.(); } catch { /* noop */ }
+    wakeLockRef.current = null;
   };
 
   // Capa 1 — BarcodeDetector nativo (Chrome/Edge Android y desktop):
@@ -126,6 +186,8 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     await video.play().catch(() => {});
     running.current = true;
     engineRef.current = "native";
+    detectTorch();
+    requestWakeLock();
     let alive = true;
     const tick = async () => {
       if (!alive || engineRef.current !== "native") return;
@@ -164,6 +226,8 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     zxingControlsRef.current = controls;
     running.current = true;
     engineRef.current = "zxing";
+    detectTorch();
+    requestWakeLock();
   };
 
   const startWithCamera = async (camSource) => {
@@ -180,11 +244,18 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     try {
       stopEngine();
 
-      // facingMode → constraints directas; deviceId (string) → constraint exacta
-      const videoConstraints =
-        camSource && typeof camSource === "object"
+      // facingMode → constraints directas; deviceId (string) → constraint exacta.
+      // Resolución ideal alta: la cámara trasera de un celular suele arrancar en
+      // baja resolución por defecto, lo que dificulta leer códigos pequeños o
+      // densos (EAN-13 chico, PDF417). Es "ideal", no "exact": si el hardware no
+      // llega, el navegador negocia la resolución más cercana sin fallar.
+      const videoConstraints = {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        ...(camSource && typeof camSource === "object"
           ? camSource
-          : { deviceId: { exact: camSource } };
+          : { deviceId: { exact: camSource } }),
+      };
 
       if ("BarcodeDetector" in window) {
         try {
@@ -207,9 +278,9 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       if (errName === "NotAllowedError" || msg.includes("Permission denied") || msg.includes("NotAllowedError")) {
         setError("Permiso de cámara denegado. Haz clic en el candado 🔒 junto a la URL en tu navegador y activa 'Permitir cámara'.");
       } else if (errName === "NotFoundError" || msg.includes("Requested device not found")) {
-        setError("No se detectó ninguna cámara activa o conectada en tu PC.");
+        setError("No se detectó ninguna cámara activa o conectada en este dispositivo.");
       } else if (errName === "NotReadableError" || msg.includes("Could not start video source")) {
-        setError("La cámara está siendo usada por otra aplicación (Zoom, Meet, Teams, etc.). Ciérrala y reintenta.");
+        setError("La cámara está siendo usada por otra app (Zoom, Meet, otra pestaña con cámara, etc.). Ciérrala y reintenta.");
       } else {
         // Fallback final: constraints genéricas
         try {
@@ -359,9 +430,29 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
         <div className={`relative overflow-hidden rounded-xl bg-slate-950 min-h-[280px] shadow-inner transition-all duration-300 ${flash ? "ring-4 ring-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.8)]" : ""}`}>
           <div id={readerId} className="w-full min-h-[280px] overflow-hidden [&>video]:w-full [&>video]:min-h-[280px] [&>video]:object-cover" />
 
+          {/* Linterna — solo aparece si la cámara activa la soporta (típicamente
+              trasera de un celular Android en Chrome). Botón grande, pensado
+              para tocarse con el pulgar sosteniendo el equipo con una mano. */}
+          {torchSupported && (
+            <button
+              type="button"
+              onClick={toggleTorch}
+              data-testid="camera-torch-toggle"
+              className={`absolute top-2 right-2 z-10 p-2.5 rounded-full border transition-colors ${
+                torchOn
+                  ? "bg-amber-400 border-amber-300 text-slate-900"
+                  : "bg-black/50 border-white/20 text-white hover:bg-black/70"
+              }`}
+              aria-label={torchOn ? "Apagar linterna" : "Encender linterna"}
+              title={torchOn ? "Apagar linterna" : "Encender linterna"}
+            >
+              {torchOn ? <Flashlight className="w-5 h-5" /> : <FlashlightOff className="w-5 h-5" />}
+            </button>
+          )}
+
           {/* Guía visual con recuadro y línea láser animada */}
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <div className={`relative w-72 h-44 border-2 rounded-xl transition-all duration-200 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] ${flash ? "border-emerald-300 bg-emerald-500/20" : "border-emerald-400/90"}`}>
+            <div className={`relative w-[70vw] max-w-72 h-44 border-2 rounded-xl transition-all duration-200 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] ${flash ? "border-emerald-300 bg-emerald-500/20" : "border-emerald-400/90"}`}>
               {/* Esquinas destacadas */}
               <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-emerald-300" />
               <div className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-emerald-300" />

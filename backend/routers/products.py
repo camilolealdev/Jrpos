@@ -12,6 +12,8 @@ from db import get_session
 from models_sql import CategoryMeta, Contact, Product, StockMovement, User, utcnow
 from pricing import compute_unit_pricing
 from redis_client import get_json, set_json, delete_key
+from permissions import require_permission
+from entitlements import check_product_limit
 
 products_router = APIRouter(prefix="/api", tags=["products"])
 
@@ -263,9 +265,10 @@ async def get_product(
 async def create_product(
     payload: ProductCreate,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("products:create")),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
+    await check_product_limit(session, tenant_id, qty_to_add=1)
     unit_cost, unit_price = compute_unit_pricing(
         payload.package_cost, payload.units_per_package, payload.margin_percent,
         fallback_cost=float(payload.cost or 0.0), fallback_price=float(payload.price or 0.0),
@@ -300,7 +303,7 @@ async def update_product(
     product_id: str,
     payload: ProductUpdate,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("products:update")),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
     stmt = select(Product).where(Product.id == product_id, Product.tenant_id == tenant_id)
@@ -383,7 +386,7 @@ async def list_stock_movements(
 async def delete_product(
     product_id: str,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("products:delete")),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
     stmt = select(Product).where(Product.id == product_id, Product.tenant_id == tenant_id)
@@ -479,9 +482,11 @@ async def upsert_category_meta(
 async def bulk_load_products(
     items: List[ProductCreate],
     session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_admin),
+    user: User = Depends(require_permission("products:create")),
 ):
-    tenant_id = admin.tenant_id or "tenant-default-001"
+    tenant_id = user.tenant_id or "tenant-default-001"
+    if items:
+        await check_product_limit(session, tenant_id, qty_to_add=len(items))
     created = 0
     updated = 0
     for it in items:
