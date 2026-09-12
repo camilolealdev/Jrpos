@@ -309,6 +309,12 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     CREATE SEQUENCE IF NOT EXISTS settings_certificate_id_seq OWNED BY settings_certificate.id;
     ALTER TABLE settings_certificate ALTER COLUMN id SET DEFAULT nextval('settings_certificate_id_seq');
 
+    -- uploaded_at/expires son varchar pero routers/settings.py guarda ISO con
+    -- microsegundos y zona horaria (~32 chars); con varchar(30) el INSERT
+    -- revienta con StringDataRightTruncationError. Widening idempotente.
+    ALTER TABLE settings_certificate ALTER COLUMN uploaded_at TYPE varchar(64);
+    ALTER TABLE settings_certificate ALTER COLUMN expires TYPE varchar(64);
+
     CREATE SEQUENCE IF NOT EXISTS platform_plans_id_seq OWNED BY platform_plans.id;
     ALTER TABLE platform_plans ALTER COLUMN id SET DEFAULT nextval('platform_plans_id_seq');
 

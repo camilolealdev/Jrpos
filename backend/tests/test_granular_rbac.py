@@ -4,7 +4,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("BACKEND_TEST_URL", "http://127.0.0.1:8000").rstrip("/")
+BASE_URL = os.environ.get("BACKEND_TEST_URL", "https://localhost").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN = {
