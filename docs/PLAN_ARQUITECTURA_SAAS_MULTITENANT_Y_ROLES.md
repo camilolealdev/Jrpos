@@ -248,7 +248,7 @@ Todas las tablas operativas se amplían con `tenant_id VARCHAR(36)` con índices
 | :--- | :--- | :--- | :--- |
 | **`users`** | `tenant_id VARCHAR(36)` | `ix_users_tenant_email (tenant_id, email)` | `CheckConstraint("role IN ('superadmin_platform', 'admin', 'supervisor', 'cajero', 'contador')")` |
 | **`products`** | `tenant_id VARCHAR(36)` | `ix_products_tenant_barcode (tenant_id, barcode)`, `ix_products_tenant_name (tenant_id, name)` | Los códigos de barra son únicos **por tienda** |
-| **`category_meta`**| `tenant_id VARCHAR(36)` | `ix_catmeta_tenant_name (tenant_id, name)` | Categorías personalizadas por tienda |
+| **`category_meta`**| `tenant_id VARCHAR(36) NOT NULL` | `ix_catmeta_tenant_name (tenant_id, name)` | **Clave primaria compuesta `(tenant_id, name)`** — mismo nombre de categoría puede existir en cada tienda (antes PK era solo `name` y colisionaba entre tenants) |
 | **`contacts`** | `tenant_id VARCHAR(36)` | `ix_contacts_tenant_doc (tenant_id, document)`, `ix_contacts_tenant_kind (tenant_id, kind)` | Clientes y proveedores aislados por tienda |
 | **`sales`** | `tenant_id VARCHAR(36)` | `ix_sales_tenant_number (tenant_id, number)`, `ix_sales_tenant_created (tenant_id, created_at)` | Consecutivo de venta único **por tienda** |
 | **`sale_items`** | `tenant_id VARCHAR(36)` | `ix_saleitems_tenant_sale (tenant_id, sale_id)` | Detalle de venta seguro |

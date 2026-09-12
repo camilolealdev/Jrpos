@@ -132,21 +132,20 @@ const SUPERADMIN_GROUPS = [
     id: "saas_control",
     label: "Control Global SaaS",
     items: [
-      { to: "/superadmin", label: "Dashboard MRR & Métricas", icon: LayoutDashboard, tid: "nav-saas-dash" },
-      { to: "/superadmin", label: "Directorio de Comercios", icon: Store, tid: "nav-saas-tenants", badge: "SaaS" },
-      { to: "/superadmin", label: "Activación de Módulos", icon: Sliders, tid: "nav-saas-modules" },
-      { to: "/superadmin", label: "Mesa de Ayuda (Tickets)", icon: LifeBuoy, tid: "nav-saas-tickets" },
-      { to: "/superadmin", label: "Soporte Asistido", icon: ShieldCheck, tid: "nav-saas-assisted" },
+      { to: "/superadmin?tab=tenants", label: "Dashboard MRR & Métricas", icon: LayoutDashboard, tid: "nav-saas-dash" },
+      { to: "/superadmin?tab=tenants", label: "Directorio de Comercios", icon: Store, tid: "nav-saas-tenants", badge: "SaaS" },
+      { to: "/superadmin?tab=tickets", label: "Mesa de Ayuda (Tickets)", icon: LifeBuoy, tid: "nav-saas-tickets" },
+      { to: "/superadmin?tab=assisted", label: "Soporte Asistido", icon: ShieldCheck, tid: "nav-saas-assisted" },
     ],
   },
   {
     id: "saas_general",
-    label: "Gestión Administrativa",
+    label: "Vista de Tienda Demo",
     items: [
       { to: "/pos", label: "Abrir Punto de Venta (POS)", icon: ShoppingCart, tid: "nav-saas-pos" },
+      { to: "/dashboard", label: "Dashboard Comercial", icon: LayoutDashboard, tid: "nav-saas-dash-store" },
       { to: "/usuarios", label: "Control de Usuarios", icon: KeyRound, tid: "nav-saas-users" },
       { to: "/configuracion", label: "Ajustes de Tienda", icon: Settings2, tid: "nav-saas-settings" },
-      { to: "/soporte", label: "Módulo Soporte Cliente", icon: BookOpen, tid: "nav-saas-support" },
     ],
   },
 ];
@@ -199,7 +198,7 @@ function SidebarContent({
       .map((g) => ({
         ...g,
         items: g.items.filter((it) => {
-          if (it.superadminOnly && role !== "superadmin_platform" && role !== "admin") return false;
+          if (it.superadminOnly && role !== "superadmin_platform") return false;
           if (it.adminOnly && role !== "admin" && role !== "superadmin_platform") return false;
           return !hiddenTids.includes(it.tid);
         }),
@@ -207,7 +206,7 @@ function SidebarContent({
       .filter((g) => g.items.length > 0);
   }, [isSuperAdminMode, role, hiddenTids]);
 
-  const canAccessSuperAdmin = role === "superadmin_platform" || role === "admin";
+  const canAccessSuperAdmin = role === "superadmin_platform";
 
   return (
     <ScrollArea className="h-full flex flex-col">
@@ -231,7 +230,7 @@ function SidebarContent({
           </div>
         </div>
 
-        {/* SuperAdmin Switcher Pill */}
+        {/* SuperAdmin Switcher Pill (exclusivo para superadmin_platform) */}
         {canAccessSuperAdmin && (
           <div className="mt-3">
             <button
@@ -365,19 +364,21 @@ export default function Layout() {
   const [fullSettings, setFullSettings] = useState(null);
   const [showTrialEndedModal, setShowTrialEndedModal] = useState(false);
 
-  // SuperAdmin mode state (auto-active if path is /superadmin or user is superadmin_platform)
+  // SuperAdmin mode state (auto-active SOLO si el usuario es superadmin_platform y está en /superadmin)
   const [isSuperAdminMode, setIsSuperAdminMode] = useState(() => {
     return (
-      location.pathname.startsWith("/superadmin") ||
+      location.pathname.startsWith("/superadmin") &&
       user?.role === "superadmin_platform"
     );
   });
 
   useEffect(() => {
-    if (location.pathname.startsWith("/superadmin")) {
+    if (location.pathname.startsWith("/superadmin") && user?.role === "superadmin_platform") {
       setIsSuperAdminMode(true);
+    } else if (user?.role !== "superadmin_platform") {
+      setIsSuperAdminMode(false);
     }
-  }, [location.pathname]);
+  }, [location.pathname, user?.role]);
 
   const pageTitle = location.pathname.split("/")[1] || "dashboard";
 

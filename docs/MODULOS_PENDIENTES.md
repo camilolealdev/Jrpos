@@ -1,6 +1,6 @@
 # JRPOS — Matriz de Módulos y Estado del Sistema
 
-> Última actualización: 8 de septiembre 2026 (Sprint Multi-Tenant en curso)
+> Última actualización: 11 de septiembre 2026 (Sprint Multi-Tenant en curso)
 > Leyenda: ✅ Construido y Probado · 🧪 Simulado (Sandbox) · 🔄 En Evolución · 🔨 En Desarrollo (código sin integrar)
 
 ---
@@ -10,8 +10,8 @@
 | Módulo | Ruta | Backend | Estado | Descripción & Capacidades |
 |---|---|---|:---:|---|
 | **Dashboard** | `/dashboard` | `/api/reports/summary` | ✅ Activo | Métricas hoy, ganancias brutas, margen %, productos activos, stock bajo |
-| **POS Venta** | `/pos` | `/api/sales`, `/api/products/barcode/{code}`, `/api/held` | ✅ Activo | Carrito multitarea, retención de cuentas, escáner cámara + pistola, 58mm/80mm, audio feedback |
-| **Inventario** | `/inventario` | `/api/products` | ✅ Activo | CRUD, cálculo costo/precio por sixpack/paquete, margen %, código de barras |
+| **POS Venta** | `/pos` | `/api/sales`, `/api/products/barcode/{code}`, `/api/held` | ✅ Activo | Carrito multitarea, retención de cuentas, escáner cámara + pistola, 58mm/80mm, audio feedback. Respeta `pack_only`: productos marcados "solo por paquete" se venden siempre cerrados (precio = unidad × unidades/paquete) y muestran badge "Solo x paquete" |
+| **Inventario** | `/inventario` | `/api/products` | ✅ Activo | CRUD, cálculo costo/precio por sixpack/paquete, margen %, código de barras. Nuevo flag `pack_only` (producto que nunca se vende suelto, ej. pack cerrado), campo `units_per_package` siempre editable y stock en paquetes que se convierte automático a unidades (stock se guarda SIEMPRE en unidades) |
 | **Escanear Factura (IA)** | `/facturas` | `/api/invoices/ocr`, `/api/invoices/import` | ✅ Activo | OCR con Gemini / Groq / OpenRouter / NVIDIA; detecta ítems, costos e importa a inventario |
 | **Clientes** | `/clientes` | `/api/contacts?kind=customer` | ✅ Activo | Directorio de clientes, CC/NIT, direcciones, teléfono y crédito |
 | **Proveedores** | `/proveedores` | `/api/contacts?kind=supplier` | ✅ Activo | Directorio de proveedores, plazos de pago y compras |
@@ -50,7 +50,7 @@
 | **Registro Self-Service** | `/registro` | `/api/auth/register-tenant` | ✅ Activo | Onboarding de tienda en 2 min, trial automático sin tarjeta |
 | **Paywall / Activación** | `/paywall` | `/api/billing/payment-info`, `/api/billing/activate` | ✅ Activo | Página de pago Nequi (QR + WhatsApp) registrada en App.js y conectada al gate 403: redirect desde interceptor, sesión restaurada y post-login (incluye trial vencido por fecha) |
 | **Planes de Plataforma** | — | `/api/billing/payment-info` (público) | ✅ Activo | Catálogo `PlatformPlan` con precios COP, filtrado correcto por `is_active` |
-| **Panel SuperAdmin** | `/superadmin` | `/api/superadmin/*` | ✅ Activo | MRR estimado, tenants con estado, gestión de suscripciones y soporte. Protegido con `SuperAdminRoute` (`superadmin_platform`) |
+| **Panel SuperAdmin** | `/superadmin` | `/api/superadmin/*` | ✅ Activo | MRR estimado, tenants con estado, gestión de suscripciones y soporte. Protegido con `SuperAdminRoute` (`superadmin_platform`). Pestañas navegables por query param (`/superadmin?tab=tickets` / `?tab=assisted`), sidebar con deep-links por sección y modo SuperAdmin activo SOLO para `superadmin_platform` (los `admin` ya no ven el switcher). Todas las llamadas migradas de `axios` crudo al cliente `api` compartido (interceptores + cookies centralizados) |
 | **Auditoría Tenant** | — | `tenant_audit_logs` (modelo) | ✅ Activo | Helper `_audit()` en `superadmin.py` usado en `extend_trial`, `update_status`, `update_support_ticket` e `impersonate`; además de la escritura en `billing.py` (activación) |
 | **Gate de Suscripción** | — | `auth.py get_current_user` | ✅ Activo | Bloqueo 403 automático ante trial vencido / tenant `suspended` / `cancelled` |
 
@@ -59,7 +59,13 @@
 ## 🎯 Próximo Paso para Producción DIAN
 - Conexión del conector SOAP y firma digital XAdES-BES con Proveedor Tecnológico (PT) habilitado ante la DIAN para emisión de facturas electrónicas reales con valor legal.
 
-## ✅ Resueltas esta sesión (Sprint actual)
+## ✅ Resueltas esta sesión (11 sept 2026)
+1. ~~Categorías compartidas entre tenants~~ **RESUELTO** — `category_meta` ahora tiene clave primaria compuesta `(tenant_id, name)` (modelo + migración idempotente en `db_migrations.py`). Antes la PK era solo `name`, así que una categoría creada por una tienda bloqueaba la misma en otra (upsert colisionaba). Migración: respaldo de `tenant_id` a `tenant-default-001`, `SET NOT NULL` y swap de constraint con `DO $$ ... EXCEPTION WHEN OTHERS THEN NULL` para ser idempotente. Los upserts (`products.py::upsert_category_meta` y `seed_admin`/`seed_data`) ahora consultan por `(name, tenant_id)` en vez de `session.get()` por PK simple.
+2. **Nuevo flag `pack_only` en productos** (columna `pack_only BOOLEAN NOT NULL DEFAULT FALSE` con migración idempotente): permite marcar productos que SOLO se venden por paquete/caja completo (ej: six-pack cerrado). El POS lo respeta — click normal vende el paquete, badge cambia a "Solo x paquete", y el precio mostrado es el del paquete completo. La carga masiva NO toca `pack_only` para no borrar flags manuales en reimportaciones (comentario explícito en `bulk_load_products`).
+3. **SuperAdmin hardening + deep-links**: el modo SuperAdmin y el switcher del sidebar ahora son exclusivos de `superadmin_platform` (antes cualquier `admin` podía activarlo). El panel usa `useSearchParams` para pestañas deep-linkables y todas las llamadas pasaron de `axios` con `withCredentials` manual al cliente `api` compartido.
+4. **Stock en paquetes en Inventario**: al crear/editar con la calculadora de paquete activada puedes indicar cuántas cajas recibiste (`stock_packages`) y se convierte a unidades (`paquetes × units_per_package`). `stock` sigue guardándose siempre en unidades; `units_per_package` y `pack_only` se envían siempre al backend aunque la calculadora de % utilidad esté apagada (son atributos del producto, no de la calculadora).
+
+## ✅ Resueltas esta sesión (Sprint anterior)
 1. ~~Paywall sin ruta~~: `/paywall` registrado en `App.js` (fuera de los gates de app protegida) + redirect al paywall desde interceptor 403 (`lib/api.js`), restauración de sesión (`lib/auth.jsx`) y post-login (`Login.jsx`, incluye comparación de `trial_ends_at`).
 2. ~~SuperAdminRoute sin uso~~: ruta `/superadmin` ahora usa `SuperAdminRoute`.
 3. ~~**Pendiente:** Login 500 en producción~~ **RESUELTO** — causa raíz identificada y corregida: `DATABASE_URL` tenía la URL del proyecto Supabase (`https://...supabase.co`) en vez del connection string Postgres del pooler. Corregir la variable en Vercel → Settings → Environment Variables (ver `docs/DEPLOY_RUNBOOK.md` § 3). Suite de tests local: **72 passed / 2 skipped**.

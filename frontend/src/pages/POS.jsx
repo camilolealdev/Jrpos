@@ -204,7 +204,9 @@ export default function POS() {
 
   const addToCart = (p, isPackage = false) => {
     playScannerBeep();
-    const isPack = Boolean(isPackage && p.units_per_package && p.units_per_package > 1);
+    // pack_only = el producto nunca se vende suelto (ej: six-pack cerrado de cerveza):
+    // aunque el click sea el "normal" (isPackage=false), se vende el paquete completo.
+    const isPack = Boolean((isPackage || p.pack_only) && p.units_per_package && p.units_per_package > 1);
     const cartItemId = isPack ? `${p.id}_pack` : p.id;
     const itemName = isPack ? `${p.name} (Pack x${p.units_per_package})` : p.name;
     const itemPrice = isPack ? Math.round(p.price * p.units_per_package) : p.price;
@@ -858,24 +860,38 @@ export default function POS() {
 
                   <div className="mt-2 space-y-1.5">
                     {p.units_per_package && p.units_per_package > 1 ? (
-                      <div className="flex items-center gap-1">
-                        <span
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addToCart(p, true);
-                            toast.success(`+ Pack x${p.units_per_package} de ${p.name}`);
-                          }}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold hover:bg-indigo-100 transition z-10"
-                          title="Vender paquete / sixpack completo"
-                          data-testid={`pack-badge-${p.id}`}
-                        >
-                          <PackageIcon className="w-3 h-3" /> Pack x{p.units_per_package} ({formatCOP(p.price * p.units_per_package)})
-                        </span>
-                      </div>
+                      p.pack_only ? (
+                        <div className="flex items-center gap-1">
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-100 border border-indigo-300 text-indigo-800 text-[10px] font-bold"
+                            title="Este producto solo se vende por paquete/caja completo"
+                            data-testid={`pack-only-badge-${p.id}`}
+                          >
+                            <PackageIcon className="w-3 h-3" /> Solo x paquete de {p.units_per_package}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addToCart(p, true);
+                              toast.success(`+ Pack x${p.units_per_package} de ${p.name}`);
+                            }}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold hover:bg-indigo-100 transition z-10"
+                            title="Vender paquete / sixpack completo"
+                            data-testid={`pack-badge-${p.id}`}
+                          >
+                            <PackageIcon className="w-3 h-3" /> Pack x{p.units_per_package} ({formatCOP(p.price * p.units_per_package)})
+                          </span>
+                        </div>
+                      )
                     ) : null}
 
                     <div className="flex items-end justify-between">
-                      <div className="font-mono font-bold text-lg text-slate-900">{formatCOP(p.price)}</div>
+                      <div className="font-mono font-bold text-lg text-slate-900">
+                        {formatCOP(p.pack_only ? p.price * p.units_per_package : p.price)}
+                      </div>
                       <Badge variant="outline" className={p.stock <= 5 ? "text-orange-700 border-orange-300" : "text-slate-600"}>
                         {p.stock} {p.unit}
                       </Badge>

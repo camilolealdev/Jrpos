@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
-import { API } from "@/lib/api";
+import { useSearchParams } from "react-router-dom";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -98,7 +98,22 @@ const AVAILABLE_MODULES = [
 
 export default function SuperAdmin() {
   const { user } = useAuth();
-  const [tab, setTab] = useState("tenants"); // 'tenants' | 'tickets' | 'assisted'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "tenants";
+  const [tab, setTabState] = useState(initialTab);
+
+  useEffect(() => {
+    const q = searchParams.get("tab");
+    if (q && ["tenants", "tickets", "assisted"].includes(q)) {
+      setTabState(q);
+    }
+  }, [searchParams]);
+
+  const setTab = (newTab) => {
+    setTabState(newTab);
+    setSearchParams({ tab: newTab });
+  };
+
   const [stats, setStats] = useState(null);
   const [tenants, setTenants] = useState([]);
   const [tickets, setTickets] = useState([]);
@@ -125,10 +140,10 @@ export default function SuperAdmin() {
     setLoading(true);
     try {
       const [statsRes, tenantsRes, ticketsRes, plansRes] = await Promise.all([
-        axios.get(`${API}/superadmin/stats`, { withCredentials: true }),
-        axios.get(`${API}/superadmin/tenants`, { withCredentials: true }),
-        axios.get(`${API}/superadmin/tickets`, { withCredentials: true }).catch(() => ({ data: [] })),
-        axios.get(`${API}/billing/plans`, { withCredentials: true }).catch(() => ({ data: [] })),
+        api.get("/superadmin/stats"),
+        api.get("/superadmin/tenants"),
+        api.get("/superadmin/tickets").catch(() => ({ data: [] })),
+        api.get("/billing/plans").catch(() => ({ data: [] })),
       ]);
       setStats(statsRes.data);
       setTenants(tenantsRes.data);
@@ -148,11 +163,7 @@ export default function SuperAdmin() {
   const extendTrial = async (tenantId, days = 15) => {
     setActionLoading(true);
     try {
-      await axios.post(
-        `${API}/superadmin/tenants/${tenantId}/extend-trial`,
-        { days },
-        { withCredentials: true }
-      );
+      await api.post(`/superadmin/tenants/${tenantId}/extend-trial`, { days });
       await loadData();
     } catch (err) {
       alert("Error al extender período de prueba");
@@ -164,11 +175,7 @@ export default function SuperAdmin() {
   const updateStatus = async (tenantId, status) => {
     setActionLoading(true);
     try {
-      await axios.post(
-        `${API}/superadmin/tenants/${tenantId}/status`,
-        { status },
-        { withCredentials: true }
-      );
+      await api.post(`/superadmin/tenants/${tenantId}/status`, { status });
       await loadData();
     } catch (err) {
       alert("Error al cambiar estado del inquilino");
@@ -186,11 +193,9 @@ export default function SuperAdmin() {
     if (!selectedTenantForModules) return;
     setActionLoading(true);
     try {
-      await axios.put(
-        `${API}/superadmin/tenants/${selectedTenantForModules.id}/modules`,
-        { modules_config: modulesDraft },
-        { withCredentials: true }
-      );
+      await api.put(`/superadmin/tenants/${selectedTenantForModules.id}/modules`, {
+        modules_config: modulesDraft,
+      });
       setSelectedTenantForModules(null);
       await loadData();
     } catch (err) {
@@ -209,11 +214,10 @@ export default function SuperAdmin() {
     if (!selectedTenantForActivation || !activationDraft.plan_id) return;
     setActionLoading(true);
     try {
-      await axios.post(
-        `${API}/billing/superadmin/tenants/${selectedTenantForActivation.id}/activate`,
-        { plan_id: activationDraft.plan_id, months: Number(activationDraft.months) || 1 },
-        { withCredentials: true }
-      );
+      await api.post(`/billing/superadmin/tenants/${selectedTenantForActivation.id}/activate`, {
+        plan_id: activationDraft.plan_id,
+        months: Number(activationDraft.months) || 1,
+      });
       setSelectedTenantForActivation(null);
       await loadData();
     } catch (err) {
@@ -233,11 +237,10 @@ export default function SuperAdmin() {
     if (!selectedTicket) return;
     setActionLoading(true);
     try {
-      await axios.put(
-        `${API}/superadmin/tickets/${selectedTicket.id}`,
-        { status: ticketStatusDraft, admin_notes: ticketAdminNotes },
-        { withCredentials: true }
-      );
+      await api.put(`/superadmin/tickets/${selectedTicket.id}`, {
+        status: ticketStatusDraft,
+        admin_notes: ticketAdminNotes,
+      });
       setSelectedTicket(null);
       await loadData();
     } catch (err) {
@@ -253,11 +256,7 @@ export default function SuperAdmin() {
     }
     setActionLoading(true);
     try {
-      const { data } = await axios.post(
-        `${API}/superadmin/impersonate/${tenantId}`,
-        {},
-        { withCredentials: true }
-      );
+      const { data } = await api.post(`/superadmin/impersonate/${tenantId}`, {});
       if (data.ok) {
         window.location.href = "/dashboard";
       }

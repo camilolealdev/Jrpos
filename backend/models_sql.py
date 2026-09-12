@@ -183,6 +183,7 @@ class Product(Base):
     is_service: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     margin_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     units_per_package: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    pack_only: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -207,9 +208,12 @@ class StockMovement(Base):
 
 class CategoryMeta(Base):
     __tablename__ = "category_meta"
+    __table_args__ = (
+        PrimaryKeyConstraint("tenant_id", "name", name="category_meta_pkey"),
+    )
 
-    name: Mapped[str] = mapped_column(String(100), primary_key=True)
-    tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     emoji: Mapped[str | None] = mapped_column(String(20), nullable=True)
     pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -657,7 +657,8 @@ async def seed_admin(session: AsyncSession) -> None:
     if prod_count == 0:
         from routers.products import _SEED_CATEGORIES, _SEED_CONTACTS, _SEED_PRODUCTS
         for cat in _SEED_CATEGORIES:
-            cat_row = await session.get(CategoryMeta, cat["name"])
+            stmt = select(CategoryMeta).where(CategoryMeta.name == cat["name"], CategoryMeta.tenant_id == default_tenant_id)
+            cat_row = (await session.execute(stmt)).scalar_one_or_none()
             if not cat_row:
                 session.add(CategoryMeta(tenant_id=default_tenant_id, **cat))
         for p in _SEED_PRODUCTS:

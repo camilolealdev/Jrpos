@@ -15,7 +15,7 @@ import KardexModal from "@/components/KardexModal";
 
 const empty = {
   name: "", barcode: "", category: "General", price: 0, cost: 0, stock: 0, unit: "und", tax_rate: 19,
-  package_cost: "", units_per_package: 1, margin_percent: "",
+  package_cost: "", units_per_package: 1, margin_percent: "", stock_packages: "", pack_only: false,
 };
 
 export default function Inventory() {
@@ -68,11 +68,18 @@ export default function Inventory() {
     const margin = Number(next.margin_percent) || 0;
     const unitCost = upp ? pkgCost / upp : pkgCost;
     const unitPrice = unitCost * (1 + margin / 100);
-    return {
+    const result = {
       ...next,
       cost: Math.round(unitCost * 100) / 100,
       price: Math.round(unitPrice * 100) / 100,
     };
+    // Si ya indicó cuántos paquetes recibió, recalcula el stock total en unidades
+    // (stock siempre se guarda en unidades, nunca en paquetes).
+    if (next.stock_packages !== "" && next.stock_packages != null) {
+      const packages = Number(next.stock_packages) || 0;
+      result.stock = Math.round(packages * upp * 1000) / 1000;
+    }
+    return result;
   };
   const setPackageField = (key, value) => setForm((f) => recomputeFromPackage({ ...f, [key]: value }));
 
@@ -82,13 +89,17 @@ export default function Inventory() {
     // costo por paquete/unidades/% utilidad, pero si el usuario los edita a mano después,
     // ese valor manda (el backend respeta el precio explícito sobre el % de utilidad).
     const payload = { ...form, cost: Number(form.cost) || 0, price: Number(form.price) || 0 };
+    delete payload.stock_packages;
+    // Unidades por paquete y "solo por paquete" son atributos del producto en sí
+    // (los usa el POS para vender por unidad/paquete) y se guardan siempre, sin
+    // importar si la calculadora de precio por % de utilidad está activada o no.
+    payload.units_per_package = Number(form.units_per_package) || 1;
+    payload.pack_only = Boolean(form.pack_only) && payload.units_per_package > 1;
     if (useMargin) {
       payload.package_cost = Number(form.package_cost) || 0;
-      payload.units_per_package = Number(form.units_per_package) || 1;
       payload.margin_percent = Number(form.margin_percent) || 0;
     } else {
       delete payload.package_cost;
-      delete payload.units_per_package;
       delete payload.margin_percent;
     }
     try {
@@ -520,6 +531,38 @@ export default function Inventory() {
               <Input value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1" data-testid="f-category" />
             </div>
 
+            <div>
+              <label className="text-xs font-semibold">Unidades por paquete/caja</label>
+              <Input
+                type="number"
+                value={form.units_per_package}
+                onChange={(e) => setPackageField("units_per_package", e.target.value)}
+                data-testid="f-units-per-package"
+                placeholder="Ej: 6 (sixpack) o 24 (caja)"
+              />
+            </div>
+            {Number(form.units_per_package) > 1 ? (
+              <div className="col-span-2 flex items-start gap-2 rounded-lg bg-indigo-50 border border-indigo-200 p-2.5">
+                <input
+                  type="checkbox"
+                  id="f-pack-only"
+                  checked={!!form.pack_only}
+                  onChange={(e) => setForm((f) => ({ ...f, pack_only: e.target.checked }))}
+                  data-testid="f-pack-only"
+                  className="w-4 h-4 mt-0.5"
+                />
+                <label htmlFor="f-pack-only" className="text-xs cursor-pointer">
+                  <span className="font-semibold text-indigo-900">Este producto SOLO se vende por paquete/caja completo</span>
+                  <br />
+                  <span className="text-slate-500">
+                    Actívalo si nunca se abre el paquete para vender suelto (ej: pack cerrado). Déjalo
+                    desactivado si también se vende por unidad — así el POS ofrece ambas opciones
+                    (ej: cerveza por unidad o en six).
+                  </span>
+                </label>
+              </div>
+            ) : null}
+
             <div className="col-span-2 flex items-center justify-between border-t pt-3 mt-1">
               <span className="text-xs font-semibold flex items-center gap-1"><Calculator className="w-3.5 h-3.5" /> Calcular precio con % de utilidad</span>
               <Button
@@ -534,17 +577,26 @@ export default function Inventory() {
 
             {useMargin ? (
               <>
-                <div>
+                <div className="col-span-2">
                   <label className="text-xs font-semibold">Costo por paquete/caja</label>
                   <Input type="number" value={form.package_cost} onChange={(e) => setPackageField("package_cost", e.target.value)} data-testid="f-package-cost" placeholder="Ej: 48000" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold">Unidades por paquete</label>
-                  <Input type="number" value={form.units_per_package} onChange={(e) => setPackageField("units_per_package", e.target.value)} data-testid="f-units-per-package" placeholder="Ej: 24" />
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs font-semibold">% de utilidad</label>
                   <Input type="number" value={form.margin_percent} onChange={(e) => setPackageField("margin_percent", e.target.value)} data-testid="f-margin-percent" placeholder="Ej: 30" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs font-semibold">Stock recibido (en paquetes/cajas)</label>
+                  <Input
+                    type="number"
+                    value={form.stock_packages}
+                    onChange={(e) => setPackageField("stock_packages", e.target.value)}
+                    data-testid="f-stock-packages"
+                    placeholder="Ej: 5 cajas"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Cuántos paquetes/cajas tienes físicamente — se convierte solo a unidades abajo en "Stock".
+                  </p>
                 </div>
                 <div className="col-span-2 grid grid-cols-2 gap-3 rounded-lg bg-emerald-50 border border-emerald-200 p-2.5" data-testid="margin-preview">
                   <div>
@@ -571,8 +623,8 @@ export default function Inventory() {
             )}
 
             <div>
-              <label className="text-xs font-semibold">Stock</label>
-              <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} data-testid="f-stock" />
+              <label className="text-xs font-semibold">Stock {useMargin ? "(unidades, calculado)" : "(unidades)"}</label>
+              <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value), stock_packages: "" })} data-testid="f-stock" />
             </div>
             <div>
               <label className="text-xs font-semibold">Unidad</label>

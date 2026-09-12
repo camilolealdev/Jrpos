@@ -35,6 +35,7 @@ class ProductOut(BaseModel):
     is_service: bool = False
     margin_percent: Optional[float] = None
     units_per_package: float = 1.0
+    pack_only: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -59,6 +60,7 @@ class ProductCreate(BaseModel):
     package_cost: Optional[float] = None
     units_per_package: Optional[float] = None
     margin_percent: Optional[float] = None
+    pack_only: bool = False
 
 
 class ProductUpdate(BaseModel):
@@ -77,6 +79,7 @@ class ProductUpdate(BaseModel):
     package_cost: Optional[float] = None
     units_per_package: Optional[float] = None
     margin_percent: Optional[float] = None
+    pack_only: Optional[bool] = None
 
 
 class CategoryInfo(BaseModel):
@@ -283,6 +286,7 @@ async def create_product(
         is_service=bool(payload.is_service),
         margin_percent=payload.margin_percent,
         units_per_package=payload.units_per_package or 1.0,
+        pack_only=bool(payload.pack_only),
     )
     session.add(product)
     await session.commit()
@@ -447,12 +451,11 @@ async def upsert_category_meta(
     if not updates:
         raise HTTPException(status_code=400, detail="Nada para actualizar")
 
-    meta = await session.get(CategoryMeta, payload.name)
+    stmt = select(CategoryMeta).where(CategoryMeta.name == payload.name, CategoryMeta.tenant_id == tenant_id)
+    meta = (await session.execute(stmt)).scalar_one_or_none()
     if meta:
         for key, value in updates.items():
             setattr(meta, key, value)
-        if not meta.tenant_id:
-            meta.tenant_id = tenant_id
     else:
         meta = CategoryMeta(name=payload.name, tenant_id=tenant_id, **updates)
         session.add(meta)
@@ -501,6 +504,9 @@ async def bulk_load_products(
                 existing.margin_percent = it.margin_percent
             if it.units_per_package is not None:
                 existing.units_per_package = it.units_per_package
+            # No tocar pack_only aquí: la carga masiva (CSV/factura IA) no expone
+            # este campo, y forzarlo a False borraría flags puestos a mano en
+            # Inventario en cada reimportación.
             existing.updated_at = utcnow()
             updated += 1
         else:
@@ -519,6 +525,7 @@ async def bulk_load_products(
                 is_service=bool(it.is_service),
                 margin_percent=it.margin_percent,
                 units_per_package=it.units_per_package or 1.0,
+                pack_only=bool(it.pack_only),
             )
             session.add(new_p)
             created += 1
@@ -650,7 +657,8 @@ async def seed_data(
 
     # Cargar categorías con emojis
     for cat in _SEED_CATEGORIES:
-        cat_row = await session.get(CategoryMeta, cat["name"])
+        stmt = select(CategoryMeta).where(CategoryMeta.name == cat["name"], CategoryMeta.tenant_id == tenant_id)
+        cat_row = (await session.execute(stmt)).scalar_one_or_none()
         if not cat_row:
             cat_dict = dict(cat)
             cat_dict["tenant_id"] = tenant_id

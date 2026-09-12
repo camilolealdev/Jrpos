@@ -54,3 +54,38 @@ La solución fue crear un segundo rol, `jrpos_app` (sin `SUPERUSER`/`BYPASSRLS`)
 ## Lección operativa: Docker Desktop bajo carga
 
 Durante esta sesión, lanzar más de un `docker compose build` en paralelo (o encima de uno que ya estaba corriendo) dejó a Docker Desktop/WSL2 en un estado degradado: builds colgados por 10+ minutos, `docker info`/`docker compose ps` sin responder, DNS interno fallando (`Temporary failure in name resolution` resolviendo `postgres` desde el backend), contenedores en crash-loop. La única solución fue matar los procesos de Docker Desktop y relanzarlo. **No lanzar builds de Docker en paralelo** — esperar a que termine uno antes de lanzar el siguiente.
+
+---
+
+## Sesión 2026-09-11: Venta por paquete (`pack_only`), stock en cajas y hardening SuperAdmin
+
+### Qué cambió
+
+**1. `pack_only` — producto que SOLO se vende por paquete/caja completo**
+- `backend/models_sql.py::Product.pack_only` (Boolean, default False) + migración idempotente `ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_only BOOLEAN NOT NULL DEFAULT FALSE` en `db_migrations.py`.
+- APIs: `pack_only` añadido a `ProductOut`, `ProductCreate` y `ProductUpdate` (`routers/products.py`).
+- POS (`frontend/src/pages/POS.jsx`): `isPack = (isPackage || p.pack_only) && units_per_package > 1` — el click normal sobre un `pack_only` vende el paquete completo, el badge cambia a **"Solo x paquete de N"** (no clickable) y el precio mostrado en la tarjeta es el del paquete (unidad × N).
+- Inventario (`frontend/src/pages/Inventory.jsx`): el campo `Unidades por paquete/caja` salió de la calculadora de % utilidad y ahora es siempre visible; el checkbox "SOLO se vende por paquete" aparece solo si `units_per_package > 1`. Al guardar, `pack_only` se fuerza a `false` si `units_per_package <= 1`.
+- **Carga masiva NO toca `pack_only`** en updates (comentario en `bulk_load_products`): el CSV/factura IA no expone el campo y forzarlo a `False` borraria flags puestos a mano en cada reimportación.
+
+**2. Stock recibido en paquetes → convertido a unidades**
+- Nuevo campo `stock_packages` SOLO en el formulario de Inventario (no va al backend — se hace `delete payload.stock_packages` antes del POST). Indicas cuántas cajas recibiste y se calcula `stock = paquetes × units_per_package`. Invariantes: `stock` siempre se guarda en unidades; editar `stock` a mano limpia `stock_packages`.
+- `units_per_package` y `pack_only` se envían SIEMPRE en el payload, aunque la calculadora de % utilidad esté apagada — son atributos del producto, no de la calculadora.
+
+**3. `category_meta` multi-tenant real (bug fix)**
+- Antes la PK era solo `name` → una categoría de un tenant bloqueaba/colisionaba con la de otro en `session.get(CategoryMeta, name)`.
+- Ahora: PK compuesta `(tenant_id, name)` en el modelo (`PrimaryKeyConstraint`), migración idempotente en `db_migrations.py` (backfill `tenant_id = 'tenant-default-001'` donde era NULL, `SET NOT NULL`, swap de constraint en un `DO $$ ... EXCEPTION WHEN OTHERS THEN NULL`).
+- Todos los accesos por PK simple cambiaron a `select(CategoryMeta).where(name == ..., tenant_id == ...)`: `routers/products.py::upsert_category_meta` (y eliminado el parche "if not meta.tenant_id"), `seed_data` y `auth.py::seed_admin`.
+
+**4. SuperAdmin hardening + deep-links**
+- El modo SuperAdmin (auto-activación por ruta, switcher del sidebar) ahora es **exclusivo de `superadmin_platform`** — antes cualquier `admin` podía entrar al panel SaaS.
+- Panel `/superadmin`: pestañas sincronizadas con query param (`?tab=tenants|tickets|assisted`) vía `useSearchParams` → deep-links compartibles; sidebar con enlaces directos por sección.
+- Todas las llamadas migradas de `axios` crudo con `withCredentials: true` manual al cliente `api` de `lib/api.js` (interceptores + baseURL centralizados).
+
+### Verificación
+- Migraciones idempotentes: seguras de correr sobre BD existentes (pattern IF NOT EXISTS / DO-EXCEPTION ya establecido en el repo).
+- Pendiente de despliegue real: correr el stack y verificar que (a) la migración de PK compuesta aplica, (b) el POS respeta `pack_only`, (c) los deep-links `?tab=` del panel SaaS funcionan.
+
+### Riesgos a vigilar
+- El `EXCEPTION WHEN OTHERS THEN NULL` del swap de constraint de `category_meta_pkey` traga cualquier error — si la PK compuesta NO queda aplicada, no falla en arranque. Verificar con `\d category_meta` en psql tras desplegar.
+- Deploys existentes con categorías duplicadas `NULL tenant_id`: el backfill las asigna todas a `tenant-default-001`; si hay datos reales de otros tenants con NULL habría que reasignarlas a mano ANTES de desplegar.

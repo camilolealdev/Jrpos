@@ -127,6 +127,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE products ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS margin_percent FLOAT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_package FLOAT NOT NULL DEFAULT 1.0;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_only BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE category_meta ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
