@@ -56,17 +56,38 @@ que exige Supavisor. Obtén el string exacto en **Supabase → Connect → Conne
 
 ## 2. Opción A — VPS con Docker Compose + Traefik (recomendado para SaaS)
 
-`docker-compose.prod.yml` **no levanta Traefik** — asume que ya existe, corriendo en la red externa
-`traefik_public`, con un certresolver llamado `letsencrypt`. `docker-compose.traefik.yml` (este repo)
-provee exactamente eso. Si Traefik no está corriendo primero, el stack de la app no arranca
-(la red externa no existe) y aunque arrancara, nadie llegaría al sitio (`web` solo hace `expose`, no
-publica puertos — Traefik es el único punto de entrada en 80/443).
+`docker-compose.yml` (raíz del repo) **no levanta Traefik** — asume que ya existe, corriendo en la
+red externa `traefik_public`, con un certresolver llamado `letsencrypt`. Si tu VPS todavía no tiene
+Traefik, `docker-compose.traefik.yml` (este repo) provee exactamente eso. Si Traefik no está
+corriendo primero (o la red `traefik_public` no existe), el stack de la app no arranca — queda
+"creado" pero los contenedores nunca inician — y aunque arrancara, nadie llegaría al sitio (`web`
+solo hace `expose`, no publica puertos: Traefik es el único punto de entrada en 80/443).
+
+**Postgres usa una imagen propia** (`ghcr.io/camilolealdev/jrpos-postgres`, construida desde
+`docker/postgres.Dockerfile`) que ya trae integrado el script de creación del rol de aplicación sin
+privilegios de superusuario (`docker/postgres-init.sh`) — necesario porque un superusuario de
+Postgres **ignora Row-Level Security** sin importar `FORCE ROW LEVEL SECURITY`, y ese aislamiento
+por tenant es central al modelo de seguridad de este SaaS. Esto también evita depender de un bind
+mount a un archivo del repo (`./docker/postgres-init.sh`), que falla en plataformas de deploy que
+solo aceptan el YAML del compose y no clonan el repositorio completo (p. ej. paneles tipo Hostinger
+Docker Manager). **Nunca "simplifiques" conectando el backend directo con `POSTGRES_USER`/
+`POSTGRES_PASSWORD`** (el rol bootstrap) — eso desactiva RLS para toda la aplicación.
+
+### Ya tienes Traefik corriendo en el VPS (varios proyectos en la misma máquina)
+Si el VPS ya aloja otros proyectos detrás de un Traefik existente, no ejecutes
+`docker-compose.traefik.yml` (crearía un segundo Traefik compitiendo por los puertos 80/443).
+En su lugar, conecta ese Traefik ya corriendo a la red `traefik_public` (créala si no existe) y
+listo — `docker-compose.yml` de este repo ya está escrito para usar esa misma red:
+```bash
+docker network create traefik_public          # omite si ya existe
+docker network connect traefik_public <nombre-del-contenedor-traefik>
+```
 
 ### Requisitos
 - VPS con Docker + Docker Compose plugin
 - Dominio con registro DNS `A` → IP del VPS
 - Un Personal Access Token de GitHub con scope `read:packages` para hacer `docker login ghcr.io`
-  (los paquetes `jrpos-backend`/`jrpos-web` en GHCR son privados por defecto)
+  (los paquetes `jrpos-postgres`/`jrpos-backend`/`jrpos-web` en GHCR son privados por defecto)
 
 ### Pasos
 
@@ -79,16 +100,17 @@ nano .env   # completa DATABASE_URL, JWT_SECRET, DOMAIN, POSTGRES_PASSWORD, ACME
 # 1. Login a GHCR (una sola vez por VPS) para poder hacer pull de las imágenes privadas
 echo "<GITHUB_PAT>" | docker login ghcr.io -u <tu-usuario-github> --password-stdin
 
-# 2. Levantar Traefik (crea la red externa `traefik_public` y gestiona TLS)
+# 2. Traefik: solo si el VPS no tiene uno ya. Crea la red externa `traefik_public` y gestiona TLS.
+#    Si ya existe un Traefik en el VPS, salta este paso y conéctalo a `traefik_public` (ver arriba).
 docker compose -f docker-compose.traefik.yml up -d
 
 # 3. Levantar el stack de la app (postgres + redis + backend + web/Caddy)
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.yml pull
+docker compose -f docker-compose.yml up -d
 
 # 4. Verificar salud
-docker compose -f docker-compose.traefik.yml -f docker-compose.prod.yml ps
-docker compose -f docker-compose.prod.yml logs backend --tail 50   # debe terminar en "Uvicorn running on..."
+docker compose -f docker-compose.yml ps
+docker compose -f docker-compose.yml logs backend --tail 50   # debe terminar en "Uvicorn running on..."
 docker compose -f docker-compose.traefik.yml logs traefik --tail 50   # confirma que emitió el certificado ACME
 
 # 5. Smoke test
@@ -100,9 +122,11 @@ curl -s -i -X POST https://TU-DOMINIO/api/auth/login \
 ```
 
 ### Qué hace cada pieza
-- **`traefik`** (`docker-compose.traefik.yml`) — único servicio con los puertos 80/443 publicados.
-  Termina TLS con Let's Encrypt (challenge HTTP-01) y enruta por `Host()` según las labels de `web`.
-- **`postgres:16`** — base de datos con volumen persistente (`postgres_data`)
+- **`traefik`** (`docker-compose.traefik.yml`, opcional si ya tienes uno) — único servicio con los
+  puertos 80/443 publicados. Termina TLS con Let's Encrypt (challenge HTTP-01) y enruta por
+  `Host()` según las labels de `web`.
+- **`postgres`** (`ghcr.io/camilolealdev/jrpos-postgres`) — Postgres 16 + rol de aplicación sin
+  privilegios de superusuario ya integrado, volumen persistente (`postgres_data`)
 - **`redis:7`** — caché/limitadores, degrada grácilmente si falla
 - **`backend`** — `docker-entrypoint.sh` ejecuta `alembic upgrade head` (tablas base) y luego
   `run_auto_migrations()` (ALTERs idempotentes + **creación de secuencias** de numeración)
@@ -117,12 +141,12 @@ Sin Traefik corriendo, no hay HTTPS ni forma de llegar al `web` desde fuera del 
 ### Actualizar el deploy
 ```bash
 git pull
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.yml pull
+docker compose -f docker-compose.yml up -d
 ```
 (Las imágenes se reconstruyen en GitHub Actions al hacer push a `main` — `pull` trae la última `:latest`
 publicada por `.github/workflows/docker-publish.yml`. Solo se necesita rebuild local si se edita
-`docker-compose.prod.yml`/`docker-compose.traefik.yml` en sí.)
+`docker-compose.yml`/`docker-compose.traefik.yml` en sí.)
 
 ### Backups
 ```bash

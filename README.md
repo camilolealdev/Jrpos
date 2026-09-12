@@ -131,10 +131,12 @@ mindmap
 
 ### Despliegue en VPS con Docker + Traefik — fuente de verdad actual
 Ver [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) para el procedimiento completo. Resumen:
-`docker-compose.traefik.yml` levanta el reverse proxy con TLS automático (Let's Encrypt), y
-`docker-compose.prod.yml` levanta el stack de la app (`postgres` + `redis` + `backend` + `web`)
-usando las imágenes publicadas en GHCR por [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml)
-en cada push a `main`.
+`docker-compose.traefik.yml` levanta el reverse proxy con TLS automático (Let's Encrypt) si tu VPS
+todavía no tiene uno corriendo, y `docker-compose.yml` levanta el stack de la app
+(`postgres` + `redis` + `backend` + `web`) usando las imágenes publicadas en GHCR por
+[`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml) en cada push a `main`.
+Para desarrollo local (build desde código fuente en vez de imágenes de GHCR) usa
+`docker-compose.local.yml`.
 
 ### Despliegue en Vercel (Frontend & Serverless API) — alterno, no sincronizado activamente
 1. Conecta el repositorio GitHub en Vercel.
