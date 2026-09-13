@@ -16,7 +16,7 @@
 	# API requests go to the backend container.
 	@api path /api /api/*
 	handle @api {
-		reverse_proxy jrpos-backend:8000
+		reverse_proxy backend:8000
 	}
 
 	# Everything else is the React SPA build.
