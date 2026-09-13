@@ -6,10 +6,10 @@ services:
     command: postgres -N 60 -c shared_buffers=256MB -c effective_cache_size=768MB -c work_mem=8MB -c maintenance_work_mem=64MB -c random_page_cost=1.1 -c wal_buffers=16MB -c checkpoint_completion_target=0.9 -c autovacuum_vacuum_scale_factor=0.05 -c autovacuum_analyze_scale_factor=0.02
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-jrpos}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-JrposRoot2026_xP9mQ2vL8nK4}
       POSTGRES_DB: ${POSTGRES_DB:-jrpos}
       POSTGRES_APP_USER: ${POSTGRES_APP_USER:-jrpos_app}
-      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-JrposApp2026_k8QmX4vP9zL2}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -57,19 +57,20 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-jrpos}
-      DATABASE_URL_UNPOOLED: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-jrpos}
+      DATABASE_URL: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD:-JrposApp2026_k8QmX4vP9zL2}@postgres:5432/${POSTGRES_DB:-jrpos}
+      DATABASE_URL_UNPOOLED: postgresql://${POSTGRES_APP_USER:-jrpos_app}:${POSTGRES_APP_PASSWORD:-JrposApp2026_k8QmX4vP9zL2}@postgres:5432/${POSTGRES_DB:-jrpos}
       REDIS_URL: redis://redis:6379/0
       DB_POOL_SIZE: 15
       DB_MAX_OVERFLOW: 20
-      JWT_SECRET: ${JWT_SECRET:-local-smoke-test-secret-32-chars-min}
+      JWT_SECRET: ${JWT_SECRET:-JrposJwtSecret2026_a8d7f6e5c4b3a2}
       ENV: ${ENV:-production}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@jrpos.co}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-testpass123}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-JrposSecKey2026_xP9mQ2vL8nK4}
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-super@jrpos.co}
-      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-SuperAdmin2026*}
-      FRONTEND_URL: https://${DOMAIN}
-      DOMAIN: ${DOMAIN}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-PlatformMaster2026_wK9mQ2vL8n}
+      FRONTEND_URL: https://${DOMAIN:-localhost}
+      DOMAIN: ${DOMAIN:-localhost}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-3345506845-n7p6p5mue4p43vtt89i7ejo0aq3b2fao.apps.googleusercontent.com}
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,21 +87,16 @@ services:
     networks:
       - internal
 
-  # Sin puertos publicados: Traefik (externo, en la red traefik_public) es el
-  # único punto de entrada en 80/443 y enruta aquí por Host()/labels. Si tu
-  # VPS todavía no tiene Traefik corriendo, usa docker-compose.traefik.yml
-  # primero (ver docs/DEPLOY_RUNBOOK.md) — sin la red traefik_public ya creada,
-  # este servicio queda "creado" pero nunca arranca.
   web:
     image: ghcr.io/camilolealdev/jrpos-web:latest
     container_name: jrpos-web
     restart: unless-stopped
-    environment:
-      DOMAIN: ${DOMAIN}
-    depends_on:
-      - backend
     expose:
       - "80"
+    environment:
+      DOMAIN: ${DOMAIN:-jrpos.easymarketing.tech}
+    depends_on:
+      - backend
     volumes:
       - caddy_data:/data
       - caddy_config:/config
@@ -113,7 +109,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik_public"
-      - "traefik.http.routers.jrpos.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.jrpos.rule=Host(`${DOMAIN:-jrpos.easymarketing.tech}`)"
       - "traefik.http.routers.jrpos.entrypoints=websecure"
       - "traefik.http.routers.jrpos.tls=true"
       - "traefik.http.routers.jrpos.tls.certresolver=letsencrypt"

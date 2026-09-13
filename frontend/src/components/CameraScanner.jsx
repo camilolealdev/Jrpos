@@ -206,8 +206,24 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
   // navegadores sin BarcodeDetector (iOS Safari, Firefox, etc.).
   // Import dinámico: los dispositivos con detección nativa nunca descargan ZXing.
   const startZxing = async (videoConstraints) => {
-    const { BrowserMultiFormatReader } = await import("@zxing/browser");
-    const reader = new BrowserMultiFormatReader();
+    const [{ BrowserMultiFormatReader, BarcodeFormat }, { DecodeHintType }] = await Promise.all([
+      import("@zxing/browser"),
+      import("@zxing/library"),
+    ]);
+    // Sin esto, MultiFormatReader prueba TODOS los formatos que conoce (incluye
+    // RSS/MaxiCode/Micro-QR/extensiones que nunca usamos) en cada frame sin
+    // código detectado, y cada sub-decoder que falla imprime su propio error
+    // en consola — con la cámara corriendo a 30fps eso inunda la consola en
+    // segundos. Restringir a los formatos reales reduce el ruido y acelera
+    // cada intento de decodificación.
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+      BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.CODE_93, BarcodeFormat.ITF,
+      BarcodeFormat.CODABAR, BarcodeFormat.QR_CODE, BarcodeFormat.PDF_417, BarcodeFormat.AZTEC,
+      BarcodeFormat.DATA_MATRIX,
+    ]);
+    const reader = new BrowserMultiFormatReader(hints);
     const holder = document.getElementById(readerId);
     const video = document.createElement("video");
     video.className = "w-full min-h-[280px] object-cover";
@@ -219,8 +235,12 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     const controls = await reader.decodeFromConstraints(
       { video: videoConstraints, audio: false },
       video,
-      (result) => {
-        if (result) handleDetectedText(result.getText());
+      (result, err) => {
+        if (result) {
+          handleDetectedText(result.getText());
+        }
+        // err se descarta intencionalmente en cada frame: ZXing arroja NotFoundException
+        // continuamente mientras busca un código en el video. No es un error real.
       }
     );
     zxingControlsRef.current = controls;
