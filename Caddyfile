@@ -1,4 +1,4 @@
-{$DOMAIN:localhost} {
+http://{$DOMAIN:localhost} {
 	encode gzip
 	log {
 		output stdout
