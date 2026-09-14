@@ -172,3 +172,18 @@ Fix (siguiendo el mismo patrón ya usado en `get_jwt_secret()` de este archivo):
   - `frontend/src/pages/POS.jsx`: Logotipo de la tienda renderizado en los tickets y comprobantes impresos de venta.
   - `frontend/src/index.js` y `frontend/src/App.js`: Activación inmediata de acento al iniciar la app y flags `v7_startTransition`, `v7_relativeSplatPath` en `BrowserRouter`.
   - Build compilado (`npm run build`) y desplegado en contenedor web Caddy (`jrpos-web:/srv/`).
+
+---
+
+## Sesión 2026-09-14: escáner de cámara (watchdog + fallback) y persistencia de barcode desde Inventario (Claude Code)
+
+**Nota de coordinación:** esta sesión corrió en paralelo a otra corriendo OpenCode sobre el mismo working tree (la sección anterior, "Corrección de personalización visual...", es suya). Sin overlap de archivos: esta sesión solo tocó `CameraScanner.jsx`, `Inventory.jsx` y `routers/products.py`. Si OpenCode retoma, revisar `git log --oneline -5` antes de asumir qué sigue sin commitear — cada agente solo commiteó lo que tocó, no lo del otro.
+
+### Qué se implementó (commits `9c6cdad`, `848d284`, ya en `origin/main`)
+
+- `frontend/src/components/CameraScanner.jsx`: watchdog que cuenta fallos consecutivos de `detect()` en el motor nativo (`BarcodeDetector`) y cae a zxing en caliente si el backend nativo muere en pleno uso (visto en algunas builds Chrome/Windows); indicador visual de motor activo + botón "Probar otro motor" para forzar el cambio sin cerrar el diálogo; aviso pasivo a los 8s sin detección; `console.info` de diagnóstico por arranque de motor. Se suma a los fixes previos de la misma sesión anterior (commits `ef23bcd`, `5ac0eb5`): smoke-test de un frame antes de comprometerse al motor nativo, y pre-chequeo estático `getSupportedFormats()` para saltar nativo en plataformas sin backend real.
+- `frontend/src/pages/Inventory.jsx` + `backend/routers/products.py`: el código escaneado en Inventario se guardaba solo si el catálogo externo (Open Food/Beauty Facts) lo reconocía — para productos propios/de marca local (el caso normal en un minimarket) el catálogo nunca lo reconoce, así que el escaneo se perdía en silencio y el producto quedaba sin barcode; el POS nunca podía encontrarlo después escaneando el mismo código. Ahora se guarda siempre. También se agregó trim de espacios en `update_product` (backend) e Inventory (frontend), igualando el trim que ya tenía `create_product`.
+
+### Pendiente (no tocado en esta sesión)
+
+- `backend/auth.py`, `backend/app.py`, `backend/models_sql.py`, `backend/routers/settings.py`, `backend/mailer.py`, `frontend/src/pages/Settings.jsx`, `Layout.jsx`, `index.css`, `index.js`, `tailwind.config.js`: trabajo de OpenCode (branding + registro con dominio permitido + email de bienvenida SMTP), visto en el working tree pero no commiteado por esta sesión — no se tocó ni se commiteó nada de eso aquí, queda a criterio de esa sesión/el usuario cerrarlo.
