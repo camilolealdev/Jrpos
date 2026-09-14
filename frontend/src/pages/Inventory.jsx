@@ -89,6 +89,12 @@ export default function Inventory() {
     // costo por paquete/unidades/% utilidad, pero si el usuario los edita a mano después,
     // ese valor manda (el backend respeta el precio explícito sobre el % de utilidad).
     const payload = { ...form, cost: Number(form.cost) || 0, price: Number(form.price) || 0 };
+    // El backend ya recorta espacios al crear/actualizar, pero lo hacemos
+    // también aquí para que un barcode tipeado a mano con espacios de sobra
+    // no vuelva a fallar el match exacto que hace el POS al escanear.
+    if (typeof payload.barcode === "string") {
+      payload.barcode = payload.barcode.trim() || null;
+    }
     delete payload.stock_packages;
     // Unidades por paquete y "solo por paquete" son atributos del producto en sí
     // (los usa el POS para vender por unidad/paquete) y se guardan siempre, sin
@@ -119,6 +125,14 @@ export default function Inventory() {
     if (!code) {
       return toast.info("Ingresa o escanea un código de barras primero");
     }
+    // El código escaneado SIEMPRE se guarda en el formulario, sin importar si
+    // el catálogo externo (Open Food/Beauty Facts) lo reconoce o si la
+    // consulta falla por red. Antes solo se guardaba dentro del `if (found)`
+    // de abajo: para un producto propio/local (el caso normal de un
+    // minimarket) el catálogo externo nunca lo reconoce, así que el escaneo
+    // se perdía en silencio y el producto quedaba sin barcode — el POS
+    // después nunca podía encontrarlo por ese código.
+    setForm((prev) => ({ ...prev, barcode: code }));
     setLookingUpBarcode(true);
     try {
       const { data } = await api.get(`/products/lookup-external/${encodeURIComponent(code)}`);
@@ -131,10 +145,10 @@ export default function Inventory() {
         }));
         toast.success(`✨ Info encontrada: ${data.name}`);
       } else {
-        toast.info("Código no encontrado en catálogo global. Puedes ingresar los datos manualmente.");
+        toast.info("Código no encontrado en catálogo global — guardado igual, completa los datos manualmente.");
       }
     } catch {
-      toast.error("No se pudo consultar el catálogo externo");
+      toast.error("No se pudo consultar el catálogo externo, pero el código quedó guardado.");
     } finally {
       setLookingUpBarcode(false);
     }

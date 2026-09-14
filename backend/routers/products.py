@@ -317,6 +317,13 @@ async def update_product(
     margin_percent = data.pop("margin_percent", None)
     price_sent = data.get("price")
 
+    # create_product recorta espacios del barcode; aquí faltaba el mismo
+    # trim. Un barcode editado con un espacio de más (copy/paste, teclado)
+    # quedaba guardado tal cual y nunca volvía a hacer match exacto contra un
+    # código escaneado en el POS (que sí llega recortado).
+    if "barcode" in data:
+        data["barcode"] = data["barcode"].strip() if data["barcode"] else None
+
     # Ajuste manual de stock (edición directa desde Inventario): registrar el
     # movimiento antes de sobrescribir, si el nuevo valor difiere del actual.
     new_stock = data.get("stock")
