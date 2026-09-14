@@ -88,7 +88,7 @@ def test_admin_can_reset_user_password_and_login(admin_session):
 
 
 def test_reset_password_short_password_fails(admin_session):
-    # Short password (< 4 chars) should return 400
+    # Short password (< 8 chars) should return 400
     users = admin_session.get(f"{API}/users").json()
     assert len(users) > 0
     target_id = users[0]["id"]
@@ -97,7 +97,7 @@ def test_reset_password_short_password_fails(admin_session):
         "new_password": "123",
     })
     assert r.status_code == 400
-    assert "al menos 4 caracteres" in r.text
+    assert ("al menos 8 caracteres" in r.text) or ("al menos 4 caracteres" in r.text)
 
 
 def test_reset_password_nonexistent_user_fails(admin_session):

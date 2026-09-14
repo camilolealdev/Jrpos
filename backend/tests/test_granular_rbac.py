@@ -20,7 +20,7 @@ def rbac_tenant():
     import uuid
     uid = uuid.uuid4().hex[:6]
     admin_email = f"admin_rbac_{uid}@tienda.co"
-    pwd = "testpass123"
+    pwd = "Str0ng!Pass_2026_Rbac"
 
     s = requests.Session()
     r = s.post(f"{API}/auth/register-tenant", json={

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth import hash_password, require_admin
+from auth import hash_password, require_admin, validate_password_strength
 from business_types import STAFF_ROLES_BY_BUSINESS_TYPE
 from db import get_session
 from models_sql import LoginAttempt, Tenant, User
@@ -50,6 +50,7 @@ async def create_user(
     existing = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
+    validate_password_strength(payload.password, email=email)
 
     await check_user_limit(session, tenant_id)
 
@@ -80,11 +81,10 @@ async def reset_password(
     admin: User = Depends(require_admin),
 ):
     tenant_id = admin.tenant_id or "tenant-default-001"
-    if len(payload.new_password) < 4:
-        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres")
     user = await session.get(User, user_id)
     if not user or user.tenant_id != tenant_id:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    validate_password_strength(payload.new_password, email=user.email)
     user.password_hash = hash_password(payload.new_password)
     attempt = await session.get(LoginAttempt, user.email)
     if attempt:

@@ -13,6 +13,7 @@ import heroShowcase from "@/assets/hero-showcase.jpg";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import GoogleOnboardingModal from "@/components/GoogleOnboardingModal";
 import { useGoogleAuthFlow } from "@/lib/useGoogleAuthFlow";
+import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 import { BUSINESS_TYPES } from "@/lib/businessTypes";
 
 export default function RegisterTenant() {
@@ -188,6 +189,7 @@ export default function RegisterTenant() {
                     placeholder="••••••••"
                     className="bg-slate-950/60 border-white/5 focus:border-emerald-500/50 text-white placeholder:text-slate-600 h-10 rounded-xl"
                   />
+                  <PasswordStrengthMeter password={password} email={email} className="pt-1" />
                 </div>
               </div>
 

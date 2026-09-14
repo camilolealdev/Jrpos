@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Trash2, ShieldCheck, UserCog, KeyRound } from "lucide-react";
+import PasswordStrengthMeter from "@/components/PasswordStrengthMeter";
 
 const empty = { name: "", email: "", password: "", role: "cajero" };
 
@@ -60,7 +61,7 @@ export default function Users() {
   };
 
   const resetPassword = async () => {
-    if (!newPassword || newPassword.length < 4) return toast.error("La contraseña debe tener al menos 4 caracteres");
+    if (!newPassword) return toast.error("Ingresa una contraseña");
     try {
       await api.put(`/users/${resetTarget.id}/reset-password`, { new_password: newPassword });
       toast.success(`Contraseña de ${resetTarget.name} actualizada`);
@@ -115,7 +116,8 @@ export default function Users() {
             <div><label className="text-xs font-semibold">Correo</label>
               <Input type="text" autoComplete="off" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} data-testid="u-email" /></div>
             <div><label className="text-xs font-semibold">Contraseña</label>
-              <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="u-password" /></div>
+              <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="u-password" />
+              <PasswordStrengthMeter password={form.password} email={form.email} className="pt-1" /></div>
             <div><label className="text-xs font-semibold">Rol</label>
               <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
                 <SelectTrigger data-testid="u-role"><SelectValue /></SelectTrigger>
@@ -144,6 +146,7 @@ export default function Users() {
             <div>
               <label className="text-xs font-semibold">Nueva contraseña</label>
               <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoFocus data-testid="reset-pw-input" />
+              <PasswordStrengthMeter password={newPassword} email={resetTarget?.email} className="pt-1" />
             </div>
           </div>
           <DialogFooter>

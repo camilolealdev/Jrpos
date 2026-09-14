@@ -89,3 +89,36 @@ Durante esta sesión, lanzar más de un `docker compose build` en paralelo (o en
 ### Riesgos a vigilar
 - El `EXCEPTION WHEN OTHERS THEN NULL` del swap de constraint de `category_meta_pkey` traga cualquier error — si la PK compuesta NO queda aplicada, no falla en arranque. Verificar con `\d category_meta` en psql tras desplegar.
 - Deploys existentes con categorías duplicadas `NULL tenant_id`: el backfill las asigna todas a `tenant-default-001`; si hay datos reales de otros tenants con NULL habría que reasignarlas a mano ANTES de desplegar.
+
+---
+
+## Sesión 2026-09-12: continuación tras reinicio del PC — suite de tests reparada y verde
+
+Contexto: la sesión anterior (staff roles por tipo de negocio + rol `mesero`) quedó interrumpida por un reinicio. Al retomar, la verificación completa de backend+frontend reveló y corrigió varias deudas acumuladas en los tests. **Suite final: 91 passed (HTTP) + 11 passed (unit, dentro del contenedor) + build de frontend OK.**
+
+### Correcciones a los tests (causa raíz: credenciales y target desactualizados)
+
+1. **Credenciales stale en 10 archivos de tests**: usaban `admin@jrpos.com`/`jrpos2026` (email/contraseña viejos) y provocaban 401 + bloqueos de 15 min en la tabla `LoginAttempt`. Ahora todos leen `os.getenv("ADMIN_EMAIL", "admin@jrpos.co")` / `os.getenv("ADMIN_PASSWORD", "testpass123")` (lo que siembra `.env`). `test_refresh_and_roles.py` conserva su caso `OLD_ADMIN` que verifica que el email legacy falla — ese queda intacto.
+2. **Target de tests**: apuntaban a `http://127.0.0.1:8000` (puerto no publicado por compose). Target correcto: `https://localhost` (Caddy → `jrpos-backend:8000`). Todos los `BASE_URL`/`API` ahora `os.getenv("API_BASE", "https://localhost")`.
+3. **`backend/tests/conftest.py` (nuevo)**: (a) parchea `requests.Session.request` para `verify=False` (cert self-signed de Caddy) y silencia el warning; (b) spoof de `X-Forwarded-For` **único por request** — el limiter Redis del backend en contenedor (imagen prebuilt, sin el bypass `x-test-client` del código local) keys por primera IP de XFF, así cada request tiene su propio bucket y nunca se agota el límite 10/min.
+
+### Bugs reales de backend encontrados y corregidos (db_migrations.py)
+
+Mismo patrón que el bug de `settings_general_id_seq` ya documentado: los modelos declaran `autoincrement=True` pero el DDL histórico creó las tablas con `id integer NOT NULL` **sin secuencia** → todo INSERT fallaba con 500. Las tablas afectadas eran `settings_timeclock_schedule`, `settings_electronic` (y las demás settings_* autoincrement). Fix: crear las secuencias idempotentemente + `ALTER COLUMN id SET DEFAULT nextval(...)` en `db_migrations.py`, y aplicado a la BD local en vivo.
+
+Además: `settings_certificate.uploaded_at` era `varchar(30)` pero el código guarda timestamps ISO de 32 chars → `value too long`. Fix: widening idempotente a `varchar(40)`.
+
+### Resuelto: proceso uvicorn fantasma en `:8000` (split-brain de BD)
+
+Durante la sesión apareció dos veces un `uvicorn` local (desde `backend/.venv`) escuchando en `127.0.0.1:8000` **NO originado por compose**. Peligro real: cargaba `backend/.env`, cuyo `DATABASE_URL` puede apuntar al pooler de **Supabase producción** — los tests que apuntaban ahí (`test_entitlements.py`, `test_impersonation_security.py`) validaban contra otra BD (por eso el superadmin se bloqueaba ahí y no en local). Decisión: **no debe existir** — el stack corre 100% via compose+Caddy. Se mató el proceso (`taskkill //PID ... //F`) y se corrigieron los 2 test files que apuntaban al puerto. No se encontró mecanismo de auto-restart (fue lanzamiento manual); si reaparece, buscar qué lo lanza.
+
+### Lecciones operativas de esta sesión
+
+- **`npx vite build` NO es el build de este frontend** — el proyecto es CRA+craco; usar `npm run build`. El `npx vite` descarga un vite global ajeno y falla con errores crípticos de rolldown.
+- **El contenedor backend corre imagen prebuilt** (`docker-compose.local.yml`, sin bind-mount): los cambios locales de código (ej. el header `x-test-client`) NO están en el contenedor hasta rebuild. Verificar con `docker exec jrpos-backend grep ...`. Para no bloquear tests por el limiter, el spoof XFF de conftest funciona sin rebuild.
+- **Docker Desktop se cuelga bajo carga** (ya documentado): los `docker exec`/`docker ps` dieron timeout varios minutos; siempre envolver comandos docker en `timeout N` para no bloquear la sesión.
+- El limiter Redis keys por primera IP de `X-Forwarded-For`; detrás de Caddy el backend ve la IP de red docker (compartida), por eso el suite agotaba el límite al instante.
+
+### Estado de git al cierre
+
+Sin commitear: `backend/db_migrations.py` (secuencias + uploaded_at widening), `backend/tests/conftest.py` (nuevo), y 3 test files (`test_entitlements.py`, `test_granular_rbac.py`, `test_impersonation_security.py`) apuntados al target correcto. Los demás fixes de tests ya están dentro de los commits `eb2d641`/`d3bed09`. Feature de staff roles/`mesero` ya estaba commiteada. Último commit: `d3bed09`.

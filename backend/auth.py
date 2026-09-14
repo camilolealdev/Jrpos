@@ -82,6 +82,57 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
+_PASSWORD_MIN_LENGTH = 8
+
+# Passwords conocidas/comunes que no deben aceptarse aunque cumplan longitud
+# mínima — incluye los defaults históricos de este proyecto (testpass123,
+# admin123, etc.) para que nadie termine con la misma clave que ya está
+# publicada en el código fuente o en docs internas.
+_WEAK_PASSWORDS = {
+    "testpass123", "test12345", "12345678", "123456789", "1234567890",
+    "password", "password1", "password123", "qwerty123", "11111111",
+    "admin123", "admin1234", "superadmin", "superadmin123",
+    "jrpos2026", "jrpos123", "contraseña", "contraseña123", "contrasena123",
+    "cambiar123", "changeme123", "cambiame123",
+}
+
+
+def validate_password_strength(password: str, *, email: str | None = None) -> None:
+    """Política mínima para cuentas email/password (admin, staff, self-signup).
+
+    No aplica a login con Google: esas cuentas nunca traen un `password` de
+    JRPOS — Google ya impone su propia política del lado de ellos.
+    """
+    if len(password) < _PASSWORD_MIN_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La contraseña debe tener al menos {_PASSWORD_MIN_LENGTH} caracteres",
+        )
+    if password.lower() in _WEAK_PASSWORDS:
+        raise HTTPException(
+            status_code=400,
+            detail="Esa contraseña es demasiado común o conocida, elige otra",
+        )
+    char_classes = sum([
+        any(c.islower() for c in password),
+        any(c.isupper() for c in password),
+        any(c.isdigit() for c in password),
+        any(not c.isalnum() for c in password),
+    ])
+    if char_classes < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Combina al menos dos tipos: mayúsculas, minúsculas, números o símbolos",
+        )
+    if email:
+        local_part = email.split("@")[0].strip().lower()
+        if local_part and local_part in password.lower():
+            raise HTTPException(
+                status_code=400,
+                detail="La contraseña no puede contener tu correo",
+            )
+
+
 def create_access_token(
     user_id: str,
     email: str,
@@ -358,6 +409,7 @@ async def register_tenant(payload: TenantRegisterRequest, response: Response, se
     existing_user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if existing_user:
         raise HTTPException(status_code=400, detail="Ya existe una cuenta registrada con este correo electrónico")
+    validate_password_strength(payload.password, email=email)
 
     user, tenant = await _provision_tenant(
         session,
