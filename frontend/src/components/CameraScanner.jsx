@@ -67,6 +67,26 @@ const restoreZxingNoise = () => {
   }
 };
 
+// `"BarcodeDetector" in window` solo dice que la clase existe, no que el
+// navegador tenga un backend de detección funcional instalado (el caso típico
+// roto: Chrome de escritorio/Windows). `getSupportedFormats()` es una llamada
+// estática — no pide cámara ni permisos — que sí refleja soporte real de la
+// plataforma; si devuelve vacío o falla, ni intentamos abrir el motor nativo
+// y nos ahorramos pedir la cámara dos veces. Se cachea porque es una
+// capacidad fija del navegador durante toda la sesión.
+let nativeBarcodeSupportPromise = null;
+const isNativeBarcodeDetectorUsable = () => {
+  if (!("BarcodeDetector" in window)) return Promise.resolve(false);
+  if (!nativeBarcodeSupportPromise) {
+    nativeBarcodeSupportPromise = window.BarcodeDetector.getSupportedFormats
+      ? window.BarcodeDetector.getSupportedFormats()
+          .then((formats) => Array.isArray(formats) && formats.length > 0)
+          .catch(() => false)
+      : Promise.resolve(true); // navegador viejo sin el método estático: dejamos que el smoke-test de startNative decida
+  }
+  return nativeBarcodeSupportPromise;
+};
+
 export default function CameraScanner({ open, onOpenChange, onScan, continuous = false }) {
   const [error, setError] = useState("");
   const [cameras, setCameras] = useState([]);
@@ -332,7 +352,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
           : { deviceId: { exact: camSource } }),
       };
 
-      if ("BarcodeDetector" in window) {
+      if (await isNativeBarcodeDetectorUsable()) {
         try {
           await startNative(videoConstraints);
           setStarting(false);
@@ -359,7 +379,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       } else {
         // Fallback final: constraints genéricas
         try {
-          if ("BarcodeDetector" in window) {
+          if (await isNativeBarcodeDetectorUsable()) {
             await startNative({ facingMode: "user" });
             setStarting(false);
             return;
