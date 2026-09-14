@@ -98,6 +98,10 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
   const [manualCode, setManualCode] = useState("");
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
+  // Espejo reactivo de engineRef — solo para pintar el badge/botón de motor;
+  // engineRef sigue siendo la fuente de verdad que leen los loops async.
+  const [activeEngine, setActiveEngine] = useState(""); // "" | "native" | "zxing"
+  const [noDetectionHint, setNoDetectionHint] = useState(false);
   const lastScanTimeRef = useRef(0);
   const lastScannedCodeRef = useRef("");
   // Motor activo: "native" (BarcodeDetector) | "zxing" (@zxing/browser)
@@ -166,8 +170,22 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     activeTrackRef.current = null;
     setTorchOn(false);
     setTorchSupported(false);
+    setActiveEngine("");
     releaseWakeLock();
   };
+
+  // Mismas constraints que arma startWithCamera, extraídas para que
+  // switchEngine() pueda reconstruirlas al forzar un motor manualmente sin
+  // duplicar la lógica de resolución ideal / selección de cámara.
+  const buildVideoConstraints = (camSource) => ({
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    ...(camSource && typeof camSource === "object"
+      ? camSource
+      : camSource
+        ? { deviceId: { exact: camSource } }
+        : { facingMode: { ideal: "environment" } }),
+  });
 
   // Detecta si la cámara activa soporta linterna (torch) — solo Chrome/Android
   // por ahora vía MediaStreamTrack capabilities. Se llama tras arrancar cualquiera
@@ -250,16 +268,42 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
 
     running.current = true;
     engineRef.current = "native";
+    setActiveEngine("native");
+    console.info(`[CameraScanner] motor nativo (BarcodeDetector) activo — ${navigator.userAgent}`);
     detectTorch();
     requestWakeLock();
     let alive = true;
+    // Watchdog: el smoke-test de arriba solo prueba UN frame antes de
+    // comprometernos a este motor. Si el backend de detección se cae o
+    // deja de responder ya en marcha (visto en algunas builds de Chrome/
+    // Windows), detect() empieza a lanzar en TODOS los frames y sin esto
+    // el escáner queda mudo para siempre sin avisar. Tras varios fallos
+    // seguidos, saltamos a zxing en caliente sin que el usuario tenga que
+    // cerrar y reabrir el diálogo.
+    let consecutiveFailures = 0;
+    const MAX_CONSECUTIVE_NATIVE_FAILURES = 25;
     const tick = async () => {
       if (!alive || engineRef.current !== "native") return;
       if (video.readyState >= 2) {
         try {
           const codes = await detector.detect(video);
+          consecutiveFailures = 0;
           if (codes && codes.length) handleDetectedText(codes[0].rawValue);
-        } catch { /* frame descartado */ }
+        } catch {
+          consecutiveFailures += 1;
+          if (consecutiveFailures >= MAX_CONSECUTIVE_NATIVE_FAILURES) {
+            alive = false;
+            cancelAnimationFrame(nativeLoopRef.current);
+            stopNative();
+            if (running.current && engineRef.current === "native") {
+              console.info("[CameraScanner] motor nativo dejó de responder en runtime, cambiando a zxing");
+              startZxing(videoConstraints).catch(() => {
+                setError("No se pudo iniciar ningún motor de escaneo de cámara. Usa el campo manual abajo.");
+              });
+            }
+            return;
+          }
+        }
       }
       nativeLoopRef.current = requestAnimationFrame(tick);
     };
@@ -321,6 +365,8 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     zxingControlsRef.current = controls;
     running.current = true;
     engineRef.current = "zxing";
+    setActiveEngine("zxing");
+    console.info(`[CameraScanner] motor zxing (fallback JS) activo — ${navigator.userAgent}`);
     detectTorch();
     requestWakeLock();
   };
@@ -344,13 +390,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       // baja resolución por defecto, lo que dificulta leer códigos pequeños o
       // densos (EAN-13 chico, PDF417). Es "ideal", no "exact": si el hardware no
       // llega, el navegador negocia la resolución más cercana sin fallar.
-      const videoConstraints = {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        ...(camSource && typeof camSource === "object"
-          ? camSource
-          : { deviceId: { exact: camSource } }),
-      };
+      const videoConstraints = buildVideoConstraints(camSource);
 
       if (await isNativeBarcodeDetectorUsable()) {
         try {
@@ -479,6 +519,46 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     }
   };
 
+  // Botón de escape manual: si ninguno de los watchdogs automáticos resolvió
+  // el problema (o el usuario simplemente prefiere el otro motor), fuerza el
+  // motor contrario sobre la cámara actualmente seleccionada. Al forzar
+  // "native" no pasamos por isNativeBarcodeDetectorUsable(): el usuario ya
+  // decidió intentarlo, y startNative() igual corre su propio smoke-test.
+  const switchEngine = async () => {
+    const target = activeEngine === "native" ? "zxing" : "native";
+    setError("");
+    setStarting(true);
+    stopEngine();
+    const videoConstraints = buildVideoConstraints(selectedCamId);
+    try {
+      if (target === "native") {
+        await startNative(videoConstraints);
+      } else {
+        await startZxing(videoConstraints);
+      }
+    } catch (err) {
+      setError(
+        target === "native"
+          ? "Este dispositivo no tiene un lector de códigos nativo funcional. Sigue con el motor actual o usa el campo manual."
+          : "No se pudo iniciar el motor alterno: " + (err?.message || String(err))
+      );
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  // Aviso pasivo: si el motor lleva activo varios segundos y todavía no
+  // detectó nada (ni un primer escaneo en modo ráfaga), asumimos que el
+  // usuario puede estar atascado y le mostramos tips + el botón de motor
+  // alterno, en vez de dejarlo mirando una cámara "viva" sin feedback.
+  useEffect(() => {
+    setNoDetectionHint(false);
+    if (!activeEngine) return undefined;
+    if (continuous && scannedCount > 0) return undefined;
+    const timer = setTimeout(() => setNoDetectionHint(true), 8000);
+    return () => clearTimeout(timer);
+  }, [activeEngine, continuous, scannedCount]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent data-testid="camera-scanner-dialog" className="sm:max-w-md">
@@ -519,6 +599,26 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* Motor activo + escape manual — visibilidad de qué está corriendo
+            realmente y una salida directa si el motor elegido no detecta,
+            sin depender de que el watchdog automático lo resuelva solo. */}
+        {activeEngine && (
+          <div className="flex items-center justify-between gap-2 bg-slate-100 dark:bg-slate-800 px-2 py-1.5 rounded-lg text-[11px]">
+            <span className="text-slate-500 dark:text-slate-400">
+              Motor: <strong className="text-slate-700 dark:text-slate-200">{activeEngine === "native" ? "Nativo (rápido)" : "Compatibilidad (zxing)"}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={switchEngine}
+              disabled={starting}
+              data-testid="camera-switch-engine-btn"
+              className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline disabled:opacity-50 disabled:pointer-events-none"
+            >
+              Probar otro motor
+            </button>
           </div>
         )}
 
@@ -567,6 +667,15 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
             </div>
           )}
         </div>
+
+        {/* Aviso si pasaron 8s sin detectar nada — guía al usuario a probar el
+            otro motor o el campo manual en vez de quedarse mirando la cámara
+            sin saber si algo está fallando. */}
+        {noDetectionHint && (
+          <p className="text-[11px] text-center text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg py-1.5 px-2">
+            ⚠️ No se detecta el código todavía. Prueba <strong>"Probar otro motor"</strong> arriba, acerca/aleja la cámara, o usa el campo manual abajo.
+          </p>
+        )}
 
         {/* Consejos de iluminación y distancia */}
         <p className="text-[11px] text-center text-slate-500 dark:text-slate-400">
