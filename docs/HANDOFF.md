@@ -122,3 +122,53 @@ Durante la sesión apareció dos veces un `uvicorn` local (desde `backend/.venv`
 ### Estado de git al cierre
 
 Sin commitear: `backend/db_migrations.py` (secuencias + uploaded_at widening), `backend/tests/conftest.py` (nuevo), y 3 test files (`test_entitlements.py`, `test_granular_rbac.py`, `test_impersonation_security.py`) apuntados al target correcto. Los demás fixes de tests ya están dentro de los commits `eb2d641`/`d3bed09`. Feature de staff roles/`mesero` ya estaba commiteada. Último commit: `d3bed09`.
+
+---
+
+## Sesión 2026-09-14: política de contraseñas fuertes + cierre de pendientes de sesiones previas
+
+### Qué se implementó (commit `d4817d0`)
+
+- `backend/auth.py::validate_password_strength()`: mínimo 8 caracteres, al menos 2 de {mayúscula, minúscula, dígito, símbolo}, rechaza una lista de contraseñas débiles/conocidas (incluye los defaults históricos del propio proyecto: `testpass123`, `admin123`, `jrpos2026`, etc.) y rechaza que la contraseña contenga el usuario del email. No aplica a login con Google (esas cuentas no tienen password JRPOS).
+- Aplicado en los 3 puntos donde se fija un password: `register_tenant` (auth.py), `create_user` y `reset_password` (routers/users.py). El límite viejo de "mínimo 4 caracteres" en `reset_password` y en el frontend (`Users.jsx`) quedó reemplazado por esta validación centralizada.
+- `frontend/src/components/PasswordStrengthMeter.jsx` (nuevo): medidor visual reutilizado en `RegisterTenant.jsx` y `Users.jsx` (alta de usuario + reset de password).
+- `docs/legal/POLITICA_PRIVACIDAD.md` (nuevo).
+- Verificado: 102/102 tests backend en verde antes de commitear.
+
+### Pendiente resuelto en esta sesión: contraseñas por defecto del seed
+
+El HANDOFF ya advertía que `seed_admin()` cae a `testpass123` si `SUPERADMIN_PASSWORD`/`ADMIN_PASSWORD` no están seteadas — y ese mismo string quedó, sin querer, dentro de la lista `_WEAK_PASSWORDS` de este commit (un usuario nuevo no podría elegir esa contraseña, pero el seed la seguía usando por default). Como `docker-compose.yml` (el compose real de despliegue) **ya** define fallbacks fuertes vía `${ADMIN_PASSWORD:-JrposSecKey2026_...}` / `${SUPERADMIN_PASSWORD:-PlatformMaster2026_...}`, el riesgo real solo aplicaba si el backend arranca sin pasar por ese compose (ej. otro entorno, `docker-compose.local.yml`, o un despliegue mal configurado que no exporta las env vars).
+
+Fix (siguiendo el mismo patrón ya usado en `get_jwt_secret()` de este archivo): `seed_admin()` ahora revisa `_is_production_env()` — si es producción (`ENV=production` / Railway / Vercel) y falta `SUPERADMIN_PASSWORD` o `ADMIN_PASSWORD`, lanza `RuntimeError` en vez de sembrar silenciosamente una contraseña débil conocida. En dev/test (no producción) el fallback `testpass123` se mantiene igual que antes — no rompe nada del flujo local ni de los tests (que ya usan ese mismo default vía `os.getenv(..., "testpass123")`). Verificado copiando el archivo al contenedor (`docker cp` + `docker restart`, sin rebuild) y corriendo la suite completa.
+
+### Pendientes que siguen abiertos — requieren decisión/acceso que no son solo código
+
+1. **Pantalla de consentimiento de Google** sigue en modo "Testing" en Google Cloud Console (solo cuentas agregadas como "Test users" pueden loguearse con Google). Publicarla a producción es una acción manual en la consola de Google (posible revisión de verificación de app) — no se hizo en esta sesión, pendiente de decisión del usuario.
+2. **VPS**: todo lo de RBAC/password policy/RLS sigue validado solo en Docker local; no se ha desplegado al VPS real. Ver `docs/DEPLOY_RUNBOOK.md`.
+
+---
+
+## Sesión 2026-09-14: Corrección de personalización visual (temas de color, logotipo de negocio) y React Router v7
+
+### Diagnóstico de causas raíz
+1. **Colores de acento**: Tailwind utilizaba clases estáticas `emerald-*` hardcodeadas en componentes JSX. El selector de acento en `Settings.jsx` solo alteraba variables CSS primarias (`--primary`), por lo que los componentes `bg-emerald-600`, `text-emerald-700`, etc., permanecían invariables.
+2. **Logotipo de negocio**: No existía columna `logo_url` en `SettingsGeneral` (SQLAlchemy / PostgreSQL), ni en el schema Pydantic `GeneralSettingsIn`, ni en los endpoints de backend. En frontend no existía input ni botón de carga de logo.
+3. **React Router v7 Warnings**: Advertencias de migración sobre `v7_startTransition` y `v7_relativeSplatPath`.
+
+### Soluciones implementadas
+- **Base de datos & Backend**:
+  - `backend/models_sql.py`: Añadida columna `logo_url` a `SettingsGeneral`.
+  - `backend/routers/settings.py`: Añadido `logo_url: Optional[str]` a `GeneralSettingsIn`.
+  - `backend/db_migrations.py`: Añadida migración DDL idempotente `ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS logo_url TEXT;`. Ejecutada y verificada en `jrpos-postgres`.
+- **Frontend & Tailwind**:
+  - `frontend/tailwind.config.js`: Mapeada la paleta `emerald` completa (50 a 950) a `hsl(var(--accent-{shade}) / <alpha-value>)`.
+  - `frontend/src/index.css`: Declaradas variables CSS `--accent-50` hasta `--accent-950` por defecto en `:root`.
+  - `frontend/src/pages/Settings.jsx`:
+    - Tablas completas de HSL para 8 paletas (`emerald`, `ocean`, `violet`, `terracotta`, `berry`, `amber`, `rose`, `slate`).
+    - Actualizado `applyAccent()` para inyectar dinámicamente `--accent-50` a `--accent-950` y emitir `jrpos_accent_changed`.
+    - Componente de subida de logotipo con canvas resize (máx. 400px), previsualización en tiempo real y botón para remover.
+    - Card interactiva de paleta de colores con demostración en vivo.
+  - `frontend/src/components/Layout.jsx`: Logotipo de la tienda integrado en Sidebar (desktop y móvil) con fallback al logo blanco predeterminado.
+  - `frontend/src/pages/POS.jsx`: Logotipo de la tienda renderizado en los tickets y comprobantes impresos de venta.
+  - `frontend/src/index.js` y `frontend/src/App.js`: Activación inmediata de acento al iniciar la app y flags `v7_startTransition`, `v7_relativeSplatPath` en `BrowserRouter`.
+  - Build compilado (`npm run build`) y desplegado en contenedor web Caddy (`jrpos-web:/srv/`).

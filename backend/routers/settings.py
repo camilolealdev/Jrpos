@@ -146,6 +146,7 @@ async def save_schedule(
 # ----------------- General settings (personalización & IA) -----------------
 class GeneralSettingsIn(BaseModel):
     store_name: str = "JRPOS"
+    logo_url: Optional[str] = None
     store_slogan: Optional[str] = None
     store_nit: Optional[str] = None
     store_address: Optional[str] = None
@@ -228,6 +229,15 @@ async def get_general_settings(
                         base[key] = val
         except Exception:
             pass
+
+    # Disponibilidad de claves de plataforma (pool del operador, sin garantía):
+    # solo booleanos por proveedor — nunca se exponen los valores de las claves.
+    base["platform_ai_keys"] = {
+        "gemini": bool(os.environ.get("GEMINI_API_KEY", "").strip()),
+        "openrouter": bool(os.environ.get("OPENROUTER_API_KEY", "").strip()),
+        "groq": bool(os.environ.get("GROQ_API_KEY", "").strip()),
+        "nvidia": bool(os.environ.get("NVIDIA_API_KEY", "").strip()),
+    }
 
     # Guardar en Redis con TTL de 120s
     await set_json(cache_key, base, ttl=120)

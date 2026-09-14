@@ -1,174 +1,186 @@
 {
-  "project": "Jrpos",
-  "version": "1.0.0",
-  "architecture": "Full-Stack SaaS (FastAPI + React + Tailwind CSS)",
+  "project_name": "Jrpos",
+  "project_phase": "Seguridad / Hardening OWASP / Auditoría de Código",
+  "objectives": [
+    "Simplicidad y Minimal Diffs (Evitar sobre-ingeniería)",
+    "Testing Automatizado Riguroso (TDD / Harness Verification)"
+  ],
   "active_skills": [
     {
       "name": "caveman",
       "category": "CORE",
       "reason": "Output Compression (-75% token reduction)",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\caveman\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "ponytail",
       "category": "CORE",
       "reason": "YAGNI & Simplicity Architecture",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\ponytail\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "spec-kit",
       "category": "CORE",
       "reason": "Spec-Driven Development & Task Breakdown",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\spec-kit\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "token-savings",
       "category": "CORE",
       "reason": "Context Budget & Skill Filtering",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\token-savings\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "harness",
       "category": "CORE",
       "reason": "Automated Verification & Test Harness",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\harness\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "claude-mem",
       "category": "CORE",
       "reason": "Persistent Session Memory",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\claude-mem\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "rtk",
       "category": "CORE",
       "reason": "Terminal Log Compression (Rust Token Killer)",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\rtk\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "graphify",
       "category": "CORE",
       "reason": "Codebase Knowledge Graph Indexing",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\graphify\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "archify",
       "category": "CORE",
       "reason": "Interactive System Diagrams (Trigger: 3 Commits)",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\archify\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "skill-seekers",
       "category": "CORE",
       "reason": "Ingesta & Búsqueda Activa de Skills",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\skill-seekers\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "skill-vault",
       "category": "CORE",
       "reason": "Bóveda Persistente de Skills",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\skill-vault\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "all-deploy",
       "category": "CORE",
       "reason": "Despliegues Universales Multicloud",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\all-deploy\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "context-mode",
       "category": "CORE",
-      "reason": "Gestión & Compresión de Contexto",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\context-mode\\SKILL.md"
+      "reason": "Gestión & Compresión de Ventana de Contexto",
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "aprende-skill",
       "category": "CORE",
-      "reason": "Aprendizaje Acelerado Agéntico",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\aprende-skill\\SKILL.md"
+      "reason": "Aprendizaje Acelerado Agentico",
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "agentshield",
       "category": "CORE",
       "reason": "Escudo de Seguridad & Prompt Sanitization",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\agentshield\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "modo-tdah",
       "category": "CORE",
       "reason": "Ejecución Ultra-Focalizada sin Explicaciones Infladas",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\modo-tdah\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "agentic-awesome-skills",
       "category": "CORE",
-      "reason": "Patrones Agénticos Autónomos",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\agentic-awesome-skills\\SKILL.md"
+      "reason": "Catálogo de Patrones Agenticos Autónomos",
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "gsd-core",
       "category": "CORE",
       "reason": "Get Shit Done (GSD) Execution Framework",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\gsd-core\\SKILL.md"
+      "is_core": true,
+      "mandatory_view": true
     },
     {
       "name": "i-have-adhd",
       "category": "CORE",
-      "reason": "Formateo Action-First",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\i-have-adhd\\SKILL.md"
+      "reason": "Formateo de Salida Amigable ADHD (Acciones Primero)",
+      "is_core": true,
+      "mandatory_view": true
     },
     {
-      "name": "fastapi-expert",
-      "category": "BACKEND",
-      "reason": "FastAPI backend REST endpoints, schemas, auth & routers",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\fastapi-expert\\SKILL.md"
+      "name": "penetration-testing-with-strix",
+      "category": "CORE",
+      "reason": "Pentesting Dinámico Autónomo & PoC Exploits",
+      "is_core": true,
+      "mandatory_view": true
     },
     {
-      "name": "python-patterns",
-      "category": "BACKEND",
-      "reason": "Python idioms, async patterns, and typing",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\python-patterns\\SKILL.md"
+      "name": "docker-patterns",
+      "category": "DEVOPS",
+      "reason": "Detectado automáticamente por stack devops",
+      "is_core": false,
+      "mandatory_view": true
     },
     {
-      "name": "python-testing",
-      "category": "BACKEND",
-      "reason": "Pytest test suites, fixtures and coverage",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\python-testing\\SKILL.md"
-    },
-    {
-      "name": "react-patterns",
-      "category": "FRONTEND",
-      "reason": "React component hierarchy, hooks and state",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\react-patterns\\SKILL.md"
-    },
-    {
-      "name": "react-performance",
-      "category": "FRONTEND",
-      "reason": "React render optimization and UI responsiveness",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\react-performance\\SKILL.md"
-    },
-    {
-      "name": "tailwind-theme-builder",
-      "category": "FRONTEND",
-      "reason": "Tailwind CSS styling, design tokens and responsive UI",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\tailwind-theme-builder\\SKILL.md"
+      "name": "ci-security-scanning-with-strix",
+      "category": "DEVOPS",
+      "reason": "Detectado automáticamente por stack devops",
+      "is_core": false,
+      "mandatory_view": true
     },
     {
       "name": "emil-design-eng",
-      "category": "DESIGN",
-      "reason": "Premium interactive UI craft, micro-animations and polish",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\emil-design-eng\\SKILL.md"
+      "category": "DESIGN_UI",
+      "reason": "Micro-detalles y diseño UI",
+      "is_core": false,
+      "mandatory_view": true
+    },
+    {
+      "name": "animate",
+      "category": "DESIGN_UI",
+      "reason": "Animaciones web fluidas",
+      "is_core": false,
+      "mandatory_view": true
     },
     {
       "name": "taste-skill",
-      "category": "DESIGN",
-      "reason": "Anti-slop clean UI/UX standards",
-      "path": "G:\\Nueva carpeta\\Documentos\\jrpos\\Jrpos\\.agents\\skills\\taste-skill\\SKILL.md"
+      "category": "DESIGN_UI",
+      "reason": "Diseño anti-slop",
+      "is_core": false,
+      "mandatory_view": true
     }
   ],
-  "rules": {
-    "view_file_required": true,
-    "archify_commits_trigger": 3,
-    "token_compression": true
-  }
+  "mandatory_protocol": "EL AGENTE AI DEBE INVOCAR view_file EN CADA SKILL.md ANTES DE ESCRIBIR CÓDIGO."
 }

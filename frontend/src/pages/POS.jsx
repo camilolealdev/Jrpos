@@ -1199,6 +1199,11 @@ export default function POS() {
           {receiptSale && (
             <div className="receipt p-4 rounded text-sm text-center">
               <div className="mb-2">
+                {storeSettings?.logo_url && (
+                  <div className="w-14 h-14 mx-auto mb-2 flex items-center justify-center overflow-hidden">
+                    <img src={storeSettings.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" />
+                  </div>
+                )}
                 <div className="font-bold text-base uppercase tracking-tight">{storeSettings?.store_name || "Mi Tienda"}</div>
                 {storeSettings?.store_slogan && <div className="text-xs text-slate-500 italic">{storeSettings.store_slogan}</div>}
                 {storeSettings?.store_nit && <div className="text-xs font-semibold">NIT: {storeSettings.store_nit}</div>}

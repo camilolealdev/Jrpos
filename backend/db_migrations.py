@@ -199,6 +199,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ))}
 
     -- 3. Settings columns existentes
+    ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS logo_url TEXT;
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS store_slogan VARCHAR(255);
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS store_nit VARCHAR(50);
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS store_address VARCHAR(255);

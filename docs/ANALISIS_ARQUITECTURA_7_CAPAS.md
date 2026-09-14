@@ -88,9 +88,13 @@ if not sale or sale.tenant_id != tenant_id:
 ```
 
 ### Plan de implementación (Capa 2)
-1. **(Crítico, 30 min)** Corregir el IDOR de `electronic.py`.
-2. **(Bajo, 2h)** Grep de auditoría: asegurar que todo `session.get(Model, id)` de entidades
-   con `tenant_id` verifique pertenencia (o centralizar en un helper `get_tenant_scoped(session, Model, id, tenant_id)`).
+1. ~~**(Crítico, 30 min)** Corregir el IDOR de `electronic.py`~~ **RESUELTO** (commit `d6c5347`).
+2. ~~**(Bajo, 2h)** Grep de auditoría: asegurar que todo `session.get(Model, id)` de entidades
+   con `tenant_id` verifique pertenencia~~ **RESUELTO (14 sep 2026)** — sweep limpio en los 9 routers
+   con `session.get()`: held:115, commissions:77, promotions:112/129, purchase_orders:120,
+   users:85/106, warranties:86, cash:306, credit_notes:49, electronic:34 — todos con chequeo.
+   Control-plane (Tenant/PlatformPlan/LoginAttempt/SettingsGeneral/superadmin) no aplica.
+   Sin helper `get_tenant_scoped()`: sweep limpio, se crea solo si vuelve a haber drift.
 3. **(Medio)** Migrar a RS256 con par de claves si se exponen APIs a terceros (hoy no aplica).
 
 ---
@@ -181,15 +185,19 @@ async def get_scoped_session(user: User = Depends(get_current_user)):
 Esto es compatible con transaction-mode pooling (la config muere al terminar la transacción).
 
 ### Plan de implementación (Capa 5) — recomendado en fases
-1. **Fase A (segura, 1d):** migración Alembic que aplique `ENABLE + FORCE ROW LEVEL SECURITY`
-   + políticas `USING/WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true),'')::uuid)`
-   en las ~15 tablas transaccionales (sales, sale_items, products, contacts, held_sales, cash, ...).
-   **Volver `FORCE` opcional por tabla**: con FORCE, el owner también queda filtrado, así que
-   superadmin debe consultar vía `SET LOCAL app.bypass_rls = 'on'` o rol sin FORCE para tablas globales (tenants, subscriptions, plans, audit).
-2. **Fase B (1d):** reemplazar `get_session` por `get_scoped_session` (arriba) en los routers
-   tenant-scoped, manteniendo `get_session` para control-plane (superadmin/billing).
-3. **Fase C (0.5d):** tests — login tenant A no puede leer venta del tenant B ni con SQL directo
-   (el test ya existe a nivel API; añadir uno a nivel DB).
+1. ~~**Fase A (segura, 1d):** migración Alembic que aplique `ENABLE + FORCE ROW LEVEL SECURITY`
+   + políticas~~ **RESUELTO** — `db_migrations.py:183-199`: ENABLE + FORCE + policy
+   `tenant_isolation` (`USING/WITH CHECK tenant_id = current_setting('app.current_tenant_id', true) OR is_superadmin='true'`)
+   sobre 33 tablas. Exentas a propósito: users, tenants, login_attempts, platform_plans
+   (login/registro resuelven filas antes de existir contexto).
+2. ~~**Fase B (1d):** reemplazar `get_session` por `get_scoped_session`~~ **RESUELTO (diseño alternativo)** —
+   `_set_tenant_context()` en `auth.py:183` fija el contexto con `set_config(..., is_local=false)`
+   dentro de `get_current_user` (auth.py:237), `_provision_tenant` (auth.py:330) y ruta superadmin
+   (auth.py:721). `get_session` esteriliza el contexto al final de cada request (db.py:141-152).
+   NullPool hace seguro el scope de conexión (cada request = conexión física propia).
+   Compatible con Supavisor transaction-mode.
+3. ~~**Fase C (0.5d):** tests — aislamiento a nivel DB~~ **RESUELTO** — `test_tenant_isolation.py`
+   en suite (102/102 contra stack Docker con Postgres+RLS reales).
 4. **Diferir:** PgBouncer self-hosted (Supavisor ya lo cubre).
 
 > **Nota de compatibilidad:** RLS solo aplica en Postgres. Los tests corren sobre Postgres
@@ -253,14 +261,14 @@ Esto es compatible con transaction-mode pooling (la config muere al terminar la 
 
 | # | Acción | Capa | Esfuerzo | Bloquea deploy? |
 |---|--------|------|----------|-----------------|
-| 1 | Fix IDOR `electronic.py` (chequeo de tenant en venta) | 2 | 30 min | **Sí — seguridad** |
-| 2 | Helper `get_tenant_scoped()` + sweep de `session.get()` | 2 | 0.5d | Recomendado |
-| 3 | RLS Fase A (migración ENABLE+FORCE + políticas) | 5 | 1d | No (pero es el backstop crítico) |
-| 4 | `get_scoped_session` con `set_config(..., true)` | 5 | 1d | No |
+| 1 | ~~Fix IDOR `electronic.py` (chequeo de tenant en venta)~~ | 2 | 30 min | ✅ **RESUELTO** (`d6c5347`) |
+| 2 | ~~Helper `get_tenant_scoped()` + sweep de `session.get()`~~ | 2 | 0.5d | ✅ **RESUELTO** (sweep limpio 14 sep 2026, sin helper necesario) |
+| 3 | ~~RLS Fase A (migración ENABLE+FORCE + políticas)~~ | 5 | 1d | ✅ **RESUELTO** (33 tablas en `db_migrations.py:183`) |
+| 4 | ~~`get_scoped_session` con `set_config(..., true)`~~ | 5 | 1d | ✅ **RESUELTO** (`_set_tenant_context` auth.py:183 + esterilización db.py:141) |
 | 5 | Logging contextual JSON (request/tenant id) | 7 | 1d | No |
 | 6 | Rate-limit global por plan (`rate_limit_rpm` en PlatformPlan) | 1 | 1-2d | No |
 | 7 | Webhook Wompi idempotente + dunning automático | 4 | 3-4d | No (falta para SaaS real de pagos) |
-| 8 | Tests de aislamiento a nivel DB | 5 | 0.5d | No |
+| 8 | ~~Tests de aislamiento a nivel DB~~ | 5 | 0.5d | ✅ **RESUELTO** (`test_tenant_isolation.py`, 102/102) |
 | 9 | OTel + métricas por tenant | 7 | 2-3d | No (a escala) |
 | 10 | Colas ARQ + worker con contexto tenant | 6 | diferir | No |
 | 11 | Subdominios wildcard por tenant | 1 | diferir | No |

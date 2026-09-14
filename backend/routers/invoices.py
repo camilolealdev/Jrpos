@@ -16,6 +16,7 @@ from db import get_session
 from pricing import compute_unit_pricing
 from permissions import require_permission
 from entitlements import check_feature_enabled
+from redis_client import rate_limit
 from models_sql import (
     Contact,
     Product,
@@ -114,15 +115,29 @@ async def ocr_invoice(
         settings_row = await session.get(SettingsGeneral, 1)
 
     provider = (settings_row.ai_provider if settings_row and settings_row.ai_provider else "gemini").lower()
-    api_key = (settings_row.ai_api_key if settings_row and settings_row.ai_api_key else "").strip()
+    own_key = (settings_row.ai_api_key if settings_row and settings_row.ai_api_key else "").strip()
+    api_key = own_key
+    using_platform_key = False
     if not api_key:
-        api_key = os.environ.get(f"{provider.upper()}_API_KEY", "")
+        # Clave de plataforma (pool compartido del operador): pruebas/uso recurrente SIN garantía,
+        # sujeta a cupo diario por tenant hasta que el cliente use su propia clave o suscripción.
+        api_key = os.environ.get(f"{provider.upper()}_API_KEY", "").strip()
+        using_platform_key = bool(api_key)
 
     if not api_key:
         raise HTTPException(
             status_code=400,
             detail=f"No se ha configurado la API Key para {provider.upper()}. Ve a Configuración > Inteligencia Artificial para ingresarla.",
         )
+
+    if using_platform_key:
+        daily_limit = int(os.environ.get("OCR_PLATFORM_DAILY_LIMIT", "50"))
+        allowed = await rate_limit(f"ocr:platform:{tenant_id}", daily_limit, 86400)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Límite diario de OCR con la clave de plataforma alcanzado ({daily_limit}/día). Configura tu propia API Key en Configuración > IA para uso ilimitado.",
+            )
 
     # Strip data URL prefix if present
     img_b64 = payload.image_base64

@@ -27,6 +27,19 @@ module.exports = {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))'
         },
+        emerald: {
+          50: 'hsl(var(--accent-50, 138 76% 97%) / <alpha-value>)',
+          100: 'hsl(var(--accent-100, 141 78% 93%) / <alpha-value>)',
+          200: 'hsl(var(--accent-200, 141 75% 85%) / <alpha-value>)',
+          300: 'hsl(var(--accent-300, 142 71% 73%) / <alpha-value>)',
+          400: 'hsl(var(--accent-400, 142 69% 58%) / <alpha-value>)',
+          500: 'hsl(var(--accent-500, 142 72% 43%) / <alpha-value>)',
+          600: 'hsl(var(--accent-600, 142 72% 29%) / <alpha-value>)',
+          700: 'hsl(var(--accent-700, 142 72% 24%) / <alpha-value>)',
+          800: 'hsl(var(--accent-800, 143 70% 19%) / <alpha-value>)',
+          900: 'hsl(var(--accent-900, 144 61% 16%) / <alpha-value>)',
+          950: 'hsl(var(--accent-950, 144 65% 9%) / <alpha-value>)',
+        },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
           foreground: 'hsl(var(--secondary-foreground))'

@@ -154,6 +154,7 @@ function SidebarContent({
   onNavigate,
   storeName = "Mi Tienda",
   storeSub = "Punto de Venta",
+  storeLogo = null,
   role = "admin",
   hiddenModuleTids = [],
   isSuperAdminMode,
@@ -214,8 +215,8 @@ function SidebarContent({
       {/* Header Profile / Logo */}
       <div className="px-4 py-4 border-b border-slate-200">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-950 p-1.5 flex items-center justify-center shadow-sm shrink-0 border border-slate-800">
-            <img src={logoWhite} alt="JRPOS" className="w-full h-full object-contain" />
+          <div className="w-10 h-10 rounded-xl bg-slate-950 p-1.5 flex items-center justify-center shadow-sm shrink-0 border border-slate-800 overflow-hidden">
+            <img src={storeLogo || logoWhite} alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div className="min-w-0 flex-1">
             <div
@@ -488,6 +489,7 @@ export default function Layout() {
         <SidebarContent
           storeName={storeName}
           storeSub={storeSub}
+          storeLogo={fullSettings?.logo_url}
           role={user?.role}
           hiddenModuleTids={hiddenModuleTids}
           isSuperAdminMode={isSuperAdminMode}
@@ -508,6 +510,7 @@ export default function Layout() {
               onNavigate={() => setOpen(false)}
               storeName={storeName}
               storeSub={storeSub}
+              storeLogo={fullSettings?.logo_url}
               role={user?.role}
               hiddenModuleTids={hiddenModuleTids}
               isSuperAdminMode={isSuperAdminMode}
@@ -518,9 +521,11 @@ export default function Layout() {
         </div>
       )}
 
+      {/* Main content wrapper */}
       <main className="flex-1 min-w-0 flex flex-col min-h-screen">
-        <header className="sticky top-0 z-40 backdrop-blur-md bg-white/80 border-b border-slate-200/80 shrink-0">
-          <div className="flex items-center gap-3 px-4 lg:px-6 h-14">
+        {/* Top bar */}
+        <header className="h-14 border-b border-slate-200 bg-white/70 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-20">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
@@ -531,8 +536,8 @@ export default function Layout() {
               <Menu className="w-5 h-5" />
             </Button>
             <div className="flex items-center gap-2 lg:hidden">
-              <div className="w-8 h-8 rounded-lg bg-slate-950 p-1 flex items-center justify-center shadow-sm border border-slate-800">
-                <img src={logoWhite} alt="JRPOS" className="w-full h-full object-contain" />
+              <div className="w-8 h-8 rounded-lg bg-slate-950 p-1 flex items-center justify-center shadow-sm border border-slate-800 overflow-hidden">
+                <img src={fullSettings?.logo_url || logoWhite} alt="Logo" className="w-full h-full object-contain" />
               </div>
               <span className="font-bold text-slate-900" data-testid="mobile-store-name">
                 {storeName}
@@ -544,6 +549,7 @@ export default function Layout() {
               </div>
               <div className="text-sm font-semibold capitalize">{pageTitle.replace(/-/g, " ")}</div>
             </div>
+          </div>
 
             {/* Trial countdown badge */}
             {user?.tenant?.days_left !== undefined && !isSuperAdminMode && (
@@ -601,7 +607,6 @@ export default function Layout() {
                 <LogOut className="w-4 h-4" />
               </Button>
             </div>
-          </div>
         </header>
         <div className="flex-1 min-h-0">
           <Outlet />

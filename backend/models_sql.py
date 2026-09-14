@@ -452,6 +452,7 @@ class SettingsGeneral(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     store_name: Mapped[str | None] = mapped_column(String(255), nullable=True, default="JRPOS")
+    logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     store_slogan: Mapped[str | None] = mapped_column(String(255), nullable=True)
     store_nit: Mapped[str | None] = mapped_column(String(50), nullable=True)
     store_address: Mapped[str | None] = mapped_column(String(255), nullable=True)

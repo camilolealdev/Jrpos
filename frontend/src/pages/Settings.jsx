@@ -19,21 +19,158 @@ import { toast } from "sonner";
 import {
   Settings2, Save, Palette, Bot, Store, Printer, Sliders, Eye, EyeOff,
   Sparkles, CheckCircle2, AlertCircle, RefreshCw, HelpCircle, ShieldCheck,
-  Database, Trash2, AlertTriangle, ShieldAlert, ShoppingBag, Users, FileText, CheckCircle
+  Database, Trash2, AlertTriangle, ShieldAlert, ShoppingBag, Users, FileText, CheckCircle,
+  Upload, Image as ImageIcon, Check
 } from "lucide-react";
 import logoWhite from "@/assets/logo2.webp";
 import logoDark from "@/assets/logo.webp";
 import { BUSINESS_TYPES, HIDEABLE_MODULES } from "@/lib/businessTypes";
 
 export const ACCENTS = {
-  emerald: { label: "Esmeralda", hsl: "142 72% 29%", hex: "#15803D" },
-  ocean: { label: "Océano", hsl: "210 90% 40%", hex: "#0B63CE" },
-  violet: { label: "Violeta", hsl: "262 80% 50%", hex: "#7C3AED" },
-  terracotta: { label: "Terracota", hsl: "24 90% 40%", hex: "#C2410C" },
-  berry: { label: "Baya", hsl: "340 75% 45%", hex: "#C0264F" },
-  amber: { label: "Ámbar", hsl: "38 92% 50%", hex: "#D97706" },
-  rose: { label: "Rosa", hsl: "347 77% 60%", hex: "#E11D48" },
-  slate: { label: "Pizarra", hsl: "222 30% 30%", hex: "#33415C" },
+  emerald: {
+    label: "Esmeralda",
+    hsl: "142 72% 29%",
+    hex: "#15803D",
+    shades: {
+      50: "138 76% 97%",
+      100: "141 78% 93%",
+      200: "141 75% 85%",
+      300: "142 71% 73%",
+      400: "142 69% 58%",
+      500: "142 72% 43%",
+      600: "142 72% 29%",
+      700: "142 72% 24%",
+      800: "143 70% 19%",
+      900: "144 61% 16%",
+      950: "144 65% 9%",
+    },
+  },
+  ocean: {
+    label: "Océano",
+    hsl: "221 83% 53%",
+    hex: "#2563EB",
+    shades: {
+      50: "214 100% 97%",
+      100: "214 95% 93%",
+      200: "213 97% 87%",
+      300: "212 96% 78%",
+      400: "213 94% 68%",
+      500: "217 91% 60%",
+      600: "221 83% 53%",
+      700: "224 76% 48%",
+      800: "226 71% 40%",
+      900: "224 64% 33%",
+      950: "226 55% 18%",
+    },
+  },
+  violet: {
+    label: "Violeta",
+    hsl: "262 80% 50%",
+    hex: "#7C3AED",
+    shades: {
+      50: "270 100% 98%",
+      100: "269 100% 95%",
+      200: "269 100% 92%",
+      300: "269 97% 85%",
+      400: "269 89% 74%",
+      500: "263 70% 58%",
+      600: "262 80% 50%",
+      700: "263 70% 44%",
+      800: "263 69% 36%",
+      900: "264 67% 30%",
+      950: "267 83% 16%",
+    },
+  },
+  terracotta: {
+    label: "Terracota",
+    hsl: "21 90% 48%",
+    hex: "#EA580C",
+    shades: {
+      50: "33 100% 96%",
+      100: "34 100% 92%",
+      200: "32 98% 83%",
+      300: "31 97% 72%",
+      400: "27 96% 61%",
+      500: "25 95% 53%",
+      600: "21 90% 48%",
+      700: "17 88% 40%",
+      800: "15 79% 34%",
+      900: "15 75% 28%",
+      950: "13 81% 14%",
+    },
+  },
+  berry: {
+    label: "Baya",
+    hsl: "293 69% 49%",
+    hex: "#C026D3",
+    shades: {
+      50: "289 100% 98%",
+      100: "287 100% 95%",
+      200: "288 96% 91%",
+      300: "291 93% 83%",
+      400: "292 84% 71%",
+      500: "292 84% 61%",
+      600: "293 69% 49%",
+      700: "295 72% 40%",
+      800: "296 70% 33%",
+      900: "297 64% 28%",
+      950: "301 77% 15%",
+    },
+  },
+  amber: {
+    label: "Ámbar",
+    hsl: "32 95% 44%",
+    hex: "#D97706",
+    shades: {
+      50: "48 100% 96%",
+      100: "48 96% 89%",
+      200: "48 97% 77%",
+      300: "46 96% 65%",
+      400: "43 96% 56%",
+      500: "38 92% 50%",
+      600: "32 95% 44%",
+      700: "26 90% 37%",
+      800: "23 83% 31%",
+      900: "22 78% 26%",
+      950: "21 92% 14%",
+    },
+  },
+  rose: {
+    label: "Rosa",
+    hsl: "347 77% 50%",
+    hex: "#E11D48",
+    shades: {
+      50: "356 100% 97%",
+      100: "355 100% 94%",
+      200: "353 96% 90%",
+      300: "353 96% 82%",
+      400: "351 95% 71%",
+      500: "350 89% 60%",
+      600: "347 77% 50%",
+      700: "345 83% 41%",
+      800: "343 80% 34%",
+      900: "341 75% 30%",
+      950: "343 88% 14%",
+    },
+  },
+  slate: {
+    label: "Pizarra",
+    hsl: "215 19% 35%",
+    hex: "#475569",
+    shades: {
+      50: "210 40% 98%",
+      100: "210 40% 96%",
+      200: "214 32% 91%",
+      300: "213 27% 84%",
+      400: "215 20% 65%",
+      500: "215 16% 47%",
+      600: "215 19% 35%",
+      700: "215 25% 27%",
+      800: "217 33% 17%",
+      900: "222 47% 11%",
+      950: "222 84% 5%",
+    },
+  },
 };
 
 export const AI_PROVIDERS = [
@@ -104,14 +241,22 @@ export const AI_PROVIDERS = [
 
 export function applyAccent(accent) {
   const a = ACCENTS[accent] || ACCENTS.emerald;
-  document.documentElement.style.setProperty("--primary", a.hsl);
-  document.documentElement.style.setProperty("--ring", a.hsl);
+  const root = document.documentElement;
+  root.style.setProperty("--primary", a.hsl);
+  root.style.setProperty("--ring", a.hsl);
+  if (a.shades) {
+    Object.entries(a.shades).forEach(([shade, val]) => {
+      root.style.setProperty(`--accent-${shade}`, val);
+    });
+  }
   localStorage.setItem("jrpos_accent", accent);
+  window.dispatchEvent(new CustomEvent("jrpos_accent_changed", { detail: accent }));
 }
 
 export default function Settings() {
   const [form, setForm] = useState({
     store_name: "JRPOS",
+    logo_url: "",
     store_slogan: "",
     store_nit: "",
     store_address: "",
@@ -157,6 +302,7 @@ export default function Settings() {
   const [wiping, setWiping] = useState(false);
 
   const dirty = useRef(false);
+  const logoInputRef = useRef(null);
 
   const loadDataStats = async () => {
     setLoadingStats(true);
@@ -229,6 +375,58 @@ export default function Settings() {
   const update = (changes) => {
     dirty.current = true;
     setForm((prev) => ({ ...prev, ...changes }));
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor selecciona un archivo de imagen válido (PNG, JPG, WebP o SVG)");
+      return;
+    }
+
+    if (file.type === "image/svg+xml") {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        update({ logo_url: ev.target.result });
+        toast.success("Logotipo cargado correctamente");
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_SIZE = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > h && w > MAX_SIZE) {
+          h = Math.round((h * MAX_SIZE) / w);
+          w = MAX_SIZE;
+        } else if (h > MAX_SIZE) {
+          w = Math.round((w * MAX_SIZE) / h);
+          h = MAX_SIZE;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/webp", 0.9);
+        update({ logo_url: dataUrl });
+        toast.success("Logotipo cargado y optimizado");
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    update({ logo_url: "" });
+    toast.info("Logotipo eliminado. Se usará el logotipo predeterminado de JRPOS.");
   };
 
   // Un módulo "visible" es uno que NO está en hidden_module_tids.
@@ -413,6 +611,15 @@ export default function Settings() {
                 </p>
               </div>
 
+              {form.platform_ai_keys?.[form.ai_provider] && !form.ai_api_key && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-900">
+                  <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+                  <span>
+                    <b>Estás usando la clave de plataforma de JRPOS</b> — preconfigurada para pruebas y uso recurrente, sin garantía de disponibilidad y sujeta a un cupo diario. Configura tu propia API Key arriba para uso garantizado e ilimitado.
+                  </span>
+                </div>
+              )}
+
               {/* Modelo selector */}
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
@@ -583,8 +790,8 @@ export default function Settings() {
                 <div className="p-3 bg-white dark:bg-slate-950 rounded-lg border shadow-xs">
                   <div className="text-[10px] text-slate-400 font-bold uppercase mb-1.5">En el Menú y Sidebar:</div>
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-slate-950 p-1 flex items-center justify-center shadow-xs shrink-0 border border-slate-800">
-                      <img src={logoWhite} alt="JRPOS" className="w-full h-full object-contain" />
+                    <div className="w-10 h-10 rounded-xl bg-slate-950 p-1 flex items-center justify-center shadow-xs shrink-0 border border-slate-800 overflow-hidden">
+                      <img src={form.logo_url || logoWhite} alt="Logo" className="w-full h-full object-contain" />
                     </div>
                     <div className="min-w-0">
                       <div className="font-bold text-sm text-slate-900 dark:text-white truncate">{form.store_name || "Mi Tienda"}</div>
@@ -596,8 +803,8 @@ export default function Settings() {
                 {/* Preview ticket */}
                 <div className="p-3.5 bg-white dark:bg-slate-950 rounded-lg border font-mono text-xs shadow-xs text-center space-y-1">
                   <div className="text-[10px] text-slate-400 font-sans font-bold uppercase mb-2">En el Ticket de Venta:</div>
-                  <div className="w-10 h-10 mx-auto mb-1">
-                    <img src={logoDark} alt="Logo" className="w-full h-full object-contain mx-auto" />
+                  <div className="w-12 h-12 mx-auto mb-1 flex items-center justify-center overflow-hidden">
+                    <img src={form.logo_url || logoDark} alt="Logo" className="max-h-full max-w-full object-contain mx-auto" />
                   </div>
                   <div className="font-bold text-sm tracking-tight">{form.store_name || "MI TIENDA"}</div>
                   {form.store_slogan && <div className="text-[11px] text-slate-500 italic">{form.store_slogan}</div>}
@@ -652,27 +859,157 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* TAB 4: Temas Visuales */}
-        <TabsContent value="theme" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Palette className="w-5 h-5 text-emerald-700" /> Color de Acento y Marca</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {Object.entries(ACCENTS).map(([key, a]) => (
-                  <button
-                    type="button"
-                    key={key}
-                    onClick={() => {
-                      update({ accent: key });
-                      applyAccent(key);
-                    }}
-                    className={`flex items-center gap-3 p-3 rounded-lg border-2 transition text-left ${form.accent === key ? "border-slate-900 bg-slate-50/80 shadow-xs ring-2 ring-emerald-500/30" : "border-slate-200 hover:border-slate-300"}`}
-                    data-testid={`accent-${key}`}
-                  >
-                    <span className="w-8 h-8 rounded-full shadow-inner shrink-0" style={{ background: a.hex }} />
-                    <span className="text-xs font-bold text-slate-800">{a.label}</span>
-                  </button>
-                ))}
+        {/* TAB 4: Temas Visuales & Personalización de Marca */}
+        <TabsContent value="theme" className="space-y-5">
+          {/* Card: Logotipo del Negocio */}
+          <Card className="border-slate-200 shadow-xs overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-slate-50 via-white to-transparent border-b pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2 text-slate-900">
+                    <ImageIcon className="w-5 h-5 text-emerald-700" /> Logotipo del Establecimiento
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500 mt-0.5">
+                    Personaliza la imagen de tu marca en la barra lateral, recibos POS y comprobantes impresos.
+                  </CardDescription>
+                </div>
+                {form.logo_url && (
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-xs font-semibold">
+                    Logo Personalizado Activo
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              <input
+                type="file"
+                ref={logoInputRef}
+                accept="image/png, image/jpeg, image/webp, image/svg+xml"
+                onChange={handleLogoUpload}
+                className="hidden"
+                data-testid="logo-file-input"
+              />
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                {/* Visualizador del Logo */}
+                <div className="relative group shrink-0">
+                  <div className="w-28 h-28 rounded-2xl bg-slate-950 p-2.5 flex items-center justify-center shadow-md border-2 border-slate-800 overflow-hidden">
+                    <img
+                      src={form.logo_url || logoWhite}
+                      alt="Logotipo"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                  {form.logo_url && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      title="Quitar logotipo personalizado"
+                      className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 shadow-md hover:bg-red-700 transition"
+                      data-testid="remove-logo-btn"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Acciones y Recomendaciones */}
+                <div className="space-y-3 flex-1">
+                  <div className="flex flex-wrap gap-2.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => logoInputRef.current?.click()}
+                      className="border-emerald-600 text-emerald-800 hover:bg-emerald-50 font-bold"
+                      data-testid="upload-logo-btn"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {form.logo_url ? "Cambiar Logotipo..." : "Subir Logotipo del Negocio"}
+                    </Button>
+                    {form.logo_url && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handleRemoveLogo}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 text-xs font-semibold"
+                      >
+                        Restablecer a Logo Original
+                      </Button>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500 space-y-1">
+                    <p>Formatos permitidos: <strong className="text-slate-700">PNG, JPG, WebP o SVG</strong>.</p>
+                    <p>Recomendación: Fondo transparente o fondo oscuro, relación cuadrada o rectangular (máx. 2MB). El sistema lo comprime y adapta automáticamente.</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card: Color de Acento y Marca */}
+          <Card className="border-slate-200 shadow-xs">
+            <CardHeader className="bg-gradient-to-r from-slate-50 via-white to-transparent border-b pb-4">
+              <CardTitle className="text-lg flex items-center gap-2 text-slate-900">
+                <Palette className="w-5 h-5 text-emerald-700" /> Paleta de Color y Tema Visual
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500 mt-0.5">
+                Selecciona el color característico de tu negocio. Se aplicará instantáneamente a botones, menús, etiquetas y resaltados.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                {Object.entries(ACCENTS).map(([key, a]) => {
+                  const isSelected = form.accent === key;
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      onClick={() => {
+                        update({ accent: key });
+                        applyAccent(key);
+                      }}
+                      className={`relative flex items-center gap-3 p-3.5 rounded-xl border-2 transition text-left cursor-pointer ${
+                        isSelected
+                          ? "border-slate-900 bg-slate-50/90 shadow-md ring-2 ring-emerald-500/40 font-bold"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
+                      }`}
+                      data-testid={`accent-${key}`}
+                    >
+                      <span
+                        className="w-7 h-7 rounded-full shadow-inner shrink-0 flex items-center justify-center text-white"
+                        style={{ background: a.hex }}
+                      >
+                        {isSelected && <Check className="w-4 h-4 stroke-[3]" />}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 truncate">{a.label}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{a.hex}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Muestra interactiva de componentes con el acento activo */}
+              <div className="p-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 space-y-3">
+                <div className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  Demostración del Color Activo ({ACCENTS[form.accent]?.label || "Esmeralda"}):
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 px-4 shadow-sm">
+                    Botón Principal
+                  </Button>
+                  <Button variant="outline" className="border-emerald-600 text-emerald-800 hover:bg-emerald-50 font-semibold h-9 px-4">
+                    Botón Secundario
+                  </Button>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Badge Resaltado
+                  </span>
+                  <span className="text-xs font-semibold text-emerald-700 underline underline-offset-4">
+                    Enlace de acción
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>

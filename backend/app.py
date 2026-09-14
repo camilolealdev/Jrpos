@@ -1,6 +1,17 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
+    if _env_path.exists():
+        load_dotenv(_env_path)
+    else:
+        load_dotenv()
+except ImportError:
+    pass
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware

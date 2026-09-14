@@ -24,6 +24,19 @@
     --input: 214 32% 91%;
     --ring: 142 72% 29%;
     --radius: 0.5rem;
+
+    /* Tonos dinámicos del acento de marca */
+    --accent-50: 138 76% 97%;
+    --accent-100: 141 78% 93%;
+    --accent-200: 141 75% 85%;
+    --accent-300: 142 71% 73%;
+    --accent-400: 142 69% 58%;
+    --accent-500: 142 72% 43%;
+    --accent-600: 142 72% 29%;
+    --accent-700: 142 72% 24%;
+    --accent-800: 143 70% 19%;
+    --accent-900: 144 61% 16%;
+    --accent-950: 144 65% 9%;
     --chart-1: 142 72% 29%;
     --chart-2: 24 90% 40%;
     --chart-3: 38 92% 50%;

@@ -8,7 +8,7 @@ from typing import Literal
 
 import bcrypt
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from pydantic import BaseModel, EmailStr
@@ -22,6 +22,7 @@ from business_types import (
     STAFF_ROLE_LABELS_BY_BUSINESS_TYPE,
 )
 from db import get_session
+from mailer import send_welcome_email
 from models_sql import (
     Branch,
     CategoryMeta,
@@ -294,6 +295,20 @@ class RefreshRequest(BaseModel):
     refresh_token: str | None = None
 
 
+def _registration_domain_allowed(email: str) -> bool:
+    """Restringe el registro a dominios de correo aprobados por la plataforma.
+
+    REGISTRATION_ALLOWED_DOMAINS = lista separada por comas (ej: "gmail.com,tienda.co").
+    Vacío/ausente = se permite cualquier dominio (compatibilidad con despliegues actuales).
+    """
+    raw = os.environ.get("REGISTRATION_ALLOWED_DOMAINS", "").strip()
+    if not raw:
+        return True
+    allowed = {d.strip().lower() for d in raw.split(",") if d.strip()}
+    domain = email.rsplit("@", 1)[-1].lower()
+    return domain in allowed
+
+
 auth_router = APIRouter(prefix="/api/auth")
 
 LOCKOUT_THRESHOLD = 5
@@ -328,7 +343,7 @@ async def _provision_tenant(
     # con el tenant_id recién generado para que los INSERT de abajo pasen el
     # WITH CHECK de las políticas RLS (backend/db_migrations.py).
     await _set_tenant_context(session, tenant_id=tenant_id, is_superadmin=False)
-    trial_days = int(os.environ.get("TRIAL_DAYS", "365"))
+    trial_days = int(os.environ.get("TRIAL_DAYS", "30"))
     trial_ends = utcnow() + timedelta(days=trial_days)
     tenant = Tenant(
         id=tenant_id,
@@ -404,8 +419,10 @@ async def _provision_tenant(
 
 
 @auth_router.post("/register-tenant")
-async def register_tenant(payload: TenantRegisterRequest, response: Response, session: AsyncSession = Depends(get_session)):
+async def register_tenant(payload: TenantRegisterRequest, response: Response, background_tasks: BackgroundTasks, session: AsyncSession = Depends(get_session)):
     email = payload.email.strip().lower()
+    if not _registration_domain_allowed(email):
+        raise HTTPException(status_code=403, detail="Este dominio de correo no está habilitado para registro. Usa un correo de un dominio permitido.")
     existing_user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if existing_user:
         raise HTTPException(status_code=400, detail="Ya existe una cuenta registrada con este correo electrónico")
@@ -423,6 +440,7 @@ async def register_tenant(payload: TenantRegisterRequest, response: Response, se
         initial_branch_name=payload.initial_branch_name,
     )
     set_auth_cookies(response, user)
+    background_tasks.add_task(send_welcome_email, email, payload.name or payload.business_name, payload.business_name)
 
     return {
         "ok": True,
@@ -466,9 +484,12 @@ async def _tenant_info_for(session: AsyncSession, user: User) -> dict | None:
     }
 
 
+DEFAULT_GOOGLE_CLIENT_ID = "3345506845-n7p6p5mue4p43vtt89i7ejo0aq3b2fao.apps.googleusercontent.com"
+
+
 @auth_router.post("/google")
-async def google_auth(payload: GoogleAuthRequest, response: Response, session: AsyncSession = Depends(get_session)):
-    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+async def google_auth(payload: GoogleAuthRequest, response: Response, background_tasks: BackgroundTasks, session: AsyncSession = Depends(get_session)):
+    client_id = (os.environ.get("GOOGLE_CLIENT_ID") or DEFAULT_GOOGLE_CLIENT_ID).strip()
     if not client_id:
         raise HTTPException(status_code=500, detail="Login con Google no configurado en el servidor")
 
@@ -512,6 +533,9 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, session: A
             },
         }
 
+    if not _registration_domain_allowed(email):
+        raise HTTPException(status_code=403, detail="Este dominio de correo no está habilitado para registro. Usa un correo de un dominio permitido.")
+
     new_user, tenant = await _provision_tenant(
         session,
         business_name=payload.business_name,
@@ -523,6 +547,7 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, session: A
         google_id=google_sub,
     )
     set_auth_cookies(response, new_user)
+    background_tasks.add_task(send_welcome_email, email, new_user.name or payload.business_name, payload.business_name)
 
     return {
         "ok": True,
@@ -719,7 +744,11 @@ async def seed_admin(session: AsyncSession) -> None:
 
     # 1. Garantizar Usuario SuperAdmin Global de Plataforma SaaS
     superadmin_email = (os.environ.get("SUPERADMIN_EMAIL") or "superadmin@jrpos.co").strip().lower()
-    superadmin_password = os.environ.get("SUPERADMIN_PASSWORD") or "testpass123"
+    superadmin_password = os.environ.get("SUPERADMIN_PASSWORD")
+    if not superadmin_password:
+        if _is_production_env():
+            raise RuntimeError("FATAL: SUPERADMIN_PASSWORD environment variable must be set in production.")
+        superadmin_password = "testpass123"
 
     super_user = (await session.execute(select(User).where(User.email == superadmin_email))).scalar_one_or_none()
     if super_user is None:
@@ -738,7 +767,11 @@ async def seed_admin(session: AsyncSession) -> None:
 
     # 2. Garantizar Tenant por defecto y Usuario Administrador de Tienda
     admin_email = (os.environ.get("ADMIN_EMAIL") or "admin@jrpos.co").strip().lower()
-    admin_password = os.environ.get("ADMIN_PASSWORD") or "testpass123"
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if not admin_password:
+        if _is_production_env():
+            raise RuntimeError("FATAL: ADMIN_PASSWORD environment variable must be set in production.")
+        admin_password = "testpass123"
 
     default_tenant_id = "tenant-default-001"
     tenant = await session.get(Tenant, default_tenant_id)
