@@ -40,6 +40,33 @@ const NATIVE_FORMATS = [
   "itf", "codabar", "qr_code", "pdf417", "aztec", "data_matrix",
 ];
 
+// @zxing/library tiene un bug conocido de bundling: sus propias excepciones
+// esperadas (NotFoundException/FormatException/ChecksumException — "no hay
+// código en este frame todavía") a veces fallan el chequeo `instanceof`
+// interno y la librería las loguea como error inesperado vía
+// `console.error("MultiFormatReader: non-ReaderException from reader:", e)`.
+// A 30fps eso inunda la consola sin ser un error real (el callback de
+// decodeFromConstraints ya descarta `err` intencionalmente). Filtramos solo
+// ese mensaje puntual mientras el motor zxing está corriendo.
+let zxingConsoleSuppressCount = 0;
+const originalConsoleError = console.error.bind(console);
+const suppressZxingNoise = () => {
+  zxingConsoleSuppressCount += 1;
+  if (zxingConsoleSuppressCount > 1) return;
+  console.error = (...args) => {
+    if (typeof args[0] === "string" && args[0].startsWith("MultiFormatReader: non-ReaderException")) {
+      return;
+    }
+    originalConsoleError(...args);
+  };
+};
+const restoreZxingNoise = () => {
+  zxingConsoleSuppressCount = Math.max(0, zxingConsoleSuppressCount - 1);
+  if (zxingConsoleSuppressCount === 0) {
+    console.error = originalConsoleError;
+  }
+};
+
 export default function CameraScanner({ open, onOpenChange, onScan, continuous = false }) {
   const [error, setError] = useState("");
   const [cameras, setCameras] = useState([]);
@@ -112,6 +139,7 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     if (controls) {
       try { controls.stop(); } catch { /* noop */ }
       zxingControlsRef.current = null;
+      restoreZxingNoise();
     }
     running.current = false;
     engineRef.current = "";
@@ -184,6 +212,22 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     video.srcObject = stream;
     holder.replaceChildren(video);
     await video.play().catch(() => {});
+
+    // Verificación de humo: en Chrome de escritorio (sobre todo Windows)
+    // `BarcodeDetector` puede existir en `window` sin que el backend de
+    // detección (un componente descargable de Chrome) esté instalado —
+    // `detect()` entonces lanza en CADA frame, y como el loop de abajo
+    // descarta esas excepciones en silencio, el escáner queda "vivo" pero
+    // nunca detecta nada, sin ningún error visible. Esperamos a que el video
+    // tenga un frame real y probamos detect() una vez antes de comprometernos
+    // a este motor; si falla, dejamos que el caller haga fallback a zxing.
+    for (let i = 0; i < 20 && video.readyState < 2; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    if (video.readyState >= 2) {
+      await detector.detect(video);
+    }
+
     running.current = true;
     engineRef.current = "native";
     detectTorch();
@@ -223,6 +267,10 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
       BarcodeFormat.CODABAR, BarcodeFormat.QR_CODE, BarcodeFormat.PDF_417, BarcodeFormat.AZTEC,
       BarcodeFormat.DATA_MATRIX,
     ]);
+    // TRY_HARDER activa reintentos adicionales por frame (rotación, mayor
+    // esfuerzo en localizar el patrón) — sin esto zxing renuncia demasiado
+    // rápido en códigos borrosos o a la distancia típica de un celular.
+    hints.set(DecodeHintType.TRY_HARDER, true);
     const reader = new BrowserMultiFormatReader(hints);
     const holder = document.getElementById(readerId);
     const video = document.createElement("video");
@@ -232,17 +280,24 @@ export default function CameraScanner({ open, onOpenChange, onScan, continuous =
     video.muted = true;
     holder.replaceChildren(video);
 
-    const controls = await reader.decodeFromConstraints(
-      { video: videoConstraints, audio: false },
-      video,
-      (result, err) => {
-        if (result) {
-          handleDetectedText(result.getText());
+    suppressZxingNoise();
+    let controls;
+    try {
+      controls = await reader.decodeFromConstraints(
+        { video: videoConstraints, audio: false },
+        video,
+        (result, err) => {
+          if (result) {
+            handleDetectedText(result.getText());
+          }
+          // err se descarta intencionalmente en cada frame: ZXing arroja NotFoundException
+          // continuamente mientras busca un código en el video. No es un error real.
         }
-        // err se descarta intencionalmente en cada frame: ZXing arroja NotFoundException
-        // continuamente mientras busca un código en el video. No es un error real.
-      }
-    );
+      );
+    } catch (err) {
+      restoreZxingNoise();
+      throw err;
+    }
     zxingControlsRef.current = controls;
     running.current = true;
     engineRef.current = "zxing";
