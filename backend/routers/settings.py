@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user, require_admin
 from db import get_session
+from permissions import require_permission
 from models_sql import (
     CashPickup,
     CashSession,
@@ -144,6 +145,23 @@ async def save_schedule(
 
 
 # ----------------- General settings (personalización & IA) -----------------
+def _default_custom_payment_methods() -> list:
+    """
+    Los 6 métodos de pago que hasta ahora estaban hardcodeados en POS.jsx.
+    Estos ids son estables y NO deben renombrarse: son los mismos strings ya
+    grabados como payment_method en ventas históricas (Sale.payment_method).
+    Un tenant que no ha personalizado nada recibe exactamente esta lista.
+    """
+    return [
+        {"id": "efectivo", "label": "Efectivo", "active": True, "sort_order": 0},
+        {"id": "nequi", "label": "Nequi", "active": True, "sort_order": 1},
+        {"id": "daviplata", "label": "Daviplata", "active": True, "sort_order": 2},
+        {"id": "tarjeta", "label": "Tarjeta", "active": True, "sort_order": 3},
+        {"id": "transferencia", "label": "Transferencia", "active": True, "sort_order": 4},
+        {"id": "credito", "label": "Crédito", "active": True, "sort_order": 5},
+    ]
+
+
 class GeneralSettingsIn(BaseModel):
     store_name: str = "JRPOS"
     logo_url: Optional[str] = None
@@ -179,6 +197,10 @@ class GeneralSettingsIn(BaseModel):
     # Tipo de negocio (gating de módulos de la sidebar)
     business_type: Optional[str] = "abarrotes"
     hidden_module_tids: list = Field(default_factory=list)
+
+    # Métodos de pago personalizables del POS (id/label/active/sort_order).
+    # Lista vacía o no enviada -> los 6 predeterminados de siempre.
+    custom_payment_methods: list = Field(default_factory=_default_custom_payment_methods)
 
 
 from db_migrations import run_auto_migrations
@@ -256,12 +278,21 @@ async def get_general_settings(
 async def save_general_settings(
     payload: GeneralSettingsIn,
     session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_admin),
+    admin: User = Depends(require_permission("settings:manage")),
 ):
     tenant_id = admin.tenant_id or "tenant-default-001"
     if payload.printer_width not in (58, 80):
         raise HTTPException(status_code=400, detail="Ancho de impresora debe ser 58 u 80")
-    
+
+    seen_ids = set()
+    for m in payload.custom_payment_methods:
+        mid = str((m or {}).get("id") or "").strip()
+        if not mid:
+            raise HTTPException(status_code=400, detail="Cada método de pago debe tener un id")
+        if mid in seen_ids:
+            raise HTTPException(status_code=400, detail=f"Id de método de pago duplicado: {mid}")
+        seen_ids.add(mid)
+
     data = payload.model_dump()
     data["iva_default"] = int(data["iva_default"])
     data["tenant_id"] = tenant_id

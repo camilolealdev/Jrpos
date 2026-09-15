@@ -218,6 +218,12 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS pos_ask_clear_cart BOOLEAN DEFAULT TRUE;
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS pos_require_credit_customer BOOLEAN DEFAULT TRUE;
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS business_type VARCHAR(50) DEFAULT 'abarrotes';
+    ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS custom_payment_methods JSON;
+    -- Métodos de pago personalizables: el id-slug de uno nuevo puede superar
+    -- los 20 caracteres originales (ej. "bancolombia_a_la_mano"); widening
+    -- idempotente, igual que el de settings_certificate más abajo.
+    ALTER TABLE sales ALTER COLUMN payment_method TYPE VARCHAR(40);
+    ALTER TABLE payments ALTER COLUMN method TYPE VARCHAR(40);
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS credit_limit FLOAT DEFAULT 0.0;
     ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS denominations TEXT;
     ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS close_notes TEXT;
