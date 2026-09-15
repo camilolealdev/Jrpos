@@ -17,6 +17,7 @@ import {
   Receipt,
   ClipboardList,
   Percent,
+  Tags,
   ShoppingBag,
   RotateCcw,
   BadgeDollarSign,
@@ -98,6 +99,7 @@ const STORE_GROUPS = [
       { to: "/carga-masiva", label: "Carga Masiva", icon: Boxes, tid: "nav-carga-masiva", adminOnly: true },
       { to: "/actualizacion-masiva", label: "Actualización Masiva", icon: RefreshCw, tid: "nav-act-masiva", adminOnly: true },
       { to: "/promociones", label: "Promociones/Ofertas", icon: Percent, tid: "nav-promociones", adminOnly: true },
+      { to: "/listas-precios", label: "Listas de Precios", icon: Tags, tid: "nav-listas-precios", adminOnly: true },
     ],
   },
   {

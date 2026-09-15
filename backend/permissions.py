@@ -28,6 +28,8 @@ PERMISSIONS_CATALOG = {
     "expenses:delete": "Eliminar registros de gastos",
     "promotions:read": "Consultar promociones y descuentos",
     "promotions:manage": "Crear, editar o eliminar promociones",
+    "price_lists:read": "Consultar listas de precios (mayorista/happy hour)",
+    "price_lists:manage": "Crear, editar o eliminar listas de precios",
 
     # Clientes, Proveedores y Documentos
     "customers:read": "Ver directorio de clientes",
@@ -74,6 +76,8 @@ ROLE_PERMISSIONS: Dict[str, Set[str]] = {
         "cash:read",
         "promotions:read",
         "promotions:manage",
+        "price_lists:read",
+        "price_lists:manage",
         "expenses:read",
         "expenses:create",
         "customers:read",

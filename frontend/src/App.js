@@ -44,6 +44,7 @@ const Support = lazyWithRetry(() => import("@/pages/Support"));
 const Timeclock = lazyWithRetry(() => import("@/pages/Timeclock"));
 const CashPickup = lazyWithRetry(() => import("@/pages/CashPickup"));
 const Promotions = lazyWithRetry(() => import("@/pages/Promotions"));
+const PriceLists = lazyWithRetry(() => import("@/pages/PriceLists"));
 const SalesDocs = lazyWithRetry(() => import("@/pages/SalesDocs"));
 const Purchases = lazyWithRetry(() => import("@/pages/Purchases"));
 const Dian = lazyWithRetry(() => import("@/pages/Dian"));
@@ -125,6 +126,7 @@ function ProtectedApp() {
           <Route path="marcacion" element={<Timeclock />} />
           <Route path="recogidas" element={<CashPickup />} />
           <Route path="promociones" element={<AdminRoute><Promotions /></AdminRoute>} />
+          <Route path="listas-precios" element={<AdminRoute><PriceLists /></AdminRoute>} />
           <Route path="ordenes-venta" element={<SalesDocs key="cot" defaultTab="cotizaciones" />} />
           <Route path="remisiones" element={<AdminRoute><SalesDocs key="rem" defaultTab="remisiones" /></AdminRoute>} />
           <Route path="cuentas-cobro" element={<AdminRoute><SalesDocs key="cc" defaultTab="cuentas" /></AdminRoute>} />

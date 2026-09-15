@@ -276,6 +276,9 @@ class Contact(Base):
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     credit_limit: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Lista de precios por defecto del cliente (mayorista). Nullable: la mayoría
+    # de clientes de contado no tienen una lista asignada y pagan Product.price.
+    price_list_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -598,6 +601,42 @@ class Promotion(Base):
     start: Mapped[str | None] = mapped_column(String(20), nullable=True)
     end: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PriceList(Base):
+    """Lista de precios con nombre: precio mayorista (asignada como default de un
+    Contact vía Contact.price_list_id) o ventana promocional tipo "happy hour"
+    (activa/inactiva + start/end de fecha, igual que Promotion — sin hora del día
+    a propósito, ver nota en price_lists router). Los precios concretos por
+    producto viven en PriceListItem."""
+    __tablename__ = "price_lists"
+    __table_args__ = (
+        Index("ix_price_lists_tenant_active", "tenant_id", "active"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    start: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    end: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PriceListItem(Base):
+    """Precio de un producto dentro de una PriceList. Sin tenant_id propio a
+    propósito: el tenant se resuelve siempre a través de price_list_id ->
+    PriceList.tenant_id (los routers verifican esa pertenencia antes de tocar
+    filas de esta tabla)."""
+    __tablename__ = "price_list_items"
+    __table_args__ = (
+        Index("ix_price_list_items_list_product", "price_list_id", "product_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    price_list_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    product_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
 
 
 class Document(Base):

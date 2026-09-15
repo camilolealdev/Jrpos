@@ -37,6 +37,7 @@ from routers.expenses import expenses_router
 from routers.reports import reports_router
 from routers.settings import settings_router
 from routers.promotions import promotions_router
+from routers.price_lists import price_lists_router
 from routers.timeclock import timeclock_router
 from routers.credit_notes import credit_notes_router
 from routers.warranties import warranties_router
@@ -77,6 +78,7 @@ app.include_router(expenses_router)
 app.include_router(reports_router)
 app.include_router(settings_router)
 app.include_router(promotions_router)
+app.include_router(price_lists_router)
 app.include_router(timeclock_router)
 app.include_router(credit_notes_router)
 app.include_router(warranties_router)

@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Edit2, Trash2, Users } from "lucide-react";
 
-const empty = { kind: "customer", name: "", document: "", document_type: "CC", email: "", phone: "", address: "", city: "", credit_limit: "" };
+const empty = { kind: "customer", name: "", document: "", document_type: "CC", email: "", phone: "", address: "", city: "", credit_limit: "", price_list_id: "" };
 
 export default function Contacts({ kind = "customer", title = "Clientes" }) {
   const [items, setItems] = useState([]);
+  const [priceLists, setPriceLists] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...empty, kind });
   const [editingId, setEditingId] = useState(null);
@@ -28,6 +30,15 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
     load();
   }, [load]);
 
+  // Listas de precios solo aplican a clientes (mayorista/happy hour); si el
+  // usuario no tiene permiso "price_lists:read" el endpoint devuelve 403 y
+  // simplemente no se muestra el selector (no es un dato crítico para la
+  // pantalla de contactos).
+  useEffect(() => {
+    if (kind !== "customer") return;
+    api.get("/price-lists").then((r) => setPriceLists(Array.isArray(r.data) ? r.data : [])).catch(() => setPriceLists([]));
+  }, [kind]);
+
   const safeItems = Array.isArray(items) ? items : [];
 
   const save = async () => {
@@ -37,6 +48,7 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
         ...form,
         kind,
         credit_limit: form.credit_limit !== "" && form.credit_limit != null ? Number(form.credit_limit) : undefined,
+        price_list_id: form.price_list_id || null,
       };
       if (editingId) await api.put(`/contacts/${editingId}`, payload);
       else await api.post("/contacts", payload);
@@ -45,7 +57,7 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
     } catch { toast.error("Error"); }
   };
 
-  const edit = (c) => { setForm({ ...c, credit_limit: c.credit_limit ?? "" }); setEditingId(c.id); setOpen(true); };
+  const edit = (c) => { setForm({ ...c, credit_limit: c.credit_limit ?? "", price_list_id: c.price_list_id || "" }); setEditingId(c.id); setOpen(true); };
   const remove = async (id) => {
     if (!window.confirm("¿Eliminar?")) return;
     await api.delete(`/contacts/${id}`);
@@ -126,6 +138,26 @@ export default function Contacts({ kind = "customer", title = "Clientes" }) {
                   className="font-mono"
                   data-testid="c-credit-limit"
                 />
+              </div>
+            )}
+            {kind === "customer" && (
+              <div className="col-span-2">
+                <label className="text-xs font-semibold">Lista de precios por defecto (mayorista)</label>
+                <Select
+                  value={form.price_list_id || "none"}
+                  onValueChange={(v) => setForm({ ...form, price_list_id: v === "none" ? "" : v })}
+                >
+                  <SelectTrigger data-testid="c-price-list"><SelectValue placeholder="Precio normal (sin lista)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Precio normal (sin lista)</SelectItem>
+                    {priceLists.map((pl) => (
+                      <SelectItem key={pl.id} value={pl.id}>{pl.name}{!pl.active ? " (inactiva)" : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-400 mt-1">
+                  Al vender en el POS a este cliente, se usará el precio de esta lista para los productos que tenga configurados.
+                </p>
               </div>
             )}
             <div className="col-span-2"><label className="text-xs font-semibold">Dirección</label>

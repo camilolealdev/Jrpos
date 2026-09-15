@@ -203,6 +203,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
         "timeclock", "cash_sessions", "cash_pickups", "promotions", "documents", "document_items",
         "credit_notes", "warranties", "purchase_orders", "purchase_order_items",
         "support_docs", "support_doc_items", "payroll", "commission_rules", "stock_movements",
+        "price_lists",
     ))}
 
     -- 3. Settings columns existentes
@@ -232,6 +233,11 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE sales ALTER COLUMN payment_method TYPE VARCHAR(40);
     ALTER TABLE payments ALTER COLUMN method TYPE VARCHAR(40);
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS credit_limit FLOAT DEFAULT 0.0;
+    -- Lista de precios (mayorista) por defecto del cliente; contacts ya existe en
+    -- producción, así que create_all() jamás la agrega sola (ver nota al inicio
+    -- de este archivo) -- PriceList/PriceListItem sí son tablas nuevas y create_all()
+    -- las crea sin ayuda.
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS price_list_id VARCHAR(36);
     ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS denominations TEXT;
     ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS close_notes TEXT;
 
