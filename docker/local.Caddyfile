@@ -1,0 +1,27 @@
+{
+	local_certs
+}
+
+https://localhost {
+	tls internal
+	encode gzip
+	log {
+		output stdout
+		format console
+	}
+
+	header {
+		Cross-Origin-Opener-Policy same-origin-allow-popups
+	}
+
+	@api path /api /api/*
+	handle @api {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

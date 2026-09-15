@@ -78,6 +78,15 @@ services:
       dockerfile: docker/web.Dockerfile
     container_name: jrpos-web
     restart: unless-stopped
+    # Dev local: TLS self-signed (tls internal) porque aquí no hay Traefik delante.
+    # El Caddyfile de la imagen va tras Traefik en producción (auto_https off, :80).
+    # Se monta el DIRECTORIO (no el archivo) porque Docker Desktop en Windows
+    # invalida los bind-mounts de archivos individuales al reescribirlos.
+    volumes:
+      - ./docker:/etc/caddy-local:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    command: caddy run --config /etc/caddy-local/local.Caddyfile
     environment:
       DOMAIN: ${DOMAIN:-localhost}
     depends_on:
@@ -85,9 +94,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    volumes:
-      - caddy_data:/data
-      - caddy_config:/config
     logging:
       driver: json-file
       options:
