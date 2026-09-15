@@ -36,8 +36,12 @@ Plantilla completa: ver `.env.example` en la raíz del repo.
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | recomendado | Seed del admin del tenant al primer arranque |
 | `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` | recomendado | Seed del superadmin |
 | `FRONTEND_URL` | recomendado | CORS / redirects |
-| `TRIAL_DAYS` | opcional | Default del SaaS (14) |
+| `TRIAL_DAYS` | opcional | Default del SaaS (30) |
 | `REDIS_URL` | VPS | El compose la inyecta (`redis://redis:6379/0`) |
+| `REGISTRATION_ALLOWED_DOMAINS` | opcional | Domains de correo permitidos para registro, separados por coma. Vacío = cualquier dominio |
+| `SMTP_HOST/PORT/USER/PASSWORD/FROM` | opcional | Correos del sistema (bienvenida al registrar). Recomendado: Brevo 300/día gratis |
+| `GEMINI_API_KEY` / `OPENROUTER_API_KEY` / `GROQ_API_KEY` / `NVIDIA_API_KEY` | opcional | Claves de plataforma (pool del operador) para OCR sin config del cliente |
+| `OCR_PLATFORM_DAILY_LIMIT` | opcional | Cupo diario de OCR por tenant con clave de plataforma (default 50) |
 
 ### Formato correcto de `DATABASE_URL` según plataforma
 

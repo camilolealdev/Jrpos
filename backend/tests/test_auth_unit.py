@@ -14,6 +14,7 @@ from auth import (
     _is_production_env,
     _to_utc,
     _cookie_flags,
+    _registration_domain_allowed,
     get_jwt_secret,
     verify_password,
     create_access_token,
@@ -21,6 +22,20 @@ from auth import (
     _provision_tenant,
 )
 from models_sql import SettingsGeneral, Tenant, User
+
+
+def test_registration_domain_allowlist():
+    with patch.dict(os.environ, {"REGISTRATION_ALLOWED_DOMAINS": "gmail.com,tienda.co"}):
+        assert _registration_domain_allowed("owner@gmail.com") is True
+        assert _registration_domain_allowed("x@GMAIL.COM") is True
+        assert _registration_domain_allowed("x@sub.tienda.co") is False  # no coincide exacto
+        assert _registration_domain_allowed("x@yahoo.com") is False
+
+    with patch.dict(os.environ, {"REGISTRATION_ALLOWED_DOMAINS": ""}):
+        assert _registration_domain_allowed("x@cualquier-dominio.dev") is True
+
+    with patch.dict(os.environ, {}, clear=True):
+        assert _registration_domain_allowed("x@cualquier-dominio.dev") is True
 
 
 def test_is_production_env():

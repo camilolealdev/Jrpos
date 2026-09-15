@@ -10,6 +10,7 @@ import WelcomeHero from "@/components/WelcomeHero";
 import logoWhite from "@/assets/logo2.webp";
 import heroShowcase from "@/assets/hero-showcase.jpg";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
+import InstallAppButton from "@/components/InstallAppButton";
 import GoogleOnboardingModal from "@/components/GoogleOnboardingModal";
 import { useGoogleAuthFlow } from "@/lib/useGoogleAuthFlow";
 
@@ -254,6 +255,7 @@ export default function Login() {
                       <ShieldCheck className="w-3.5 h-3.5" />
                       <span>Conexión cifrada de extremo a extremo</span>
                     </div>
+                    <InstallAppButton className="w-full" />
                   </div>
               </CardContent>
             </Card>

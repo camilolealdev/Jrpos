@@ -59,6 +59,17 @@
 ## 🎯 Próximo Paso para Producción DIAN
 - Conexión del conector SOAP y firma digital XAdES-BES con Proveedor Tecnológico (PT) habilitado ante la DIAN para emisión de facturas electrónicas reales con valor legal.
 
+## ✅ Resueltas esta sesión (14 sep 2026)
+1. **Auditoría de arquitectura actualizada** (`ANALISIS_ARQUITECTURA_7_CAPAS.md`): IDOR electronic.py (commit `d6c5347`), sweep de `session.get()` (limpio, 9 routers), RLS Fase A+B+C y logging contextual Capa 7 (`observability.py`) ya estaban resueltos por la sesión anterior — docs marcados como RESUELTO. Roadmap pendiente real: rate-limit por plan, webhook Wompi+dunning, OTel (diferir).
+2. **Trial 30 días**: default `TRIAL_DAYS` de 365 → 30 (`auth.py`). Coincide con el texto del frontend ("30 días gratis").
+3. **Registro con dominios restringidos**: env `REGISTRATION_ALLOWED_DOMAINS` (coma-separada). Vacío = cualquier dominio (backwards compatible). Aplica a `/auth/register-tenant` y al onboarding de `/auth/google` (solo nuevas tiendas, no logins existentes). Test unitario `test_registration_domain_allowlist`.
+4. **SMTP + correo de bienvenida**: nuevo `backend/mailer.py` (stdlib, best-effort, nunca lanza). Env `SMTP_HOST/PORT/USER/PASSWORD/FROM`. Se dispara vía BackgroundTasks al registrar (email/password y Google).
+5. **Claves de IA/OCR de plataforma (fijas)**: el fallback por env `{PROVIDER}_API_KEY` ya existía (invoices.py); ahora con anti-abuso: cupo diario por tenant al usar clave de plataforma (`OCR_PLATFORM_DAILY_LIMIT`, default 50, Redis rate_limit no-op sin Redis) + `platform_ai_keys` (booleanos por proveedor, nunca valores) expuesto en GET `/settings/general` + banner ámbar en Settings.jsx explicando que es sin garantía hasta que el cliente configure su propia clave.
+6. **PWA instalable**: ya existía (manifest.json + sw.js + icons + registro SW en index.html). Se añadió `InstallAppButton.jsx` (beforeinstallprompt nativo Android/Chrome + guía iOS "Añadir a pantalla de inicio") visible en Login.
+7. Suite: **103 passed** contra stack Docker vivo (Postgres+RLS). Frontend: `npm run build` OK.
+
+**Pendiente para deploy:** rebuild de imágenes (el contenedor backend corre código anterior: `docker compose build && docker compose up -d`) y definir las env vars nuevas en `.env` del VPS.
+
 ## ✅ Resueltas esta sesión (11 sept 2026)
 1. ~~Categorías compartidas entre tenants~~ **RESUELTO** — `category_meta` ahora tiene clave primaria compuesta `(tenant_id, name)` (modelo + migración idempotente en `db_migrations.py`). Antes la PK era solo `name`, así que una categoría creada por una tienda bloqueaba la misma en otra (upsert colisionaba). Migración: respaldo de `tenant_id` a `tenant-default-001`, `SET NOT NULL` y swap de constraint con `DO $$ ... EXCEPTION WHEN OTHERS THEN NULL` para ser idempotente. Los upserts (`products.py::upsert_category_meta` y `seed_admin`/`seed_data`) ahora consultan por `(name, tenant_id)` en vez de `session.get()` por PK simple.
 2. **Nuevo flag `pack_only` en productos** (columna `pack_only BOOLEAN NOT NULL DEFAULT FALSE` con migración idempotente): permite marcar productos que SOLO se venden por paquete/caja completo (ej: six-pack cerrado). El POS lo respeta — click normal vende el paquete, badge cambia a "Solo x paquete", y el precio mostrado es el del paquete completo. La carga masiva NO toca `pack_only` para no borrar flags manuales en reimportaciones (comentario explícito en `bulk_load_products`).

@@ -1,4 +1,6 @@
 from typing import Optional
+import os
+
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,6 +73,35 @@ async def check_user_limit(session: AsyncSession, tenant_id: str) -> None:
         raise HTTPException(
             status_code=402,
             detail=f"Límite de colaboradores alcanzado ({current_count}/{max_users}). Actualiza tu plan para agregar más usuarios.",
+            headers={"X-Error-Code": "PLAN_LIMIT_EXCEEDED"},
+        )
+
+
+async def check_trial_staff_limit(session: AsyncSession, tenant_id: str, max_staff: Optional[int] = None) -> None:
+    """
+    Durante el trial, el tenant puede crear hasta N colaboradores (roles != admin),
+    independiente del plan 'pro' de cortesía que recibe al registrarse.
+    Configurable con MAX_TRIAL_STAFF_USERS (default 5). Suscripción pagada: sin este tope.
+    """
+    if max_staff is None:
+        max_staff = int(os.environ.get("MAX_TRIAL_STAFF_USERS", "5"))
+    sub_stmt = (
+        select(TenantSubscription.status)
+        .where(TenantSubscription.tenant_id == tenant_id)
+        .order_by(TenantSubscription.created_at.desc())
+        .limit(1)
+    )
+    sub_status = (await session.execute(sub_stmt)).scalar_one_or_none()
+    if sub_status != "trial":
+        return
+
+    count_stmt = select(func.count(User.id)).where(User.tenant_id == tenant_id, User.role != "admin")
+    current_staff = (await session.execute(count_stmt)).scalar() or 0
+
+    if current_staff + 1 > max_staff:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Durante el trial puedes crear hasta {max_staff} cajeros/colaboradores ({current_staff} creados). Activa tu plan para agregar más.",
             headers={"X-Error-Code": "PLAN_LIMIT_EXCEEDED"},
         )
 

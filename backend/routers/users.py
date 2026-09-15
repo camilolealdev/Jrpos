@@ -9,7 +9,7 @@ from auth import hash_password, require_admin, validate_password_strength
 from business_types import STAFF_ROLES_BY_BUSINESS_TYPE
 from db import get_session
 from models_sql import LoginAttempt, Tenant, User
-from entitlements import check_user_limit
+from entitlements import check_trial_staff_limit, check_user_limit
 
 users_router = APIRouter(prefix="/api", tags=["users"])
 
@@ -53,6 +53,7 @@ async def create_user(
     validate_password_strength(payload.password, email=email)
 
     await check_user_limit(session, tenant_id)
+    await check_trial_staff_limit(session, tenant_id)
 
     tenant = await session.get(Tenant, tenant_id)
     staff_roles = STAFF_ROLES_BY_BUSINESS_TYPE.get(tenant.business_type if tenant else None, ["cajero"])
