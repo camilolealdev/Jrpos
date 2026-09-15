@@ -128,6 +128,11 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE products ADD COLUMN IF NOT EXISTS margin_percent FLOAT;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_package FLOAT NOT NULL DEFAULT 1.0;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS pack_only BOOLEAN NOT NULL DEFAULT FALSE;
+    -- Merma: código de motivo estructurado (vencido/roto/derramado/robo/otro) para
+    -- poder agrupar el reporte de merma; el campo "reason" existente sigue
+    -- llevando la nota libre. stock_movements ya existe en producción, así que
+    -- create_all() (arriba) no la toca -- necesita su propio ALTER.
+    ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS motivo VARCHAR(30);
     ALTER TABLE category_meta ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);

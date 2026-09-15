@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from db import get_session
-from models_sql import Product, Sale, SaleItem, User
+from models_sql import Product, Sale, SaleItem, StockMovement, User
 
 reports_router = APIRouter(prefix="/api", tags=["reports"])
 
@@ -219,5 +219,130 @@ async def accounting_export(
         "total_amount": round(sum(r["total"] for r in rows), 2),
         "total_tax": round(sum(r["tax_total"] for r in rows), 2),
         "sales": rows,
+    }
+
+
+# ----------------- Merma (shrinkage) -----------------
+class MermaByMotivoOut(BaseModel):
+    motivo: str
+    qty: float
+    cost_impact: float
+    count: int
+
+
+class MermaByProductOut(BaseModel):
+    product_id: str
+    product_name: str
+    qty: float
+    cost_impact: float
+    count: int
+
+
+class MermaReportOut(BaseModel):
+    start: Optional[str] = None
+    end: Optional[str] = None
+    total_qty: float
+    total_cost_impact: float
+    total_events: int
+    by_motivo: List[MermaByMotivoOut]
+    by_product: List[MermaByProductOut]
+
+
+@reports_router.get("/reports/merma", response_model=MermaReportOut)
+async def merma_report(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """
+    Payoff feature de merma: costo total y desglose por motivo (vencido, roto,
+    derramado, robo, otro) y por producto, para un rango de fechas dado. Suma
+    en SQL sobre stock_movements (type="merma") joineado con products para el
+    costo unitario vigente.
+    """
+    tenant_id = user.tenant_id or "tenant-default-001"
+
+    base_filter = [StockMovement.tenant_id == tenant_id, StockMovement.type == "merma"]
+    if start:
+        try:
+            base_filter.append(StockMovement.created_at >= datetime.fromisoformat(start))
+        except ValueError:
+            pass
+    if end:
+        try:
+            base_filter.append(StockMovement.created_at <= datetime.fromisoformat(end))
+        except ValueError:
+            pass
+
+    join_cond = (StockMovement.product_id == Product.id) & (Product.tenant_id == tenant_id)
+    qty_expr = func.coalesce(func.sum(func.abs(StockMovement.qty)), 0.0)
+    # Producto puede haber sido eliminado desde el evento de merma (isouter join):
+    # Product.cost queda NULL para ese grupo entero y SUM(...) devuelve NULL, no 0
+    # -- por eso el coalesce va DENTRO de la expresión reutilizada, no solo en el
+    # nivel de "totales" (si no, los grupos por motivo/producto de un producto
+    # borrado revientan el reporte con un 500 en vez de simplemente aportar $0).
+    cost_impact_expr = func.coalesce(func.sum(func.abs(StockMovement.qty) * Product.cost), 0.0)
+
+    total_qty, total_cost_impact, total_events = (
+        await session.execute(
+            select(qty_expr, cost_impact_expr, func.count())
+            .select_from(StockMovement)
+            .join(Product, join_cond, isouter=True)
+            .where(*base_filter)
+        )
+    ).one()
+
+    motivo_expr = func.coalesce(StockMovement.motivo, "otro")
+    by_motivo_rows = (
+        await session.execute(
+            select(motivo_expr.label("motivo"), qty_expr, cost_impact_expr, func.count().label("count"))
+            .select_from(StockMovement)
+            .join(Product, join_cond, isouter=True)
+            .where(*base_filter)
+            .group_by(motivo_expr)
+            .order_by(cost_impact_expr.desc())
+        )
+    ).all()
+
+    product_name_expr = func.coalesce(Product.name, "Producto eliminado")
+    by_product_rows = (
+        await session.execute(
+            select(
+                StockMovement.product_id,
+                product_name_expr.label("product_name"),
+                qty_expr,
+                cost_impact_expr,
+                func.count().label("count"),
+            )
+            .select_from(StockMovement)
+            .join(Product, join_cond, isouter=True)
+            .where(*base_filter)
+            .group_by(StockMovement.product_id, Product.name)
+            .order_by(cost_impact_expr.desc())
+            .limit(50)
+        )
+    ).all()
+
+    return {
+        "start": start,
+        "end": end,
+        "total_qty": round(float(total_qty or 0.0), 2),
+        "total_cost_impact": round(float(total_cost_impact or 0.0), 2),
+        "total_events": total_events,
+        "by_motivo": [
+            {"motivo": r.motivo, "qty": round(float(r[1]), 2), "cost_impact": round(float(r[2]), 2), "count": r[3]}
+            for r in by_motivo_rows
+        ],
+        "by_product": [
+            {
+                "product_id": r[0],
+                "product_name": r[1],
+                "qty": round(float(r[2]), 2),
+                "cost_impact": round(float(r[3]), 2),
+                "count": r[4],
+            }
+            for r in by_product_rows
+        ],
     }
 

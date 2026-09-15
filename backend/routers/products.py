@@ -369,6 +369,7 @@ class StockMovementOut(BaseModel):
     new_stock: float
     user_id: Optional[str] = None
     reason: Optional[str] = None
+    motivo: Optional[str] = None
     created_at: datetime
 
 
@@ -387,6 +388,98 @@ async def list_stock_movements(
         .limit(limit)
     )
     return (await session.execute(stmt)).scalars().all()
+
+
+# ----------------- Merma (shrinkage) -----------------
+# Códigos de motivo estructurados que alimentan el reporte de merma agrupado.
+MERMA_REASONS = {"vencido", "roto", "derramado", "robo", "otro"}
+
+
+class MermaCreate(BaseModel):
+    qty: float
+    motivo: str
+    reason: Optional[str] = None  # nota libre opcional (ej: "vitrina 2, lote 445")
+
+
+class MermaOut(BaseModel):
+    id: str
+    product_id: str
+    qty: float
+    motivo: str
+    reason: Optional[str] = None
+    previous_stock: float
+    new_stock: float
+    cost_impact: float
+    created_at: datetime
+
+
+@products_router.post("/products/{product_id}/merma", response_model=MermaOut)
+async def register_merma(
+    product_id: str,
+    payload: MermaCreate,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("inventory:adjust")),
+):
+    """
+    Registra un evento de merma (producto vencido, roto, derramado, robado u
+    otra causa) con impacto de costo. Reutiliza el mismo StockMovement que ya
+    usa el ajuste manual de inventario (type="adjustment"), pero con
+    type="merma" y un `motivo` estructurado para poder agrupar el reporte.
+    """
+    tenant_id = user.tenant_id or "tenant-default-001"
+
+    motivo = (payload.motivo or "").strip().lower()
+    if motivo not in MERMA_REASONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Motivo inválido. Debe ser uno de: {', '.join(sorted(MERMA_REASONS))}",
+        )
+
+    qty = float(payload.qty) if payload.qty is not None else 0.0
+    if qty <= 0:
+        raise HTTPException(status_code=400, detail="La cantidad debe ser mayor a 0")
+
+    stmt = select(Product).where(Product.id == product_id, Product.tenant_id == tenant_id)
+    product = (await session.execute(stmt)).scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    previous_stock = float(product.stock)
+    if qty > previous_stock:
+        raise HTTPException(status_code=400, detail="La cantidad de merma no puede superar el stock actual")
+
+    new_stock = previous_stock - qty
+    cost_impact = round(qty * float(product.cost or 0.0), 2)
+
+    movement = StockMovement(
+        tenant_id=tenant_id,
+        product_id=product.id,
+        type="merma",
+        qty=-qty,  # convención: delta negativo, igual que un ajuste a la baja
+        previous_stock=previous_stock,
+        new_stock=new_stock,
+        user_id=user.id,
+        reason=payload.reason,
+        motivo=motivo,
+    )
+    session.add(movement)
+    product.stock = new_stock
+    product.updated_at = utcnow()
+
+    await session.commit()
+    await delete_key(f"cache:categories:{tenant_id}")
+
+    return MermaOut(
+        id=movement.id,
+        product_id=product.id,
+        qty=qty,
+        motivo=motivo,
+        reason=payload.reason,
+        previous_stock=previous_stock,
+        new_stock=new_stock,
+        cost_impact=cost_impact,
+        created_at=movement.created_at,
+    )
 
 
 @products_router.delete("/products/{product_id}")
