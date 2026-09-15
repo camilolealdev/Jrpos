@@ -36,7 +36,7 @@ Plantilla completa: ver `.env.example` en la raíz del repo.
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | recomendado | Seed del admin del tenant al primer arranque |
 | `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` | recomendado | Seed del superadmin |
 | `FRONTEND_URL` | recomendado | CORS / redirects |
-| `TRIAL_DAYS` | opcional | Default del SaaS (30) |
+| `TRIAL_DAYS` | opcional | Default del SaaS (15) |
 | `REDIS_URL` | VPS | El compose la inyecta (`redis://redis:6379/0`) |
 | `REGISTRATION_ALLOWED_DOMAINS` | opcional | Domains de correo permitidos para registro, separados por coma. Vacío = cualquier dominio |
 | `SMTP_HOST/PORT/USER/PASSWORD/FROM` | opcional | Correos del sistema (bienvenida al registrar). Recomendado: Brevo 300/día gratis |

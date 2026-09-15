@@ -336,14 +336,14 @@ async def _provision_tenant(
         slug = f"{base_slug}-{counter}"
         counter += 1
 
-    # 2. Crear Tenant con 30 días de prueba gratuita
+    # 2. Crear Tenant con 15 días de prueba gratuita (configurable con TRIAL_DAYS)
     tenant_id = new_uuid()
     # Aún no existe un usuario autenticado del que heredar el contexto de RLS
     # (se está creando en esta misma transacción) -- se fija explícitamente
     # con el tenant_id recién generado para que los INSERT de abajo pasen el
     # WITH CHECK de las políticas RLS (backend/db_migrations.py).
     await _set_tenant_context(session, tenant_id=tenant_id, is_superadmin=False)
-    trial_days = int(os.environ.get("TRIAL_DAYS", "30"))
+    trial_days = int(os.environ.get("TRIAL_DAYS", "15"))
     trial_ends = utcnow() + timedelta(days=trial_days)
     tenant = Tenant(
         id=tenant_id,

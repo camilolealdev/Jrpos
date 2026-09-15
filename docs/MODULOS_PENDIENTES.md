@@ -61,7 +61,7 @@
 
 ## ✅ Resueltas esta sesión (14 sep 2026)
 1. **Auditoría de arquitectura actualizada** (`ANALISIS_ARQUITECTURA_7_CAPAS.md`): IDOR electronic.py (commit `d6c5347`), sweep de `session.get()` (limpio, 9 routers), RLS Fase A+B+C y logging contextual Capa 7 (`observability.py`) ya estaban resueltos por la sesión anterior — docs marcados como RESUELTO. Roadmap pendiente real: rate-limit por plan, webhook Wompi+dunning, OTel (diferir).
-2. **Trial 30 días**: default `TRIAL_DAYS` de 365 → 30 (`auth.py`). Coincide con el texto del frontend ("30 días gratis").
+2. **Trial 15 días**: default `TRIAL_DAYS` de 365 → 15 (`auth.py`, corregido de 30 → 15 por decisión del dueño). Coincide con el texto del frontend ("15 días gratis").
 3. **Registro con dominios restringidos**: env `REGISTRATION_ALLOWED_DOMAINS` (coma-separada). Vacío = cualquier dominio (backwards compatible). Aplica a `/auth/register-tenant` y al onboarding de `/auth/google` (solo nuevas tiendas, no logins existentes). Test unitario `test_registration_domain_allowlist`.
 4. **SMTP + correo de bienvenida**: nuevo `backend/mailer.py` (stdlib, best-effort, nunca lanza). Env `SMTP_HOST/PORT/USER/PASSWORD/FROM`. Se dispara vía BackgroundTasks al registrar (email/password y Google).
 5. **Claves de IA/OCR de plataforma (fijas)**: el fallback por env `{PROVIDER}_API_KEY` ya existía (invoices.py); ahora con anti-abuso: cupo diario por tenant al usar clave de plataforma (`OCR_PLATFORM_DAILY_LIMIT`, default 50, Redis rate_limit no-op sin Redis) + `platform_ai_keys` (booleanos por proveedor, nunca valores) expuesto en GET `/settings/general` + banner ámbar en Settings.jsx explicando que es sin garantía hasta que el cliente configure su propia clave.

@@ -47,7 +47,7 @@ def send_welcome_email(to: str, name: str, business_name: str) -> None:
     name_html = name or "propietario"
     html = f"""<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
   <h2 style="color:#059669">¡Bienvenido a JRPOS, {name_html}!</h2>
-  <p>Tu tienda <b>{business_name}</b> ya está lista con un trial de 30 días, sin tarjeta.</p>
+  <p>Tu tienda <b>{business_name}</b> ya está lista con un trial de 15 días, sin tarjeta.</p>
   <p>Durante el trial tienes todo el POS activo: ventas, inventario, créditos, caja y más.</p>
   <p style="color:#64748b;font-size:13px">Si no creaste esta cuenta, ignora este mensaje.</p>
 </div>"""

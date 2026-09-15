@@ -246,7 +246,7 @@ export default function Login() {
                       className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>¿No tienes cuenta? Registrar mi Tienda (30 días gratis)</span>
+                      <span>¿No tienes cuenta? Registrar mi Tienda (15 días gratis)</span>
                     </Link>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
                       ¿Olvidaste tu contraseña? Solicita el restablecimiento al administrador de la tienda desde el módulo de Usuarios.
