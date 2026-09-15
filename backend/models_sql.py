@@ -290,7 +290,10 @@ class Sale(Base):
     tax_total: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     discount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total: Mapped[float] = mapped_column(Float, nullable=False)
-    payment_method: Mapped[str] = mapped_column(String(20), nullable=False, default="efectivo")
+    # 40 (no 20): con métodos de pago personalizables por tenant (ver
+    # SettingsGeneral.custom_payment_methods) el id-slug de un método nuevo
+    # ("bancolombia_a_la_mano") puede superar los 20 caracteres originales.
+    payment_method: Mapped[str] = mapped_column(String(40), nullable=False, default="efectivo")
     customer_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cashier: Mapped[str | None] = mapped_column(String(255), nullable=True, default="Cajero")
@@ -338,7 +341,9 @@ class Payment(Base):
     customer_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
-    method: Mapped[str] = mapped_column(String(20), nullable=False, default="efectivo")
+    # 40 (no 20): abonos de crédito reutilizan los mismos ids de método de
+    # pago personalizables que Sale.payment_method (ver comentario ahí).
+    method: Mapped[str] = mapped_column(String(40), nullable=False, default="efectivo")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -493,6 +498,13 @@ class SettingsGeneral(Base):
     # tids de nav ocultos para este tenant -- sembrado por tipo de negocio al
     # registrar (backend/business_types.py), editable luego desde Configuración
     hidden_module_tids: Mapped[list | None] = mapped_column(JSON, nullable=True, default=list)
+    # Métodos de pago personalizables del tenant: lista de
+    # {id, label, active, sort_order}. NULL o [] cae a los 6 predeterminados
+    # (efectivo/nequi/daviplata/tarjeta/transferencia/credito) vía el default
+    # de GeneralSettingsIn en routers/settings.py -- esos ids nunca deben
+    # renombrarse, son los mismos strings ya guardados en Sale.payment_method
+    # de ventas históricas.
+    custom_payment_methods: Mapped[list | None] = mapped_column(JSON, nullable=True, default=list)
 
 
 class SettingsCertificate(Base):

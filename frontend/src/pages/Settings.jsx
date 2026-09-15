@@ -20,11 +20,12 @@ import {
   Settings2, Save, Palette, Bot, Store, Printer, Sliders, Eye, EyeOff,
   Sparkles, CheckCircle2, AlertCircle, RefreshCw, HelpCircle, ShieldCheck,
   Database, Trash2, AlertTriangle, ShieldAlert, ShoppingBag, Users, FileText, CheckCircle,
-  Upload, Image as ImageIcon, Check
+  Upload, Image as ImageIcon, Check, Plus, ArrowUp, ArrowDown, RotateCcw, CreditCard,
 } from "lucide-react";
 import logoWhite from "@/assets/logo2.webp";
 import logoDark from "@/assets/logo.webp";
 import { BUSINESS_TYPES, HIDEABLE_MODULES } from "@/lib/businessTypes";
+import { DEFAULT_PAYMENT_METHODS, slugifyPaymentId } from "@/lib/paymentMethods";
 
 export const ACCENTS = {
   emerald: {
@@ -286,6 +287,7 @@ export default function Settings() {
 
     business_type: "abarrotes",
     hidden_module_tids: [],
+    custom_payment_methods: DEFAULT_PAYMENT_METHODS,
   });
 
   const [showApiKey, setShowApiKey] = useState(false);
@@ -435,6 +437,58 @@ export default function Settings() {
     update({
       hidden_module_tids: visible ? current.filter((t) => t !== tid) : [...current, tid],
     });
+  };
+
+  // ---- Métodos de pago del POS (Configuración > POS) ----
+  const paymentMethodsList = form.custom_payment_methods || [];
+  const sortedPaymentMethods = useMemo(
+    () => [...paymentMethodsList].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+    [paymentMethodsList],
+  );
+
+  const setPaymentMethods = (list) => update({ custom_payment_methods: list });
+
+  const addPaymentMethod = () => {
+    const label = window.prompt("Nombre del método de pago (ej: Bancolombia a la Mano, Addi):");
+    if (!label || !label.trim()) return;
+    const existingIds = paymentMethodsList.map((m) => m.id);
+    const id = slugifyPaymentId(label.trim(), existingIds);
+    setPaymentMethods([
+      ...paymentMethodsList,
+      { id, label: label.trim(), active: true, sort_order: paymentMethodsList.length },
+    ]);
+  };
+
+  const renamePaymentMethod = (id, label) => {
+    setPaymentMethods(paymentMethodsList.map((m) => (m.id === id ? { ...m, label } : m)));
+  };
+
+  const togglePaymentMethodActive = (id, active) => {
+    setPaymentMethods(paymentMethodsList.map((m) => (m.id === id ? { ...m, active } : m)));
+  };
+
+  const removePaymentMethod = (id) => {
+    if (!window.confirm("¿Eliminar este método de pago? Las ventas ya registradas con él conservarán el nombre histórico.")) return;
+    setPaymentMethods(
+      paymentMethodsList
+        .filter((m) => m.id !== id)
+        .map((m, idx) => ({ ...m, sort_order: idx })),
+    );
+  };
+
+  const movePaymentMethod = (id, direction) => {
+    const sorted = [...paymentMethodsList].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const idx = sorted.findIndex((m) => m.id === id);
+    const targetIdx = idx + direction;
+    if (idx < 0 || targetIdx < 0 || targetIdx >= sorted.length) return;
+    [sorted[idx], sorted[targetIdx]] = [sorted[targetIdx], sorted[idx]];
+    setPaymentMethods(sorted.map((m, i) => ({ ...m, sort_order: i })));
+  };
+
+  const restoreDefaultPaymentMethods = () => {
+    if (!window.confirm("¿Restaurar los métodos de pago predeterminados? Se perderán los métodos personalizados que hayas agregado.")) return;
+    setPaymentMethods(DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m })));
+    toast.success("Métodos de pago restaurados a los predeterminados");
   };
 
   const currentProviderConfig = useMemo(() => {
@@ -1035,6 +1089,105 @@ export default function Settings() {
                 </div>
                 <Switch checked={form.pos_ask_clear_cart} onCheckedChange={(v) => update({ pos_ask_clear_cart: v })} />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="payment-methods-card">
+            <CardHeader className="flex flex-row items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-emerald-700" /> Métodos de Pago
+                </CardTitle>
+                <CardDescription>
+                  Los botones que ven tus cajeros al cobrar. Renombra, desactiva, reordena o agrega los tuyos
+                  (ej: "Bancolombia a la Mano", "Addi", una cuenta de fiado con otro nombre).
+                </CardDescription>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={restoreDefaultPaymentMethods}
+                  className="h-8 text-xs font-semibold"
+                  data-testid="payment-methods-restore-btn"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Restaurar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={addPaymentMethod}
+                  className="h-8 text-xs font-semibold bg-emerald-700 hover:bg-emerald-800"
+                  data-testid="payment-methods-add-btn"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Agregar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {sortedPaymentMethods.map((m, idx) => (
+                <div
+                  key={m.id}
+                  className="flex items-center gap-2 p-2.5 rounded-lg border bg-slate-50/50"
+                  data-testid={`payment-method-row-${m.id}`}
+                >
+                  <div className="flex flex-col shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => movePaymentMethod(m.id, -1)}
+                      disabled={idx === 0}
+                      className="text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label={`Subir ${m.label}`}
+                      data-testid={`payment-method-up-${m.id}`}
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => movePaymentMethod(m.id, 1)}
+                      disabled={idx === sortedPaymentMethods.length - 1}
+                      className="text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label={`Bajar ${m.label}`}
+                      data-testid={`payment-method-down-${m.id}`}
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <Input
+                    value={m.label}
+                    onChange={(e) => renamePaymentMethod(m.id, e.target.value)}
+                    className="h-9 flex-1"
+                    aria-label={`Nombre del método de pago ${m.id}`}
+                    data-testid={`payment-method-label-${m.id}`}
+                  />
+                  <Badge variant="outline" className="font-mono text-[10px] shrink-0 hidden sm:inline-flex">
+                    {m.id}
+                  </Badge>
+                  <Switch
+                    checked={m.active !== false}
+                    onCheckedChange={(v) => togglePaymentMethodActive(m.id, v)}
+                    aria-label={`Activar ${m.label}`}
+                    data-testid={`payment-method-toggle-${m.id}`}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-red-600 hover:bg-red-50 shrink-0"
+                    onClick={() => removePaymentMethod(m.id)}
+                    aria-label={`Eliminar ${m.label}`}
+                    data-testid={`payment-method-delete-${m.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              {sortedPaymentMethods.length === 0 && (
+                <div className="text-sm text-slate-500 text-center py-4">
+                  No hay métodos de pago configurados. Agrega al menos uno o restaura los predeterminados.
+                </div>
+              )}
             </CardContent>
           </Card>
 

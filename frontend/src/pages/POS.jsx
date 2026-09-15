@@ -5,6 +5,7 @@ import { formatCOP } from "@/lib/format";
 import { categoryIcon } from "@/lib/categoryIcons";
 import { printThermal } from "@/lib/thermalPrint";
 import { cacheProductsOffline, getCachedProductsOffline, queueOfflineSale } from "@/lib/offlineSync";
+import { getActivePaymentMethods } from "@/lib/paymentMethods";
 import CameraScanner from "@/components/CameraScanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -163,6 +164,21 @@ export default function POS() {
       return JSON.parse(localStorage.getItem("jrpos_settings")) || {};
     } catch { return {}; }
   });
+
+  // Métodos de pago activos del tenant (Configuración > POS), en el orden
+  // definido allí. Cae a los 6 predeterminados si el tenant no personalizó
+  // nada o desactivó todos -- ver lib/paymentMethods.js.
+  const paymentMethods = useMemo(() => getActivePaymentMethods(storeSettings), [storeSettings]);
+
+  // Si el método seleccionado deja de estar disponible (el tenant lo
+  // renombró/desactivó mientras el POS ya estaba abierto), reencauzar al
+  // primero de la lista para no dejar el diálogo de cobro sin selección.
+  useEffect(() => {
+    if (paymentMethods.length === 0) return;
+    if (!paymentMethods.some((m) => m.id === payment)) {
+      setPayment(paymentMethods[0].id);
+    }
+  }, [paymentMethods, payment]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -1076,14 +1092,14 @@ export default function POS() {
             <div>
               <label className="text-xs uppercase font-semibold tracking-wider text-slate-500">Método de pago</label>
               <div className="grid grid-cols-3 gap-2 mt-1">
-                {["efectivo", "nequi", "daviplata", "tarjeta", "transferencia", "credito"].map((m) => (
+                {paymentMethods.map((m) => (
                   <button
-                    key={m}
-                    onClick={() => setPayment(m)}
-                    className={`h-11 rounded-md border text-sm font-semibold capitalize transition ${payment === m ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-700 border-slate-200 hover:border-emerald-400"}`}
-                    data-testid={`pay-${m}`}
+                    key={m.id}
+                    onClick={() => setPayment(m.id)}
+                    className={`h-11 rounded-md border text-sm font-semibold transition ${payment === m.id ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-slate-700 border-slate-200 hover:border-emerald-400"}`}
+                    data-testid={`pay-${m.id}`}
                   >
-                    {m}
+                    {m.label}
                   </button>
                 ))}
               </div>
