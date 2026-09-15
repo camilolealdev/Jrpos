@@ -33,30 +33,51 @@ from models_sql import (
 invoices_router = APIRouter(prefix="/api", tags=["invoices"])
 
 
-# ----------------- Invoice OCR (Gemini vision) -----------------
-# EXACT prompt ported from the original server.py (backend/server.py, grep OCR_SYSTEM) — do not reword.
+# ----------------- Invoice OCR (Multi-Provider Router con Failover) -----------------
 OCR_SYSTEM = (
-    "Eres un extractor experto de facturas colombianas para una tienda de abarrotes. "
-    "Devuelve SOLO un JSON válido, sin explicaciones, con este esquema exacto: "
-    '{"supplier_name": string, "supplier_nit": string, "invoice_number": string, "date": string(YYYY-MM-DD), '
-    '"subtotal": number, "tax": number, "total": number, '
-    '"items": [{"name": string, "quantity": number, "unit_price": number, "total": number, "barcode": string}]}. '
-    "Los precios deben ser números en pesos colombianos (COP) sin puntos ni comas. Si no logras leer un valor, usa 0 o cadena vacía. Nunca inventes."
+    "Eres un extractor experto de facturas y recibos de compra comerciales colombianos para un sistema de inventario POS. "
+    "Devuelve ÚNICAMENTE un objeto JSON válido, sin explicaciones ni texto introductorio, con este esquema exacto:\n"
+    "{\n"
+    '  "supplier_name": string (nombre o razón social del proveedor),\n'
+    '  "supplier_nit": string (NIT o cédula del proveedor sin puntos ni guiones),\n'
+    '  "invoice_number": string (número o consecutivo de factura),\n'
+    '  "date": string (formato YYYY-MM-DD),\n'
+    '  "subtotal": number (en pesos colombianos sin decimales),\n'
+    '  "tax": number (IVA total en pesos colombianos),\n'
+    '  "total": number (total en pesos colombianos),\n'
+    '  "items": [\n'
+    '    {\n'
+    '      "name": string (descripción clara del producto),\n'
+    '      "quantity": number (cantidad recibida),\n'
+    '      "unit_price": number (costo de compra unitario en COP),\n'
+    '      "total": number (total de la línea en COP),\n'
+    '      "barcode": string (código de barras si es visible, o cadena vacía)\n'
+    '    }\n'
+    '  ]\n'
+    "}\n"
+    "Reglas esenciales:\n"
+    "1. Preserva los nombres y descripciones de los productos con exactitud sin normalizar.\n"
+    "2. Todos los precios deben ser números en pesos colombianos (COP), sin puntos de miles ni símbolos de moneda.\n"
+    "3. Si un dato no es legible, usa 0 para números o cadena vacía para textos. Nunca inventes información."
 )
 
 
 def _extract_json(text_: str) -> dict:
+    if not text_:
+        return {}
+    cleaned = re.sub(r"^```(?:json)?", "", text_.strip(), flags=re.MULTILINE)
+    cleaned = re.sub(r"```$", "", cleaned.strip(), flags=re.MULTILINE).strip()
     try:
-        return json.loads(text_[start:end + 1])
+        return json.loads(cleaned)
     except Exception:
-        # try to strip code fences
-        cleaned = re.sub(r"```(json)?", "", text_).replace("```", "")
-        s2 = cleaned.find("{")
-        e2 = cleaned.rfind("}")
-        try:
-            return json.loads(cleaned[s2:e2 + 1])
-        except Exception:
-            return {}
+        s = cleaned.find("{")
+        e = cleaned.rfind("}")
+        if s != -1 and e != -1 and e > s:
+            try:
+                return json.loads(cleaned[s:e + 1])
+            except Exception:
+                pass
+    return {}
 
 
 class InvoiceItemOCR(BaseModel):
@@ -76,6 +97,9 @@ class InvoiceOCR(BaseModel):
     tax: Optional[float] = 0.0
     total: Optional[float] = 0.0
     items: List[InvoiceItemOCR] = []
+    provider_used: Optional[str] = None
+    fallback_triggered: bool = False
+    fallback_chain: List[str] = []
 
 
 class OCRRequest(BaseModel):
@@ -98,6 +122,85 @@ class ImportInvoiceRequest(BaseModel):
     items: List[dict]
 
 
+async def _call_gemini_vision(img_bytes: bytes, mime_type: str, model_name: str, api_key: str) -> str:
+    from google import genai
+    from google.genai import types
+
+    # Mapeo de nombres si viene preview obsoleto
+    actual_model = "gemini-1.5-flash" if model_name in ("gemini-3-flash-preview", "gemini-1.5-flash") else model_name
+    client = genai.Client(api_key=api_key)
+    response = await client.aio.models.generate_content(
+        model=actual_model,
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(
+                        text="Extrae los datos de esta factura de compra colombiana. Devuelve SOLO el JSON con el esquema pedido."
+                    ),
+                    types.Part.from_bytes(data=img_bytes, mime_type=mime_type),
+                ],
+            )
+        ],
+        config=types.GenerateContentConfig(
+            system_instruction=OCR_SYSTEM,
+            temperature=0.1,
+            max_output_tokens=65536,
+        ),
+    )
+    return response.text or ""
+
+
+async def _call_openai_compatible_vision(
+    base_url: str,
+    model_name: str,
+    api_key: str,
+    image_data_uri: str,
+    extra_headers: Optional[dict] = None,
+) -> str:
+    import httpx
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+
+    messages = [
+        {"role": "system", "content": OCR_SYSTEM},
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Extrae los datos de esta factura de compra colombiana. Devuelve SOLO el JSON solicitado sin explicaciones.",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": image_data_uri},
+                },
+            ],
+        },
+    ]
+
+    async with httpx.AsyncClient(timeout=45.0) as http_client:
+        res = await http_client.post(
+            f"{base_url.rstrip('/')}/chat/completions",
+            json={
+                "model": model_name,
+                "messages": messages,
+                "temperature": 0.1,
+                "max_tokens": 4096,
+            },
+            headers=headers,
+        )
+        if res.status_code != 200:
+            raise Exception(f"HTTP {res.status_code}: {res.text[:200]}")
+        data = res.json()
+        return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+
 @invoices_router.post("/invoices/ocr", response_model=InvoiceOCR)
 async def ocr_invoice(
     payload: OCRRequest,
@@ -114,31 +217,6 @@ async def ocr_invoice(
     if not settings_row:
         settings_row = await session.get(SettingsGeneral, 1)
 
-    provider = (settings_row.ai_provider if settings_row and settings_row.ai_provider else "gemini").lower()
-    own_key = (settings_row.ai_api_key if settings_row and settings_row.ai_api_key else "").strip()
-    api_key = own_key
-    using_platform_key = False
-    if not api_key:
-        # Clave de plataforma (pool compartido del operador): pruebas/uso recurrente SIN garantía,
-        # sujeta a cupo diario por tenant hasta que el cliente use su propia clave o suscripción.
-        api_key = os.environ.get(f"{provider.upper()}_API_KEY", "").strip()
-        using_platform_key = bool(api_key)
-
-    if not api_key:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se ha configurado la API Key para {provider.upper()}. Ve a Configuración > Inteligencia Artificial para ingresarla.",
-        )
-
-    if using_platform_key:
-        daily_limit = int(os.environ.get("OCR_PLATFORM_DAILY_LIMIT", "50"))
-        allowed = await rate_limit(f"ocr:platform:{tenant_id}", daily_limit, 86400)
-        if not allowed:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Límite diario de OCR con la clave de plataforma alcanzado ({daily_limit}/día). Configura tu propia API Key en Configuración > IA para uso ilimitado.",
-            )
-
     # Strip data URL prefix if present
     img_b64 = payload.image_base64
     if img_b64.startswith("data:"):
@@ -148,117 +226,169 @@ async def ocr_invoice(
     except Exception:
         raise HTTPException(status_code=400, detail="Imagen inválida")
 
+    mime = payload.mime_type or "image/jpeg"
+    image_data_uri = f"data:{mime};base64,{img_b64}"
+
+    # Construir lista ordenada de candidatos (Prioridad: Configurado por tenant -> Fallbacks de plataforma)
+    candidates = []
+
+    pref_provider = (settings_row.ai_provider if settings_row and settings_row.ai_provider else "gemini").lower()
+    own_key = (settings_row.ai_api_key if settings_row and settings_row.ai_api_key else "").strip()
+    pref_model = settings_row.ai_model if settings_row and settings_row.ai_model else None
+    pref_base_url = (settings_row.ai_base_url if settings_row and settings_row.ai_base_url else "").strip()
+
+    if own_key:
+        candidates.append({
+            "id": f"tenant_{pref_provider}",
+            "display_name": f"Configurado ({pref_provider})",
+            "type": "gemini" if pref_provider == "gemini" else "openai",
+            "api_key": own_key,
+            "base_url": pref_base_url or {
+                "openrouter": "https://openrouter.ai/api/v1",
+                "nvidia": "https://integrate.api.nvidia.com/v1",
+                "groq": "https://api.groq.com/openai/v1",
+            }.get(pref_provider, "https://api.openai.com/v1"),
+            "model": pref_model or ("gemini-1.5-flash" if pref_provider == "gemini" else "gpt-4o-mini"),
+            "extra_headers": {"HTTP-Referer": "https://jrpos.com", "X-Title": "JRPOS Scanner"} if pref_provider == "openrouter" else None,
+            "is_platform": False,
+        })
+
+    # Candidatos de plataforma (variables de entorno con failover automático)
+    platform_pool = [
+        {
+            "id": "gemini",
+            "display_name": "Google Gemini (Flash)",
+            "type": "gemini",
+            "api_key": os.environ.get("GEMINI_API_KEY", "").strip(),
+            "base_url": None,
+            "model": os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
+            "extra_headers": None,
+            "is_platform": True,
+        },
+        {
+            "id": "nvidia",
+            "display_name": "NVIDIA NIM Vision",
+            "type": "openai",
+            "api_key": os.environ.get("NVIDIA_API_KEY", "").strip(),
+            "base_url": os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+            "model": os.environ.get("NVIDIA_MODEL", "meta/llama-3.2-11b-vision-instruct"),
+            "extra_headers": None,
+            "is_platform": True,
+        },
+        {
+            "id": "openrouter",
+            "display_name": "OpenRouter Vision",
+            "type": "openai",
+            "api_key": os.environ.get("OPENROUTER_API_KEY", "").strip(),
+            "base_url": os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+            "model": os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"),
+            "extra_headers": {"HTTP-Referer": "https://jrpos.com", "X-Title": "JRPOS Scanner"},
+            "is_platform": True,
+        },
+        {
+            "id": "groq",
+            "display_name": "Groq Vision",
+            "type": "openai",
+            "api_key": os.environ.get("GROQ_API_KEY", "").strip(),
+            "base_url": os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
+            "model": os.environ.get("GROQ_MODEL", "llama-3.2-11b-vision-preview"),
+            "extra_headers": None,
+            "is_platform": True,
+        },
+        {
+            "id": "tokenrouter",
+            "display_name": "TokenRouter",
+            "type": "openai",
+            "api_key": os.environ.get("TOKENROUTER_API_KEY", "").strip(),
+            "base_url": os.environ.get("TOKENROUTER_BASE_URL", "https://api.tokenrouter.io/v1"),
+            "model": os.environ.get("TOKENROUTER_MODEL", "gpt-4o-mini"),
+            "extra_headers": None,
+            "is_platform": True,
+        },
+        {
+            "id": "orcarouter",
+            "display_name": "OrcaRouter",
+            "type": "openai",
+            "api_key": os.environ.get("ORCAROUTER_API_KEY", "").strip(),
+            "base_url": os.environ.get("ORCAROUTER_BASE_URL", "https://api.orcarouter.com/v1"),
+            "model": os.environ.get("ORCAROUTER_MODEL", "gpt-4o-mini"),
+            "extra_headers": None,
+            "is_platform": True,
+        },
+        {
+            "id": "custom_ocr",
+            "display_name": "Custom OCR Router",
+            "type": "openai",
+            "api_key": os.environ.get("CUSTOM_OCR_API_KEY", "").strip(),
+            "base_url": os.environ.get("CUSTOM_OCR_BASE_URL", "").strip(),
+            "model": os.environ.get("CUSTOM_OCR_MODEL", "gpt-4o-mini"),
+            "extra_headers": None,
+            "is_platform": True,
+        },
+    ]
+
+    for p in platform_pool:
+        # Solo agregar si tiene api_key configurada y no es un duplicado del tenant ya añadido
+        if p["api_key"] and (not own_key or p["api_key"] != own_key):
+            # Si el tipo es OpenAI, requiere base_url válida
+            if p["type"] == "openai" and not p["base_url"]:
+                continue
+            candidates.append(p)
+
+    if not candidates:
+        raise HTTPException(
+            status_code=400,
+            detail="No hay proveedores de IA ni API Keys configuradas para OCR. Ve a Configuración > IA o agrega las claves en el .env del servidor.",
+        )
+
+    # Validar cuota diaria si se utiliza clave de plataforma
+    daily_limit = int(os.environ.get("OCR_PLATFORM_DAILY_LIMIT", "50"))
+
+    errors = []
+    attempted_providers = []
+    successful_candidate = None
     response_text = ""
 
-    if provider == "gemini":
-        from google import genai
-        from google.genai import types
+    for cand in candidates:
+        cand_name = cand["display_name"]
+        attempted_providers.append(cand_name)
 
-        model = (
-            payload.model
-            if payload.model and payload.model != "gemini-3-flash-preview"
-            else (settings_row.ai_model if settings_row and settings_row.ai_model else "gemini-1.5-flash")
-        )
-
-        client = genai.Client(api_key=api_key)
-        try:
-            response = await client.aio.models.generate_content(
-                model=model,
-                contents=[
-                    types.Content(
-                        role="user",
-                        parts=[
-                            types.Part.from_text(
-                                text=(
-                                    "Extrae los datos de esta factura de compra. Devuelve SOLO el JSON con el esquema pedido. "
-                                    "Incluye cada línea de producto en 'items'."
-                                )
-                            ),
-                            types.Part.from_bytes(data=img_bytes, mime_type=payload.mime_type),
-                        ],
-                    )
-                ],
-                config=types.GenerateContentConfig(system_instruction=OCR_SYSTEM),
-            )
-            response_text = response.text or ""
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Error al procesar imagen con Gemini ({model}): {e}")
-    else:
-        # Proveedores compatibles con OpenAI Vision (OpenRouter, NVIDIA, Groq, Custom)
-        import httpx
-
-        url_map = {
-            "openrouter": "https://openrouter.ai/api/v1",
-            "nvidia": "https://integrate.api.nvidia.com/v1",
-            "groq": "https://api.groq.com/openai/v1",
-        }
-        base_url = (settings_row.ai_base_url if settings_row and settings_row.ai_base_url else "").strip().rstrip("/") or url_map.get(
-            provider, "https://api.openai.com/v1"
-        )
-        default_models = {
-            "openrouter": "google/gemini-2.0-flash-exp:free",
-            "nvidia": "meta/llama-3.2-11b-vision-instruct",
-            "groq": "llama-3.2-11b-vision-preview",
-            "custom_openai": "gpt-4o-mini",
-        }
-        model_name = (
-            payload.model
-            if payload.model and payload.model != "gemini-3-flash-preview"
-            else (settings_row.ai_model if settings_row and settings_row.ai_model else default_models.get(provider, "gpt-4o-mini"))
-        )
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-        if provider == "openrouter":
-            headers["HTTP-Referer"] = "https://jrpos.com"
-            headers["X-Title"] = "JRPOS Scanner"
-
-        mime = payload.mime_type or "image/jpeg"
-        image_data_uri = f"data:{mime};base64,{img_b64}"
-
-        messages = [
-            {"role": "system", "content": OCR_SYSTEM},
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Extrae los datos de esta factura de compra colombiana. Devuelve SOLO el JSON solicitado.",
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": image_data_uri},
-                    },
-                ],
-            },
-        ]
+        if cand["is_platform"]:
+            allowed = await rate_limit(f"ocr:platform:{tenant_id}", daily_limit, 86400)
+            if not allowed:
+                errors.append(f"{cand_name}: Límite diario de plataforma ({daily_limit}/día) alcanzado")
+                continue
 
         try:
-            async with httpx.AsyncClient(timeout=45.0) as http_client:
-                res = await http_client.post(
-                    f"{base_url}/chat/completions",
-                    json={"model": model_name, "messages": messages, "temperature": 0.1},
-                    headers=headers,
+            if cand["type"] == "gemini":
+                response_text = await _call_gemini_vision(img_bytes, mime, cand["model"], cand["api_key"])
+            else:
+                response_text = await _call_openai_compatible_vision(
+                    cand["base_url"], cand["model"], cand["api_key"], image_data_uri, cand.get("extra_headers")
                 )
-                if res.status_code != 200:
-                    raise HTTPException(
-                        status_code=res.status_code,
-                        detail=f"Error del proveedor {provider.upper()} ({res.status_code}): {res.text}",
-                    )
-                res_data = res.json()
-                response_text = res_data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        except HTTPException:
-            raise
+
+            parsed_candidate = _extract_json(response_text)
+            if parsed_candidate and (parsed_candidate.get("items") or parsed_candidate.get("supplier_name")):
+                successful_candidate = cand
+                break
+            else:
+                errors.append(f"{cand_name}: No devolvió un JSON con productos válidos")
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Fallo de conexión OCR con {provider.upper()}: {e}")
+            errors.append(f"{cand_name}: {str(e)}")
+            continue
+
+    if not successful_candidate:
+        error_summary = " | ".join(errors)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Todos los proveedores de OCR fallaron. Detalles: {error_summary}",
+        )
 
     parsed = _extract_json(response_text)
     if not parsed:
-        raise HTTPException(status_code=422, detail="No se pudo extraer JSON de la factura. Intenta con foto más clara o edición manual.")
+        raise HTTPException(status_code=422, detail="No se pudo extraer JSON de la factura. Intenta con una foto más nítida.")
 
-    # sanitize items
+    # Sanitizar items extraídos
     items = []
     for it in parsed.get("items", []) or []:
         try:
@@ -272,6 +402,8 @@ async def ocr_invoice(
         except Exception:
             continue
 
+    fallback_triggered = len(attempted_providers) > 1
+
     return InvoiceOCR(
         supplier_name=parsed.get("supplier_name") or "",
         supplier_nit=parsed.get("supplier_nit") or "",
@@ -281,6 +413,9 @@ async def ocr_invoice(
         tax=float(parsed.get("tax", 0) or 0),
         total=float(parsed.get("total", 0) or 0),
         items=items,
+        provider_used=successful_candidate["display_name"],
+        fallback_triggered=fallback_triggered,
+        fallback_chain=attempted_providers,
     )
 
 

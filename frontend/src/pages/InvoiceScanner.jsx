@@ -17,6 +17,7 @@ export default function InvoiceScanner() {
   const [model, setModel] = useState("");
   const [aiSettings, setAiSettings] = useState({ provider: "gemini", model: "gemini-1.5-flash" });
   const [loading, setLoading] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState(null);
   const [invoice, setInvoice] = useState({ supplier_name: "", supplier_nit: "", invoice_number: "", date: "", items: [] });
   const fileRef = useRef(null);
 
@@ -43,6 +44,7 @@ export default function InvoiceScanner() {
     }
     setFile(f);
     setPreview(URL.createObjectURL(f));
+    setOcrStatus(null);
   };
 
   const runOCR = async () => {
@@ -67,7 +69,16 @@ export default function InvoiceScanner() {
           category: "General", tax_rate: 19,
         })),
       });
-      toast.success(`OCR completado · ${(data.items || []).length} ítems detectados`);
+      setOcrStatus({
+        provider_used: data.provider_used,
+        fallback_triggered: data.fallback_triggered,
+        fallback_chain: data.fallback_chain || [],
+      });
+      if (data.fallback_triggered) {
+        toast.success(`⚡ Procesado con ${data.provider_used} (Failover automático) · ${(data.items || []).length} ítems`);
+      } else {
+        toast.success(`✨ Procesado con ${data.provider_used || 'IA'} · ${(data.items || []).length} ítems detectados`);
+      }
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Error al procesar imagen");
     } finally { setLoading(false); }
@@ -189,7 +200,22 @@ export default function InvoiceScanner() {
 
       {/* Header + items table */}
       <Card>
-        <CardHeader><CardTitle className="text-lg">2. Revisa y ajusta los datos</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-lg">2. Revisa y ajusta los datos</CardTitle>
+          {ocrStatus && (
+            <Badge
+              variant="outline"
+              className={
+                ocrStatus.fallback_triggered
+                  ? "bg-amber-50 text-amber-800 border-amber-300 flex items-center gap-1 font-medium"
+                  : "bg-emerald-50 text-emerald-800 border-emerald-300 flex items-center gap-1 font-medium"
+              }
+            >
+              <Bot className="w-3 h-3" />
+              <span>{ocrStatus.fallback_triggered ? `⚡ Failover automático: ${ocrStatus.provider_used}` : `✨ Extraído por: ${ocrStatus.provider_used}`}</span>
+            </Badge>
+          )}
+        </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <div><label className="text-xs font-semibold">Proveedor</label>

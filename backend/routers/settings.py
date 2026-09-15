@@ -234,9 +234,12 @@ async def get_general_settings(
     # solo booleanos por proveedor — nunca se exponen los valores de las claves.
     base["platform_ai_keys"] = {
         "gemini": bool(os.environ.get("GEMINI_API_KEY", "").strip()),
+        "nvidia": bool(os.environ.get("NVIDIA_API_KEY", "").strip()),
         "openrouter": bool(os.environ.get("OPENROUTER_API_KEY", "").strip()),
         "groq": bool(os.environ.get("GROQ_API_KEY", "").strip()),
-        "nvidia": bool(os.environ.get("NVIDIA_API_KEY", "").strip()),
+        "tokenrouter": bool(os.environ.get("TOKENROUTER_API_KEY", "").strip()),
+        "orcarouter": bool(os.environ.get("ORCAROUTER_API_KEY", "").strip()),
+        "custom_ocr": bool(os.environ.get("CUSTOM_OCR_API_KEY", "").strip()),
     }
 
     # Guardar en Redis con TTL de 120s
@@ -316,17 +319,26 @@ async def test_ai_connection(
 ):
     provider = (payload.provider or "gemini").lower()
     api_key = (payload.api_key or "").strip()
-    if not api_key and provider == "gemini":
-        api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        env_map = {
+            "gemini": "GEMINI_API_KEY",
+            "nvidia": "NVIDIA_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "tokenrouter": "TOKENROUTER_API_KEY",
+            "orcarouter": "ORCAROUTER_API_KEY",
+            "custom_ocr": "CUSTOM_OCR_API_KEY",
+        }
+        api_key = os.environ.get(env_map.get(provider, f"{provider.upper()}_API_KEY"), "").strip()
 
     if not api_key:
-        raise HTTPException(status_code=400, detail=f"Debes ingresar una API Key para {provider}")
+        raise HTTPException(status_code=400, detail=f"Debes ingresar o configurar una API Key para {provider}")
 
     import httpx
 
     if provider == "gemini":
         from google import genai
-        model_name = payload.model or "gemini-1.5-flash"
+        model_name = payload.model or os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
         try:
             client = genai.Client(api_key=api_key)
             response = await client.aio.models.generate_content(
@@ -338,17 +350,23 @@ async def test_ai_connection(
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Error conectando con Gemini: {str(e)}")
 
-    # Proveedores compatibles con OpenAI (OpenRouter, NVIDIA NIM, Groq, Custom)
+    # Proveedores compatibles con OpenAI (OpenRouter, NVIDIA NIM, Groq, TokenRouter, OrcaRouter, Custom)
     url_map = {
-        "openrouter": "https://openrouter.ai/api/v1",
-        "nvidia": "https://integrate.api.nvidia.com/v1",
-        "groq": "https://api.groq.com/openai/v1",
+        "openrouter": os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+        "nvidia": os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+        "groq": os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
+        "tokenrouter": os.environ.get("TOKENROUTER_BASE_URL", "https://api.tokenrouter.io/v1"),
+        "orcarouter": os.environ.get("ORCAROUTER_BASE_URL", "https://api.orcarouter.com/v1"),
+        "custom_ocr": os.environ.get("CUSTOM_OCR_BASE_URL", "https://api.openai.com/v1"),
     }
     base_url = (payload.base_url or "").strip().rstrip("/") or url_map.get(provider, "https://api.openai.com/v1")
     default_models = {
-        "openrouter": "google/gemini-2.0-flash-exp:free",
-        "nvidia": "meta/llama-3.2-11b-vision-instruct",
-        "groq": "llama-3.2-11b-vision-preview",
+        "openrouter": os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"),
+        "nvidia": os.environ.get("NVIDIA_MODEL", "meta/llama-3.2-11b-vision-instruct"),
+        "groq": os.environ.get("GROQ_MODEL", "llama-3.2-11b-vision-preview"),
+        "tokenrouter": os.environ.get("TOKENROUTER_MODEL", "gpt-4o-mini"),
+        "orcarouter": os.environ.get("ORCAROUTER_MODEL", "gpt-4o-mini"),
+        "custom_ocr": os.environ.get("CUSTOM_OCR_MODEL", "gpt-4o-mini"),
         "custom_openai": "gpt-4o-mini",
     }
     model_name = (payload.model or "").strip() or default_models.get(provider, "gpt-4o-mini")
