@@ -118,6 +118,8 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS price_quarterly_cop FLOAT NOT NULL DEFAULT 0.0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions_override JSON;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS rate_limit_rpm INT;
     -- El CHECK constraint de "role" se creó con la tabla original (solo admin/cajero)
     -- y nunca se actualizó al agregar supervisor/contador/superadmin_platform al
     -- modelo ORM; sin este ALTER, insertar cualquiera de esos roles revienta el

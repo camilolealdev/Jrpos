@@ -174,6 +174,30 @@ def has_permission(role: str, permission: str) -> bool:
     return False
 
 
+def _perms_set_match(perms: Set[str], permission: str) -> bool:
+    if "*" in perms:
+        return True
+    if permission in perms:
+        return True
+    category = permission.split(":")[0] if ":" in permission else ""
+    if category and f"{category}:*" in perms:
+        return True
+    return False
+
+
+def effective_permissions(user) -> Set[str]:
+    """Permisos efectivos de un usuario: admin/superadmin siempre '*'; en staff,
+    el override individual (lista de permisos) reemplaza a los del rol."""
+    if not user or not getattr(user, "role", None):
+        return set()
+    if user.role in ("admin", "superadmin_platform"):
+        return {"*"}
+    override = getattr(user, "permissions_override", None)
+    if isinstance(override, list) and override:
+        return {str(p) for p in override}
+    return ROLE_PERMISSIONS.get(user.role, set())
+
+
 def get_role_permissions(role: str) -> List[str]:
     """Retorna la lista de permisos para un rol (o catálogo completo si es admin/superadmin)."""
     if not role:
@@ -184,13 +208,27 @@ def get_role_permissions(role: str) -> List[str]:
     return sorted(list(perms))
 
 
+def user_has_permission(user, permission: str) -> bool:
+    """Verifica los permisos efectivos del usuario (rol + override individual)."""
+    return _perms_set_match(effective_permissions(user), permission)
+
+
+def get_effective_permissions_list(user) -> List[str]:
+    """Lista ordenada de permisos efectivos (para /auth/me y el editor de permisos)."""
+    perms = effective_permissions(user)
+    if "*" in perms:
+        return list(PERMISSIONS_CATALOG.keys())
+    return sorted(perms)
+
+
 def require_permission(permission: str):
     """
     Dependencia de FastAPI para requerir un permiso granular.
-    Lanza 403 Forbidden si el rol del usuario no tiene la autorización requerida.
+    Respeta el override individual del usuario (si tiene) además de su rol.
+    Lanza 403 Forbidden si no tiene la autorización requerida.
     """
     async def dependency(user: User = Depends(get_current_user)) -> User:
-        if not has_permission(user.role, permission):
+        if not user_has_permission(user, permission):
             raise HTTPException(
                 status_code=403,
                 detail=f"Permiso denegado: se requiere '{permission}'",

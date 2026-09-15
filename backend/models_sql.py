@@ -74,6 +74,9 @@ class PlatformPlan(Base):
     max_products: Mapped[int] = mapped_column(Integer, nullable=False, default=5000)
     ai_ocr_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     dian_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Límite de requests por minuto para endpoints autenticados (Capa 1).
+    # None o 0 = sin límite aplicado.
+    rate_limit_rpm: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -176,6 +179,9 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(30), nullable=False, default="cajero")
     google_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    # Override granular de permisos por empleado (lista de PERMISSIONS_CATALOG).
+    # None o [] = usar los permisos del rol. No aplica a admin/superadmin_platform.
+    permissions_override: Mapped[list | None] = mapped_column(JSON, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

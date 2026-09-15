@@ -655,7 +655,7 @@ async def logout(response: Response):
 
 @auth_router.get("/me")
 async def me(user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    from permissions import get_role_permissions
+    from permissions import get_effective_permissions_list
     is_impersonated = getattr(user, "_is_impersonated", False)
     actor_id = getattr(user, "_actor_id", None)
     return {
@@ -666,7 +666,7 @@ async def me(user: User = Depends(get_current_user), session: AsyncSession = Dep
         "tenant_id": user.tenant_id,
         "is_impersonated": is_impersonated,
         "actor_id": actor_id,
-        "permissions": get_role_permissions(user.role),
+        "permissions": get_effective_permissions_list(user),
         "tenant": await _tenant_info_for(session, user),
     }
 
