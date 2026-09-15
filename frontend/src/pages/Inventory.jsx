@@ -7,11 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode, Download, Upload, Sparkles, Loader2, FileSpreadsheet, AlertTriangle, CheckCircle2, History } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Package, Tags, Calculator, Camera, Barcode, Download, Upload, Sparkles, Loader2, FileSpreadsheet, AlertTriangle, CheckCircle2, History, PackageX } from "lucide-react";
 import CategoryManager from "@/components/CategoryManager";
 import CameraScanner from "@/components/CameraScanner";
 import BarcodeLabelModal from "@/components/BarcodeLabelModal";
 import KardexModal from "@/components/KardexModal";
+import MermaModal from "@/components/MermaModal";
 
 const empty = {
   name: "", barcode: "", category: "General", price: 0, cost: 0, stock: 0, unit: "und", tax_rate: 19,
@@ -32,6 +33,7 @@ export default function Inventory() {
   const [lookingUpBarcode, setLookingUpBarcode] = useState(false);
   const [labelProd, setLabelProd] = useState(null);
   const [kardexProd, setKardexProd] = useState(null);
+  const [mermaProd, setMermaProd] = useState(null);
   const [stockFilter, setStockFilter] = useState("all"); // "all", "low", "out", "ok"
 
   // Estado para importación masiva CSV
@@ -486,6 +488,7 @@ export default function Inventory() {
                   <td className="p-3 text-right whitespace-nowrap">
                     <Button size="icon" variant="ghost" onClick={() => setLabelProd(p)} title="Imprimir etiquetas con código de barras" data-testid={`label-${p.id}`}><Barcode className="w-4 h-4 text-emerald-700" /></Button>
                     <Button size="icon" variant="ghost" onClick={() => setKardexProd(p)} title="Ver Kardex (historial de movimientos)" data-testid={`kardex-${p.id}`}><History className="w-4 h-4 text-slate-600" /></Button>
+                    <Button size="icon" variant="ghost" onClick={() => setMermaProd(p)} title="Registrar merma (vencido, roto, derramado, robo)" data-testid={`merma-btn-${p.id}`}><PackageX className="w-4 h-4 text-red-600" /></Button>
                     <Button size="icon" variant="ghost" onClick={() => edit(p)} data-testid={`edit-${p.id}`}><Edit2 className="w-4 h-4" /></Button>
                     <Button size="icon" variant="ghost" onClick={() => remove(p.id)} data-testid={`del-${p.id}`}><Trash2 className="w-4 h-4 text-red-600" /></Button>
                   </td>
@@ -790,6 +793,14 @@ export default function Inventory() {
         open={!!kardexProd}
         onOpenChange={(v) => !v && setKardexProd(null)}
         product={kardexProd}
+      />
+
+      {/* Modal de Merma: registrar producto vencido/roto/derramado/robado */}
+      <MermaModal
+        open={!!mermaProd}
+        onOpenChange={(v) => !v && setMermaProd(null)}
+        product={mermaProd}
+        onSaved={load}
       />
     </div>
   );

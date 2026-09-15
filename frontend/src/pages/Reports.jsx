@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCOP, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Printer, Download, Search, TrendingUp, Receipt, DollarSign, Calendar, FileText, Sparkles, Percent } from "lucide-react";
+import { Printer, Download, Search, TrendingUp, Receipt, DollarSign, Calendar, FileText, Sparkles, Percent, PackageX, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { printThermal } from "@/lib/thermalPrint";
 
@@ -19,6 +19,13 @@ export default function Reports() {
   const [endDate, setEndDate] = useState("");
   const [exportingTax, setExportingTax] = useState(false);
 
+  // Reporte de merma: rango de fechas propio (independiente del filtro de ventas
+  // de arriba) porque pega a su propio endpoint agregado en el backend.
+  const [mermaReport, setMermaReport] = useState(null);
+  const [mermaLoading, setMermaLoading] = useState(false);
+  const [mermaStart, setMermaStart] = useState("");
+  const [mermaEnd, setMermaEnd] = useState("");
+
   useEffect(() => {
     api.get("/sales")
       .then((r) => setSales(Array.isArray(r.data) ? r.data : []))
@@ -28,6 +35,25 @@ export default function Reports() {
       .then((r) => setSummaryData(r.data))
       .catch(() => {});
   }, []);
+
+  const loadMermaReport = useCallback(async () => {
+    setMermaLoading(true);
+    try {
+      const { data } = await api.get("/reports/merma", {
+        params: { start: mermaStart || undefined, end: mermaEnd || undefined },
+      });
+      setMermaReport(data);
+    } catch {
+      setMermaReport(null);
+      toast.error("Error consultando el reporte de merma");
+    } finally {
+      setMermaLoading(false);
+    }
+  }, [mermaStart, mermaEnd]);
+
+  useEffect(() => {
+    loadMermaReport();
+  }, [loadMermaReport]);
 
   const reprint = async (s) => {
     try {
@@ -368,6 +394,115 @@ export default function Reports() {
                 )}
               </tbody>
             </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reporte de Merma: costo total y desglose por motivo/producto */}
+      <Card data-testid="merma-report-card">
+        <CardHeader className="py-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <PackageX className="w-4 h-4 text-red-600" /> Reporte de Merma
+          </CardTitle>
+          <div className="flex flex-wrap gap-2 items-center text-xs">
+            <div className="flex items-center gap-1">
+              <span className="text-slate-500">Desde:</span>
+              <Input
+                type="date"
+                value={mermaStart}
+                onChange={(e) => setMermaStart(e.target.value)}
+                className="h-8 text-xs font-mono"
+                data-testid="merma-start-date"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-slate-500">Hasta:</span>
+              <Input
+                type="date"
+                value={mermaEnd}
+                onChange={(e) => setMermaEnd(e.target.value)}
+                className="h-8 text-xs font-mono"
+                data-testid="merma-end-date"
+              />
+            </div>
+            <Button size="sm" variant="outline" onClick={loadMermaReport} disabled={mermaLoading} data-testid="merma-report-refresh">
+              {mermaLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Consultar"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 space-y-4">
+          <p className="text-xs text-slate-500">
+            Costo de productos perdidos por vencimiento, rotura, derrame o robo — no incluye ajustes
+            manuales de inventario, solo eventos registrados explícitamente como merma.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-red-700">Costo Total de Merma</div>
+              <div className="text-lg font-bold text-red-700 font-mono" data-testid="merma-total-cost">
+                {formatCOP(mermaReport?.total_cost_impact || 0)}
+              </div>
+            </div>
+            <div className="rounded-lg bg-slate-50 border p-3">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Unidades Perdidas</div>
+              <div className="text-lg font-bold text-slate-700 font-mono">{mermaReport?.total_qty ?? 0}</div>
+            </div>
+            <div className="rounded-lg bg-slate-50 border p-3">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Eventos Registrados</div>
+              <div className="text-lg font-bold text-slate-700 font-mono">{mermaReport?.total_events ?? 0}</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs font-semibold text-slate-600 mb-1.5">Por Motivo</div>
+              <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 border-b">
+                    <tr className="text-left">
+                      <th className="p-2">Motivo</th>
+                      <th className="p-2 text-right">Unidades</th>
+                      <th className="p-2 text-right">Costo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!mermaReport?.by_motivo?.length ? (
+                      <tr><td colSpan={3} className="p-4 text-center text-slate-400">Sin merma registrada en el rango seleccionado.</td></tr>
+                    ) : mermaReport.by_motivo.map((row) => (
+                      <tr key={row.motivo} className="border-b last:border-0" data-testid={`merma-motivo-${row.motivo}`}>
+                        <td className="p-2 capitalize">{row.motivo}</td>
+                        <td className="p-2 text-right font-mono">{row.qty}</td>
+                        <td className="p-2 text-right font-mono font-semibold text-red-700">{formatCOP(row.cost_impact)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-600 mb-1.5">Por Producto</div>
+              <div className="border rounded-lg overflow-hidden overflow-x-auto max-h-64 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 border-b sticky top-0">
+                    <tr className="text-left">
+                      <th className="p-2">Producto</th>
+                      <th className="p-2 text-right">Unidades</th>
+                      <th className="p-2 text-right">Costo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!mermaReport?.by_product?.length ? (
+                      <tr><td colSpan={3} className="p-4 text-center text-slate-400">Sin datos.</td></tr>
+                    ) : mermaReport.by_product.map((row) => (
+                      <tr key={row.product_id} className="border-b last:border-0" data-testid={`merma-product-${row.product_id}`}>
+                        <td className="p-2 truncate max-w-[160px]">{row.product_name}</td>
+                        <td className="p-2 text-right font-mono">{row.qty}</td>
+                        <td className="p-2 text-right font-mono font-semibold text-red-700">{formatCOP(row.cost_impact)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -10,6 +10,15 @@ const TYPE_LABELS = {
   adjustment: "Ajuste",
   return: "Devolución",
   waste: "Merma",
+  merma: "Merma",
+};
+
+const MOTIVO_LABELS = {
+  vencido: "Vencido",
+  roto: "Roto",
+  derramado: "Derramado",
+  robo: "Robo",
+  otro: "Otro",
 };
 
 export default function KardexModal({ open, onOpenChange, product }) {
@@ -50,7 +59,11 @@ export default function KardexModal({ open, onOpenChange, product }) {
                     <ArrowDownCircle className="w-4 h-4 text-red-600 shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <div className="font-medium truncate">{TYPE_LABELS[m.type] || m.type}{m.reason ? ` · ${m.reason}` : ""}</div>
+                    <div className="font-medium truncate">
+                      {TYPE_LABELS[m.type] || m.type}
+                      {m.motivo ? ` (${MOTIVO_LABELS[m.motivo] || m.motivo})` : ""}
+                      {m.reason ? ` · ${m.reason}` : ""}
+                    </div>
                     <div className="text-xs text-slate-500">{formatDate(m.created_at)}</div>
                   </div>
                 </div>

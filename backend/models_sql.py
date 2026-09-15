@@ -237,6 +237,10 @@ class StockMovement(Base):
     new_stock: Mapped[float] = mapped_column(Float, nullable=False)
     user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Código de motivo estructurado para movimientos type="merma" (vencido, roto,
+    # derramado, robo, otro). "reason" sigue disponible como nota libre; "motivo"
+    # es lo que agrupa el reporte de merma por categoría.
+    motivo: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
