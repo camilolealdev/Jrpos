@@ -28,6 +28,7 @@ class ContactOut(BaseModel):
     credit_limit: Optional[float] = 0.0
     current_debt: Optional[float] = 0.0
     notes: Optional[str] = None
+    price_list_id: Optional[str] = None
 
 
 class ContactCreate(BaseModel):
@@ -41,6 +42,7 @@ class ContactCreate(BaseModel):
     city: Optional[str] = None
     credit_limit: Optional[float] = 0.0
     notes: Optional[str] = None
+    price_list_id: Optional[str] = None
 
 
 @contacts_router.post("/contacts", response_model=ContactOut)

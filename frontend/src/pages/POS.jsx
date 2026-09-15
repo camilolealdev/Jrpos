@@ -40,6 +40,10 @@ export default function POS() {
   const [categories, setCategories] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [customerId, setCustomerId] = useState("");
+  // Overrides {product_id: price} de la lista de precios del cliente seleccionado
+  // (mayorista). {} = sin cliente, sin lista, o lista no vigente -> todo el
+  // carrito usa el precio normal de cada producto.
+  const [priceOverrides, setPriceOverrides] = useState({});
   const [payOpen, setPayOpen] = useState(false);
   const [payment, setPayment] = useState("efectivo");
   const [received, setReceived] = useState("");
@@ -104,6 +108,38 @@ export default function POS() {
       }
     } catch {}
   }, [cart]);
+
+  // Al elegir (o quitar) un cliente, resuelve el override de precio de su lista
+  // de precios (mayorista) vigente. Sin cliente o sin lista aplicable -> {}.
+  useEffect(() => {
+    if (!customerId) { setPriceOverrides({}); return; }
+    api.get("/price-lists/effective-prices", { params: { contact_id: customerId } })
+      .then((r) => setPriceOverrides(r.data && typeof r.data === "object" ? r.data : {}))
+      .catch(() => setPriceOverrides({}));
+  }, [customerId]);
+
+  // Reaplica los overrides (o el precio normal, si ya no aplica ninguno) a los
+  // productos del carrito que coincidan con la lista de precios del cliente.
+  // Cada item guarda su unit_price original (ver addToCart/addWeighedItemToCart)
+  // para poder volver al precio normal si se quita el cliente o cambia la lista.
+  useEffect(() => {
+    setCart((prev) => {
+      if (!Array.isArray(prev) || prev.length === 0) return prev;
+      let changed = false;
+      const next = prev.map((it) => {
+        if (!it.base_product_id || it.unit_price == null) return it;
+        const overridden = priceOverrides[it.base_product_id];
+        const baseUnit = overridden != null ? Number(overridden) : Number(it.unit_price);
+        const finalPrice = it.is_package ? Math.round(baseUnit * (it.units_per_package || 1)) : baseUnit;
+        if (finalPrice !== it.price) {
+          changed = true;
+          return { ...it, price: finalPrice };
+        }
+        return it;
+      });
+      return changed ? next : prev;
+    });
+  }, [priceOverrides]);
 
   const loadHeld = async () => {
     try {
@@ -246,7 +282,11 @@ export default function POS() {
     const isPack = Boolean((isPackage || p.pack_only) && p.units_per_package && p.units_per_package > 1);
     const cartItemId = isPack ? `${p.id}_pack` : p.id;
     const itemName = isPack ? `${p.name} (Pack x${p.units_per_package})` : p.name;
-    const itemPrice = isPack ? Math.round(p.price * p.units_per_package) : p.price;
+    // Si el cliente seleccionado tiene una lista de precios vigente que cubre
+    // este producto, se usa ese precio unitario de entrada (no solo al re-aplicar
+    // overrides con el useEffect) para que no haya un parpadeo con el precio normal.
+    const unitPrice = priceOverrides[p.id] != null ? Number(priceOverrides[p.id]) : p.price;
+    const itemPrice = isPack ? Math.round(unitPrice * p.units_per_package) : unitPrice;
 
     setCart((prev) => {
       const found = prev.find((x) => x.product_id === cartItemId);
@@ -260,6 +300,7 @@ export default function POS() {
           barcode: p.barcode,
           qty: 1,
           price: itemPrice,
+          unit_price: p.price,
           tax_rate: p.tax_rate,
           is_package: isPack,
           units_per_package: isPack ? p.units_per_package : 1,
@@ -975,6 +1016,25 @@ export default function POS() {
                 </Button>
               )}
             </div>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <Select value={customerId || "none"} onValueChange={(v) => setCustomerId(v === "none" ? "" : v)}>
+              <SelectTrigger className="h-8 text-xs flex-1" data-testid="pos-customer-select">
+                <SelectValue placeholder="Sin cliente (precio normal)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin cliente (precio normal)</SelectItem>
+                {(Array.isArray(customers) ? customers : []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {Object.keys(priceOverrides).length > 0 && (
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px] shrink-0" data-testid="wholesale-price-badge">
+                Precio mayorista
+              </Badge>
+            )}
           </div>
           {Array.isArray(held) && held.length > 0 && (
             <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1" data-testid="held-accounts-bar">
