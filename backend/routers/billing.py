@@ -139,11 +139,11 @@ async def payment_info(session: AsyncSession = Depends(get_session)):
     )
     import os
     return {
-        "qr_url": os.environ.get("PAYMENT_QR_URL", ""),
-        "bank_info": os.environ.get("PAYMENT_BANK_INFO", ""),
-        "whatsapp": os.environ.get("PAYMENT_WHATSAPP", ""),
-        "nequi_number": os.environ.get("PAYMENT_NEQUI_NUMBER", ""),
-        "breb_key": os.environ.get("PAYMENT_BREB_KEY", ""),
+        "qr_url": os.environ.get("PAYMENT_QR_URL", "/payment-qr.png"),
+        "bank_info": os.environ.get("PAYMENT_BANK_INFO", "Cuenta de Ahorros Nu: 73238342"),
+        "whatsapp": os.environ.get("PAYMENT_WHATSAPP", "573194197263"),
+        "nequi_number": os.environ.get("PAYMENT_NEQUI_NUMBER", "3194197263"),
+        "breb_key": os.environ.get("PAYMENT_BREB_KEY", "@fls698"),
         "plans": [
             {
                 "id": pl.id, "name": pl.name, "price_cop": pl.price_cop,

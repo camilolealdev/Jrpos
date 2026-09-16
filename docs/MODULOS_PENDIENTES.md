@@ -1,6 +1,6 @@
 # JRPOS — Matriz de Módulos y Estado del Sistema
 
-> Última actualización: 11 de septiembre 2026 (Sprint Multi-Tenant en curso)
+> Última actualización: 16 de septiembre 2026 (Sprint Multi-Tenant en curso)
 > Leyenda: ✅ Construido y Probado · 🧪 Simulado (Sandbox) · 🔄 En Evolución · 🔨 En Desarrollo (código sin integrar)
 
 ---
@@ -40,6 +40,10 @@
 | **Permisos de Usuarios** | `/usuarios` | `/api/users/*` | ✅ Activo | Roles Admin / Cajero, reseteo seguro de contraseña y bloqueo por fuerza bruta |
 | **Configuración** | `/configuracion` | `/api/settings/general` | ✅ Activo | Datos comerciales, NIT, tema de color, ancho de ticket, credenciales IA seguras |
 | **Soporte** | `/soporte` | `/api/support` | ✅ Activo | Preguntas frecuentes, atajos de teclado y canales de atención |
+| **Control de Merma** | `/inventario` (modal) | `/api/products/{id}/merma`, `/api/reports/merma` | ✅ Activo | Registro de merma/desperdicio (motivo: vencido/roto/derramado/robo/otro) reutilizando `StockMovement`, con reporte por motivo y por producto |
+| **Listas de Precios por Cliente** | `/listas-precios` | `/api/price-lists/*` | ✅ Activo | Listas mayorista/ventana promocional por cliente (`Contact.price_list_id`), overrides aplicados automáticamente en el POS al seleccionar cliente, con fallback al precio normal |
+| **Métodos de Pago Personalizables** | `/configuracion` | `SettingsGeneral.custom_payment_methods` | ✅ Activo | Métodos de pago configurables por tenant (agregar/renombrar/activar/reordenar); los 6 ids históricos quedan fijos como default |
+| **Permisos Granulares por Empleado** | `/usuarios` | `/api/users/{id}/permissions` | ✅ Activo | Override de permisos por usuario sobre el rol base (`permissions_override`); `/auth/me` reporta permisos efectivos |
 
 ---
 
@@ -58,6 +62,16 @@
 
 ## 🎯 Próximo Paso para Producción DIAN
 - Conexión del conector SOAP y firma digital XAdES-BES con Proveedor Tecnológico (PT) habilitado ante la DIAN para emisión de facturas electrónicas reales con valor legal.
+
+## ✅ Resueltas esta sesión (16 sep 2026) — auditoría de pendientes de sesiones/agentes anteriores
+1. **3 agentes en paralelo (15 sep)** entregaron y mergearon sin conflicto: métodos de pago personalizables (`14b4c13`), control de merma (`b5a4693`) y listas de precios por cliente (`b1a08a1`), todos con tests nuevos incluidos en el diff. Documentados arriba en la matriz de módulos y en `docs/HANDOFF.md`.
+2. **Trabajo huérfano recuperado**: el commit `f401913` (editor de permisos granular) rescató cambios que habían quedado sin commitear en main de una sesión paralela previa — ya está a salvo en git.
+3. **Docs desactualizados**: esta matriz y `docs/HANDOFF.md` estaban congelados en el 14 sep pese a que la última sesión de trabajo fue el 15 sep — actualizados en esta revisión.
+
+**Pendiente real que persiste (no resuelto en esta sesión, requiere decisión/acceso del dueño):**
+- Rebuild de imágenes Docker con los features del 15 sep (no hay evidencia de que se haya corrido tras esos commits).
+- 7 commits sin pushear a `origin/main` al momento de esta auditoría.
+- Despliegue real a VPS (todo sigue validado solo en Docker local) y publicación de la pantalla de consentimiento de Google — pendientes recurrentes desde hace varias sesiones.
 
 ## ✅ Resueltas esta sesión (14 sep 2026)
 1. **Auditoría de arquitectura actualizada** (`ANALISIS_ARQUITECTURA_7_CAPAS.md`): IDOR electronic.py (commit `d6c5347`), sweep de `session.get()` (limpio, 9 routers), RLS Fase A+B+C y logging contextual Capa 7 (`observability.py`) ya estaban resueltos por la sesión anterior — docs marcados como RESUELTO. Roadmap pendiente real: rate-limit por plan, webhook Wompi+dunning, OTel (diferir).

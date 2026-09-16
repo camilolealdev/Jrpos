@@ -187,3 +187,27 @@ Fix (siguiendo el mismo patrón ya usado en `get_jwt_secret()` de este archivo):
 ### Pendiente (no tocado en esta sesión)
 
 - `backend/auth.py`, `backend/app.py`, `backend/models_sql.py`, `backend/routers/settings.py`, `backend/mailer.py`, `frontend/src/pages/Settings.jsx`, `Layout.jsx`, `index.css`, `index.js`, `tailwind.config.js`: trabajo de OpenCode (branding + registro con dominio permitido + email de bienvenida SMTP), visto en el working tree pero no commiteado por esta sesión — no se tocó ni se commiteó nada de eso aquí, queda a criterio de esa sesión/el usuario cerrarlo.
+
+---
+
+## Sesión 2026-09-15: 3 agentes en paralelo — pagos, merma, listas de precios (+ permisos granulares recuperados)
+
+**Nota de coordinación:** 3 agentes corrieron en paralelo sobre el mismo working tree (mismo patrón "Merge: ... agente N/3" en el log). Cada uno trajo tests nuevos y no hubo overlap de archivos reportado.
+
+### Qué se implementó
+
+1. **Editor de permisos granular por empleado** (`f401913`) — este commit en realidad **rescató trabajo en progreso que había quedado sin commitear en main de una sesión paralela anterior**: `User.permissions_override`, endpoints `GET/PUT /api/users/{id}/permissions`, `effective_permissions()`/`get_effective_permissions_list()` en `permissions.py`, y `/auth/me` ahora reporta permisos efectivos (rol + override). Incluye también `PlatformPlan.rate_limit_rpm` (cambio suelto, no relacionado, del mismo lote sin commitear).
+2. **Métodos de pago personalizables por tenant** (`14b4c13`) — reemplaza el array fijo de POS.jsx por `SettingsGeneral.custom_payment_methods` (UI en Settings.jsx: agregar/renombrar/activar/reordenar/restablecer). Los 6 ids históricos quedan fijos como default. `Sale.payment_method`/`Payment.method` ampliados de VARCHAR(20) a VARCHAR(40).
+3. **Control de merma** (`b5a4693`) — reutiliza `StockMovement` (type="merma") en vez de tabla paralela; nuevo campo `motivo` (vencido/roto/derramado/robo/otro); `POST /products/{id}/merma` bajo el permiso `inventory:adjust` ya existente; `GET /reports/merma` con desglose por motivo/producto; modal en Inventario + tarjeta en Reportes.
+4. **Listas de precios por cliente** (`b1a08a1`) — tablas `PriceList`/`PriceListItem` (mismo patrón que `Promotion`) + `Contact.price_list_id` como lista mayorista por defecto. Router `price_lists.py` (CRUD + `/price-lists/active` + `/price-lists/effective-prices`) y helpers en `pricing.py`. Permisos `price_lists:read/manage` para supervisor. POS.jsx aplica overrides automáticamente al seleccionar cliente, con fallback al precio normal. **Fuera de alcance a propósito**: horario dentro del día y listas por sucursal.
+5. `4fd4b76` — router de failover multi-provider para OCR (Gemini → NVIDIA → OpenRouter → Groq), tope 65k tokens y sync de inventario (sesión previa el mismo día, no parte del trío de agentes).
+
+### Verificación
+- Tests nuevos incluidos y en el diff: `backend/tests/test_merma.py`, `test_price_lists.py`, `test_settings_payment_methods.py`, `test_ocr_router.py`.
+- No hay evidencia en el log de que se haya corrido `docker compose build` tras estos cambios — el contenedor backend probablemente sigue en código anterior (mismo patrón de "pendiente rebuild" ya visto en la sesión del 14-15 sep anterior).
+
+### Pendiente / a revisar
+- **Rebuild de imágenes Docker** con estos 5 features antes de considerar el stack local al día.
+- **Actualizar `docs/MODULOS_PENDIENTES.md`** con los 3 módulos nuevos (pagos personalizables, merma, listas de precios) — hecho en esta misma sesión de revisión (2026-09-16).
+- **7 commits sin pushear** a `origin/main` al momento de esta revisión (2026-09-16) — confirmar que todo quedó verificado antes de hacer `git push`.
+- Pendientes de fondo que siguen sin resolverse de sesiones anteriores: despliegue real a VPS (todo validado solo en Docker local) y publicar la pantalla de consentimiento de Google (sigue en modo "Testing").
