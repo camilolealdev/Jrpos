@@ -33,7 +33,7 @@ Sistema POS integral, modular y 100% responsivo (PWA instalable en dispositivos 
 
 ---
 
-## 📦 Matriz de 28 Módulos Activos
+## 📦 Matriz de 34 Módulos Activos
 
 ```mermaid
 mindmap

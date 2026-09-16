@@ -5,7 +5,7 @@
 
 ---
 
-## 📦 Matriz de los 28 Módulos del Sistema
+## 📦 Matriz de los 34 Módulos del Sistema
 
 | Módulo | Ruta | Backend | Estado | Descripción & Capacidades |
 |---|---|---|:---:|---|
@@ -37,13 +37,12 @@
 | **Comisiones** | `/comisiones` | `/api/commissions/*` | ✅ Activo | Reglas de comisión por vendedor y liquidación |
 | **Gastos / Pagos** | `/gastos` | `/api/expenses` | ✅ Activo | Registro de egresos operacionales (arriendo, servicios, insumos) |
 | **Reportes & Exportación** | `/reportes` | `/api/reports/accounting-export` | ✅ Activo | Historial de ventas, reimpresión térmica y exportación fiscal contable (Base + IVA 0/5/19%) |
-| **Permisos de Usuarios** | `/usuarios` | `/api/users/*` | ✅ Activo | Roles Admin / Cajero, reseteo seguro de contraseña y bloqueo por fuerza bruta |
+| **Permisos de Usuarios** | `/usuarios` | `/api/users/*`, `/api/users/{id}/permissions` | ✅ Activo | Roles Admin / Cajero / Supervisor / Contador, reseteo seguro de contraseña, bloqueo por fuerza bruta y **override granular de permisos por empleado** sobre el rol base (`permissions_override`); `/auth/me` reporta los permisos efectivos |
 | **Configuración** | `/configuracion` | `/api/settings/general` | ✅ Activo | Datos comerciales, NIT, tema de color, ancho de ticket, credenciales IA seguras |
 | **Soporte** | `/soporte` | `/api/support` | ✅ Activo | Preguntas frecuentes, atajos de teclado y canales de atención |
 | **Control de Merma** | `/inventario` (modal) | `/api/products/{id}/merma`, `/api/reports/merma` | ✅ Activo | Registro de merma/desperdicio (motivo: vencido/roto/derramado/robo/otro) reutilizando `StockMovement`, con reporte por motivo y por producto |
 | **Listas de Precios por Cliente** | `/listas-precios` | `/api/price-lists/*` | ✅ Activo | Listas mayorista/ventana promocional por cliente (`Contact.price_list_id`), overrides aplicados automáticamente en el POS al seleccionar cliente, con fallback al precio normal |
 | **Métodos de Pago Personalizables** | `/configuracion` | `SettingsGeneral.custom_payment_methods` | ✅ Activo | Métodos de pago configurables por tenant (agregar/renombrar/activar/reordenar); los 6 ids históricos quedan fijos como default |
-| **Permisos Granulares por Empleado** | `/usuarios` | `/api/users/{id}/permissions` | ✅ Activo | Override de permisos por usuario sobre el rol base (`permissions_override`); `/auth/me` reporta permisos efectivos |
 
 ---
 
