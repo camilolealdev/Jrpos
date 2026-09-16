@@ -25,7 +25,7 @@ Sistema POS integral, modular y 100% responsivo (PWA instalable en dispositivos 
 | **Código de Barras** | Escáner de cámara (`html5-qrcode`) + Lector óptico físico + Generador de etiquetas para impresión |
 | **Ergonomía POS** | Atajos <kbd>F2</kbd>, <kbd>F4</kbd>, <kbd>F9</kbd>, <kbd>Esc</kbd> + Audio feedback (Web Audio API) + Billetes rápidos COP |
 | **Backend** | FastAPI (Python), entrypoint real `app.py`, arquitectura modular de 20 routers (`backend/routers/`) |
-| **Base de Datos** | PostgreSQL 16+ con SQLAlchemy Async (`asyncpg`) + migraciones automáticas idempotentes (`db_migrations.py`) |
+| **Base de Datos** | PostgreSQL 16+ con SQLAlchemy Async (`asyncpg`) + migraciones automáticas idempotentes (`db_migrations.py`) + Row-Level Security multi-tenant (rol `jrpos_app` sin `SUPERUSER`) |
 | **IA / Visión (OCR Facturas)** | Google Gemini 3 Flash / 1.5 Flash Vision para extracción automática de ítems |
 | **Seguridad & Auth** | JWT con cookies HttpOnly (`SameSite=None/Lax`), bcrypt, limitador de intentos y RBAC (`admin` / `cajero`) |
 | **Facturación Fiscal** | Arquitectura DIAN UBL 2.1 con cálculo CUFE (SHA-384), códigos QR y Web Services SOAP |
@@ -62,6 +62,7 @@ mindmap
       Carga Masiva Excel/CSV
       Actualización Masiva
       Promociones y Ofertas
+      Control de Merma
     Ventas y Compras
       Órdenes y Cotizaciones
       Garantías y Devoluciones
@@ -71,8 +72,10 @@ mindmap
       Caja y Arqueo Cierre Z
       Comisiones de Ventas
       Gastos y Salidas de Caja
+      Listas de Precios por Cliente
     Sistema
-      Permisos de Usuarios
+      Permisos Granulares por Empleado
+      Métodos de Pago Personalizables
       Configuración y Personalización
       Soporte y FAQ
 ```
@@ -107,6 +110,7 @@ mindmap
 - **Carga Masiva (`/carga-masiva`)**: Importador de catálogo desde hojas de cálculo Excel y archivos CSV.
 - **Actualización Masiva (`/actualizacion-masiva`)**: Modificación porcentual de precios y costos por categoría.
 - **Promociones y Ofertas (`/promociones`)**: Descuentos globales y combos por categoría con vigencia programada.
+- **Control de Merma**: Registro de merma/desperdicio por motivo (vencido, roto, derramado, robo, otro) reutilizando el Kardex de movimientos de stock, con reporte desglosado por motivo y por producto en Reportes.
 
 ### 5. Ventas, Compras y Caja
 - **Órdenes / Cotizaciones (`/ordenes-venta`)**: Elaboración de presupuestos comerciales para clientes.
@@ -117,10 +121,12 @@ mindmap
 - **Caja y Recogidas (`/recogidas`)**: Apertura de turno con base, retiros parciales de efectivo y Arqueo Cierre Z con detección de sobrante/faltante.
 - **Comisiones (`/comisiones`)**: Reglas de comisión por vendedor y liquidación de ganancias sobre ventas.
 - **Gastos / Pagos (`/gastos`)**: Registro de salidas de dinero por arriendo, servicios, proveedores y mantenimiento.
+- **Listas de Precios por Cliente (`/listas-precios`)**: Listas mayorista o de ventana promocional asignables por defecto a un cliente; el POS aplica los overrides automáticamente al seleccionarlo, con fallback al precio normal.
 
 ### 6. Sistema
-- **Permisos de Usuarios (`/usuarios`)**: Administración de accesos con roles de Administrador y Cajero.
-- **Configuración (`/configuracion`)**: Razón social, NIT, mensaje de ticket y personalización de temas.
+- **Permisos de Usuarios (`/usuarios`)**: Roles Administrador / Cajero / Supervisor / Contador con **override granular por empleado** sobre el rol base — el endpoint `/auth/me` reporta los permisos efectivos (rol + override).
+- **Métodos de Pago Personalizables**: Los métodos de pago del POS son configurables por tenant (agregar, renombrar, activar, reordenar) desde Configuración; los 6 métodos históricos (efectivo, Nequi, Daviplata, tarjeta, transferencia, crédito) quedan como default.
+- **Configuración (`/configuracion`)**: Razón social, NIT, mensaje de ticket, logotipo de negocio y personalización de temas de color.
 - **Soporte (`/soporte`)**: Base de conocimientos, preguntas frecuentes y asistencia técnica.
 
 ---
@@ -191,6 +197,10 @@ Estado verificado mediante suite de pruebas automatizadas y auditoría fullstack
 - ✅ **Identidad Visual & Branding**: Logotipos oficiales WebP de alta fidelidad (`logo.webp` y `logo2.webp`), favicons generados y eliminación total de etiquetas de texto de versión redundantes.
 - ✅ **Auto-Recuperación de Despliegues Frontend**: Manejador `lazyWithRetry` en `App.js` que previene errores de carga de chunks (`ChunkLoadError`) ante nuevos despliegues.
 - 🟠 **Facturación DIAN en Modo Simulación / Sandbox**: El cálculo CUFE (SHA-384) y la estructura UBL 2.1 están listos para integrarse con un proveedor tecnológico o certificado digital en producción.
+- ✅ **Aislamiento Multi-Tenant con Row-Level Security**: Políticas RLS en las 33 tablas tenant-scoped de Postgres como segunda capa de defensa (además del filtro por `tenant_id` en el código), con conexión de la app vía rol dedicado sin privilegios de superusuario.
+- ✅ **Política de Contraseñas Fuertes**: Validación centralizada (mínimo 8 caracteres, mezcla de tipos, rechazo de contraseñas débiles conocidas) aplicada en registro, alta de usuario y reset de password, con medidor visual en el frontend.
+- ✅ **Login con Google**: Onboarding obligatorio para cuentas nuevas vía Google Identity Services, con restricción opcional de dominios de correo permitidos (`REGISTRATION_ALLOWED_DOMAINS`).
+- ✅ **Nuevos Módulos (sep. 2026)**: Control de Merma por motivo, Listas de Precios por Cliente (mayorista/ventana promocional), Métodos de Pago Personalizables por tenant y Permisos Granulares por Empleado — cada uno con su propia suite de tests de integración.
 
 ---
 
