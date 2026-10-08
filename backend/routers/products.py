@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user, require_admin
@@ -109,6 +110,14 @@ class BulkUpdatePayload(BaseModel):
     add_stock: Optional[float] = None
 
 
+async def _barcode_taken(session: AsyncSession, tenant_id: str, barcode: str, exclude_id: Optional[str] = None) -> bool:
+    """True si otro producto del mismo tenant ya usa ese barcode."""
+    stmt = select(Product.id).where(Product.tenant_id == tenant_id, Product.barcode == barcode)
+    if exclude_id:
+        stmt = stmt.where(Product.id != exclude_id)
+    return (await session.execute(stmt.limit(1))).first() is not None
+
+
 # ----------------- Endpoints -----------------
 @products_router.get("/products", response_model=List[ProductOut])
 async def list_products(
@@ -148,11 +157,27 @@ async def get_by_barcode(
     user: User = Depends(get_current_user),
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
-    stmt = select(Product).where(Product.barcode == barcode.strip(), Product.tenant_id == tenant_id)
-    product = (await session.execute(stmt)).scalar_one_or_none()
+    # .first() y no scalar_one_or_none(): el barcode no era unico por tenant, y con
+    # duplicados historicos scalar_one_or_none() lanzaba MultipleResultsFound (500),
+    # que el POS interpretaba como "no existe" y ofrecia crear otro duplicado.
+    stmt = (
+        select(Product)
+        .where(Product.barcode == barcode.strip(), Product.tenant_id == tenant_id)
+        .order_by(Product.created_at.asc())
+        .limit(1)
+    )
+    product = (await session.execute(stmt)).scalars().first()
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return product
+
+
+# Los datos de catalogo publico (Open Food/Beauty Facts) no dependen del tenant,
+# asi que la cache es global. Un hit se conserva mucho tiempo; un "no encontrado"
+# definitivo menos (alguien puede subirlo). Un fallo transitorio NO se cachea.
+_EXT_LOOKUP_HIT_TTL = 30 * 24 * 3600
+_EXT_LOOKUP_MISS_TTL = 24 * 3600
+_EXT_LOOKUP_MAX_LEN = 32
 
 
 @products_router.get("/products/lookup-external/{barcode}")
@@ -163,11 +188,30 @@ async def lookup_external_barcode(
     """
     Consulta bases de datos de catálogo global (Open Food Facts / Open Beauty / etc.)
     para autocompletar nombre, marca, categoría e imagen de un producto por su código de barras.
+    Resultado cacheado en Redis (si hay) para no repetir hasta ~7 s de llamadas externas en el POS.
     """
     clean_code = barcode.strip()
     if not clean_code:
         return {"found": False, "barcode": barcode}
+    if len(clean_code) > _EXT_LOOKUP_MAX_LEN:
+        return {"found": False, "barcode": clean_code}
 
+    cache_key = f"cache:barcode_ext:{clean_code}"
+    cached = await get_json(cache_key)
+    if cached is not None:
+        return cached
+
+    state = {"definitive": True}
+    result = await _lookup_external_uncached(clean_code, state)
+    if result.get("found"):
+        await set_json(cache_key, result, ttl=_EXT_LOOKUP_HIT_TTL)
+    elif state["definitive"]:
+        await set_json(cache_key, result, ttl=_EXT_LOOKUP_MISS_TTL)
+    return result
+
+
+async def _lookup_external_uncached(clean_code: str, state: dict) -> dict:
+    """state["definitive"] pasa a False si alguna fuente fallo (timeout/5xx): no cachear el miss."""
     import httpx
 
     # 1. Consulta Open Food Facts (alimentos, bebidas, abarrotes, golosinas)
@@ -175,6 +219,8 @@ async def lookup_external_barcode(
         url = f"https://world.openfoodfacts.org/api/v0/product/{clean_code}.json"
         async with httpx.AsyncClient(timeout=4.0, headers={"User-Agent": "Jrpos - Retail POS - Support/1.0"}) as client:
             resp = await client.get(url)
+            if resp.status_code not in (200, 404):
+                state["definitive"] = False
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("status") == 1 and "product" in data:
@@ -215,13 +261,15 @@ async def lookup_external_barcode(
                             "source": "Open Food Facts",
                         }
     except Exception:
-        pass
+        state["definitive"] = False
 
     # 2. Consulta Open Beauty Facts (aseo, cuidado personal, cosméticos)
     try:
         url = f"https://world.openbeautyfacts.org/api/v0/product/{clean_code}.json"
         async with httpx.AsyncClient(timeout=3.0, headers={"User-Agent": "Jrpos - Retail POS - Support/1.0"}) as client:
             resp = await client.get(url)
+            if resp.status_code not in (200, 404):
+                state["definitive"] = False
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("status") == 1 and "product" in data:
@@ -242,7 +290,7 @@ async def lookup_external_barcode(
                             "source": "Open Beauty Facts",
                         }
     except Exception:
-        pass
+        state["definitive"] = False
 
     return {"found": False, "barcode": clean_code}
 
@@ -269,6 +317,9 @@ async def create_product(
 ):
     tenant_id = user.tenant_id or "tenant-default-001"
     await check_product_limit(session, tenant_id, qty_to_add=1)
+    new_barcode = (payload.barcode or "").strip() or None
+    if new_barcode and await _barcode_taken(session, tenant_id, new_barcode):
+        raise HTTPException(status_code=409, detail="Ya existe un producto con ese código de barras")
     unit_cost, unit_price = compute_unit_pricing(
         payload.package_cost, payload.units_per_package, payload.margin_percent,
         fallback_cost=float(payload.cost or 0.0), fallback_price=float(payload.price or 0.0),
@@ -277,7 +328,7 @@ async def create_product(
     product = Product(
         tenant_id=tenant_id,
         name=payload.name.strip(),
-        barcode=payload.barcode.strip() if payload.barcode else None,
+        barcode=new_barcode,
         sku=payload.sku.strip() if payload.sku else None,
         category=payload.category.strip() if payload.category else "General",
         price=unit_price,
@@ -293,7 +344,12 @@ async def create_product(
         pack_only=bool(payload.pack_only),
     )
     session.add(product)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        # Carrera entre el chequeo de arriba y el indice unico parcial del barcode.
+        await session.rollback()
+        raise HTTPException(status_code=409, detail="Ya existe un producto con ese código de barras")
     await delete_key(f"cache:categories:{tenant_id}")
     return product
 
@@ -322,7 +378,11 @@ async def update_product(
     # quedaba guardado tal cual y nunca volvía a hacer match exacto contra un
     # código escaneado en el POS (que sí llega recortado).
     if "barcode" in data:
-        data["barcode"] = data["barcode"].strip() if data["barcode"] else None
+        data["barcode"] = (data["barcode"] or "").strip() or None
+        if data["barcode"] and data["barcode"] != product.barcode and await _barcode_taken(
+            session, tenant_id, data["barcode"], exclude_id=product.id
+        ):
+            raise HTTPException(status_code=409, detail="Ya existe un producto con ese código de barras")
 
     # Ajuste manual de stock (edición directa desde Inventario): registrar el
     # movimiento antes de sobrescribir, si el nuevo valor difiere del actual.
@@ -353,7 +413,11 @@ async def update_product(
 
     product.updated_at = utcnow()
 
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(status_code=409, detail="Ya existe un producto con ese código de barras")
     await delete_key(f"cache:categories:{tenant_id}")
     return product
 
@@ -591,12 +655,13 @@ async def bulk_load_products(
     updated = 0
     for it in items:
         existing = None
-        if it.barcode:
-            stmt = select(Product).where(Product.barcode == it.barcode.strip(), Product.tenant_id == tenant_id)
-            existing = (await session.execute(stmt)).scalar_one_or_none()
+        bulk_barcode = (it.barcode or "").strip()
+        if bulk_barcode:
+            stmt = select(Product).where(Product.barcode == bulk_barcode, Product.tenant_id == tenant_id).limit(1)
+            existing = (await session.execute(stmt)).scalars().first()
         if not existing:
-            stmt = select(Product).where(Product.name == it.name.strip(), Product.tenant_id == tenant_id)
-            existing = (await session.execute(stmt)).scalar_one_or_none()
+            stmt = select(Product).where(Product.name == it.name.strip(), Product.tenant_id == tenant_id).limit(1)
+            existing = (await session.execute(stmt)).scalars().first()
 
         unit_cost, unit_price = compute_unit_pricing(
             it.package_cost, it.units_per_package, it.margin_percent,
@@ -613,7 +678,7 @@ async def bulk_load_products(
                 session.add(StockMovement(
                     tenant_id=tenant_id, product_id=existing.id, type="purchase", qty=added_stock,
                     previous_stock=float(existing.stock), new_stock=float(existing.stock) + added_stock,
-                    user_id=admin.id, reason="Carga masiva de inventario",
+                    user_id=user.id, reason="Carga masiva de inventario",
                 ))
             existing.stock = existing.stock + added_stock
             if it.margin_percent is not None:
@@ -629,7 +694,7 @@ async def bulk_load_products(
             new_p = Product(
                 tenant_id=tenant_id,
                 name=it.name.strip(),
-                barcode=it.barcode.strip() if it.barcode else None,
+                barcode=bulk_barcode or None,
                 sku=it.sku.strip() if it.sku else None,
                 category=it.category.strip() if it.category else "General",
                 price=unit_price,

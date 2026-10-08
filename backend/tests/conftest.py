@@ -9,11 +9,17 @@ The running backend container is a prebuilt image whose login limiter keys on
 X-Forwarded-For with a 10/min per-IP budget. Spoof a unique client IP per
 request so the shared 127.0.0.1 bucket is never exhausted by the suite.
 """
+import os
 import random
+import sys
 
 import urllib3
 
 import requests
+
+# Algunos tests (test_ocr_router, etc.) importan modulos del backend directamente;
+# `pytest tests/` desde backend/ no pone backend/ en sys.path y el import fallaba en la coleccion.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

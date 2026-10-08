@@ -1,14 +1,16 @@
+import asyncio
 import base64
 import hashlib
 import json
 import os
 import re
+import time
 from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
@@ -122,12 +124,29 @@ class ImportInvoiceRequest(BaseModel):
     items: List[dict]
 
 
+# Familia Gemini 1.5 retirada por Google (sep-2025): pedirla devuelve error, lo que
+# antes hacia fallar siempre al primer proveedor del OCR y caer al siguiente.
+# Se sustituye por el modelo vigente (configurable por env sin redeploy de codigo).
+_RETIRED_GEMINI_MODELS = {
+    "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro",
+    "gemini-3-flash-preview", "gemini-2.0-flash-exp",
+}
+_DEFAULT_GEMINI_OCR_MODEL = "gemini-2.5-flash"
+
+
+def _resolve_gemini_model(model_name: Optional[str]) -> str:
+    current = os.environ.get("GEMINI_OCR_MODEL", "").strip() or _DEFAULT_GEMINI_OCR_MODEL
+    name = (model_name or "").strip()
+    if not name or name in _RETIRED_GEMINI_MODELS:
+        return current
+    return name
+
+
 async def _call_gemini_vision(img_bytes: bytes, mime_type: str, model_name: str, api_key: str) -> str:
     from google import genai
     from google.genai import types
 
-    # Mapeo de nombres si viene preview obsoleto
-    actual_model = "gemini-1.5-flash" if model_name in ("gemini-3-flash-preview", "gemini-1.5-flash") else model_name
+    actual_model = _resolve_gemini_model(model_name)
     client = genai.Client(api_key=api_key)
     response = await client.aio.models.generate_content(
         model=actual_model,
@@ -291,7 +310,7 @@ async def ocr_invoice(
             "type": "openai",
             "api_key": os.environ.get("GROQ_API_KEY", "").strip(),
             "base_url": os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
-            "model": os.environ.get("GROQ_MODEL", "llama-3.2-11b-vision-preview"),
+            "model": os.environ.get("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"),
             "extra_headers": None,
             "is_platform": True,
         },
@@ -343,29 +362,50 @@ async def ocr_invoice(
 
     # Validar cuota diaria si se utiliza clave de plataforma
     daily_limit = int(os.environ.get("OCR_PLATFORM_DAILY_LIMIT", "50"))
+    # Topes para que una factura no ocupe un worker minutos: intentos maximos,
+    # timeout por proveedor y presupuesto total de tiempo de la request.
+    max_attempts = max(1, int(os.environ.get("OCR_MAX_ATTEMPTS", "4")))
+    provider_timeout = float(os.environ.get("OCR_PROVIDER_TIMEOUT", "30"))
+    total_budget = float(os.environ.get("OCR_TOTAL_TIMEOUT", "75"))
+    deadline = time.monotonic() + total_budget
 
     errors = []
     attempted_providers = []
     successful_candidate = None
     response_text = ""
+    platform_quota_ok: Optional[bool] = None  # se consume 1 vez por factura, no por proveedor probado
 
     for cand in candidates:
         cand_name = cand["display_name"]
-        attempted_providers.append(cand_name)
 
         if cand["is_platform"]:
-            allowed = await rate_limit(f"ocr:platform:{tenant_id}", daily_limit, 86400)
-            if not allowed:
+            if platform_quota_ok is None:
+                # local_fallback: sin Redis el tope sigue aplicando (por proceso) en vez de ser ilimitado
+                platform_quota_ok = await rate_limit(
+                    f"ocr:platform:{tenant_id}", daily_limit, 86400, local_fallback=True
+                )
+            if not platform_quota_ok:
                 errors.append(f"{cand_name}: Límite diario de plataforma ({daily_limit}/día) alcanzado")
                 continue
 
+        if len(attempted_providers) >= max_attempts:
+            errors.append(f"{cand_name}: omitido (máximo {max_attempts} intentos)")
+            break
+        remaining = deadline - time.monotonic()
+        if remaining <= 1:
+            errors.append(f"{cand_name}: omitido (tiempo total de {total_budget:.0f}s agotado)")
+            break
+        attempted_providers.append(cand_name)
+        attempt_timeout = min(provider_timeout, remaining)
+
         try:
             if cand["type"] == "gemini":
-                response_text = await _call_gemini_vision(img_bytes, mime, cand["model"], cand["api_key"])
+                call = _call_gemini_vision(img_bytes, mime, cand["model"], cand["api_key"])
             else:
-                response_text = await _call_openai_compatible_vision(
+                call = _call_openai_compatible_vision(
                     cand["base_url"], cand["model"], cand["api_key"], image_data_uri, cand.get("extra_headers")
                 )
+            response_text = await asyncio.wait_for(call, timeout=attempt_timeout)
 
             parsed_candidate = _extract_json(response_text)
             if parsed_candidate and (parsed_candidate.get("items") or parsed_candidate.get("supplier_name")):
@@ -373,6 +413,9 @@ async def ocr_invoice(
                 break
             else:
                 errors.append(f"{cand_name}: No devolvió un JSON con productos válidos")
+        except asyncio.TimeoutError:
+            errors.append(f"{cand_name}: timeout ({attempt_timeout:.0f}s)")
+            continue
         except Exception as e:
             errors.append(f"{cand_name}: {str(e)}")
             continue
@@ -430,6 +473,27 @@ async def import_invoice_to_inventory(
     imported = 0
     updated = 0
     supplier_id = None
+
+    # Idempotencia: la misma factura (mismo proveedor + mismo numero) no se importa
+    # dos veces. Sin esto un doble clic o un reintento de un orquestador (n8n)
+    # duplicaba el stock. Solo aplica si hay numero de factura Y algun dato del
+    # proveedor (un numero suelto como "1" colisionaria entre proveedores).
+    inv_number = (payload.invoice_number or "").strip()
+    inv_nit = (payload.supplier_nit or "").strip()
+    inv_supplier = (payload.supplier_name or "").strip()
+    if inv_number and (inv_nit or inv_supplier):
+        dup_stmt = select(PurchaseInvoice).where(
+            PurchaseInvoice.tenant_id == tenant_id,
+            PurchaseInvoice.invoice_number == inv_number,
+        )
+        if inv_nit:
+            dup_stmt = dup_stmt.where(PurchaseInvoice.supplier_nit == inv_nit)
+        else:
+            dup_stmt = dup_stmt.where(func.lower(PurchaseInvoice.supplier_name) == inv_supplier.lower())
+        duplicate = (await session.execute(dup_stmt.limit(1))).scalars().first()
+        if duplicate:
+            return {"ok": True, "duplicate": True, "imported": 0, "updated": 0, "invoice_id": duplicate.id}
+
     if payload.supplier_name:
         existing = (
             await session.execute(
@@ -437,9 +501,9 @@ async def import_invoice_to_inventory(
                     Contact.name == payload.supplier_name,
                     Contact.kind == "supplier",
                     Contact.tenant_id == tenant_id,
-                )
+                ).limit(1)
             )
-        ).scalar_one_or_none()
+        ).scalars().first()
         if not existing:
             supplier = Contact(kind="supplier", name=payload.supplier_name, document=payload.supplier_nit, tenant_id=tenant_id)
             session.add(supplier)
@@ -469,6 +533,9 @@ async def import_invoice_to_inventory(
             package_cost, units_per_package, margin_percent,
             explicit_price=selling_price,
         )
+        # El precio solo se pisa en productos existentes si el usuario lo indicó
+        # (precio final o margen); antes cada compra sin esos datos lo reescribia a costo x 1.3.
+        price_explicit = selling_price is not None or margin_percent is not None
         # sin selling_price ni margin_percent, conserva el fallback histórico (30% de markup)
         if unit_price is None:
             unit_price = round((unit_cost or 0) * 1.3, 2)
@@ -476,12 +543,16 @@ async def import_invoice_to_inventory(
         existing_p = None
         if barcode:
             existing_p = (
-                await session.execute(select(Product).where(Product.barcode == barcode, Product.tenant_id == tenant_id))
-            ).scalar_one_or_none()
+                await session.execute(
+                    select(Product).where(Product.barcode == barcode, Product.tenant_id == tenant_id).limit(1)
+                )
+            ).scalars().first()
         if not existing_p:
             existing_p = (
-                await session.execute(select(Product).where(Product.name == name, Product.tenant_id == tenant_id))
-            ).scalar_one_or_none()
+                await session.execute(
+                    select(Product).where(Product.name == name, Product.tenant_id == tenant_id).limit(1)
+                )
+            ).scalars().first()
 
         if existing_p:
             previous_stock = float(existing_p.stock)
@@ -493,8 +564,11 @@ async def import_invoice_to_inventory(
                     reason="Escaneo de factura de compra (IA)",
                 ))
             existing_p.cost = unit_cost if unit_cost is not None else existing_p.cost
-            existing_p.price = unit_price
-            existing_p.units_per_package = units_per_package
+            if price_explicit:
+                existing_p.price = unit_price
+            # No reiniciar la presentacion del producto si el item no la trae.
+            if it.get("units_per_package"):
+                existing_p.units_per_package = units_per_package
             if margin_percent is not None:
                 existing_p.margin_percent = margin_percent
             existing_p.updated_at = utcnow()
@@ -520,8 +594,8 @@ async def import_invoice_to_inventory(
     # Save invoice record
     inv = PurchaseInvoice(
         supplier_name=payload.supplier_name,
-        supplier_nit=payload.supplier_nit,
-        invoice_number=payload.invoice_number,
+        supplier_nit=inv_nit or payload.supplier_nit,
+        invoice_number=inv_number or payload.invoice_number,
         date=payload.date,
         tenant_id=tenant_id,
     )

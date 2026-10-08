@@ -422,6 +422,37 @@ async def run_auto_migrations(session: AsyncSession) -> None:
         await session.rollback()
         logger.debug("settings_general_id_seq resync skipped: %s", e)
 
+    # 8b. Barcode único por tenant. Solo se crea si NO hay duplicados históricos:
+    # con duplicados existentes el CREATE UNIQUE INDEX fallaría; en ese caso se
+    # avisa en el log y la unicidad queda garantizada solo por la validación de la
+    # API (409 en create/update de productos) hasta que se limpien a mano.
+    try:
+        dupes = (
+            await session.execute(
+                text(
+                    "SELECT tenant_id, barcode, COUNT(*) AS n FROM products "
+                    "WHERE barcode IS NOT NULL AND barcode <> '' "
+                    "GROUP BY tenant_id, barcode HAVING COUNT(*) > 1 LIMIT 5"
+                )
+            )
+        ).all()
+        if dupes:
+            logger.warning(
+                "Barcodes duplicados por tenant: no se crea uq_products_tenant_barcode (ej: %s)",
+                [(r[0], r[1], r[2]) for r in dupes],
+            )
+        else:
+            await session.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_products_tenant_barcode "
+                    "ON products (tenant_id, barcode) WHERE barcode IS NOT NULL AND barcode <> ''"
+                )
+            )
+            await session.commit()
+    except Exception as e:
+        await session.rollback()
+        logger.warning("uq_products_tenant_barcode omitido: %s", e)
+
     # 9. Actualización de estadísticas del optimizador de PostgreSQL
     try:
         bind = session.get_bind()

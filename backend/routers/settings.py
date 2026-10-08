@@ -394,7 +394,7 @@ async def test_ai_connection(
     default_models = {
         "openrouter": os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"),
         "nvidia": os.environ.get("NVIDIA_MODEL", "meta/llama-3.2-11b-vision-instruct"),
-        "groq": os.environ.get("GROQ_MODEL", "llama-3.2-11b-vision-preview"),
+        "groq": os.environ.get("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"),
         "tokenrouter": os.environ.get("TOKENROUTER_MODEL", "gpt-4o-mini"),
         "orcarouter": os.environ.get("ORCAROUTER_MODEL", "gpt-4o-mini"),
         "custom_ocr": os.environ.get("CUSTOM_OCR_MODEL", "gpt-4o-mini"),
