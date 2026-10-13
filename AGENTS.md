@@ -3,10 +3,24 @@
 Este documento permite a cualquier agente (Claude Code, Gemini CLI, Codex CLI, Cursor, etc.)
 reconstruir la lista completa de skills disponibles y entender el sistema multi-conocimiento.
 
+## ⚠️ REVISIÓN OBLIGATORIA — automatización con n8n
+
+**Toda sesión que toque n8n, webhooks, notificaciones o mensajería (WhatsApp/Telegram/email),
+`/api/internal/*`, o cualquier automatización, debe leer COMPLETOS, antes de actuar:**
+
+1. [`docs/N8N_FLUJOS_REVISION_OBLIGATORIA.md`](docs/N8N_FLUJOS_REVISION_OBLIGATORIA.md) — catálogo de flujos, reglas de oro, decisiones y hechos verificados.
+2. [`docs/PLAN_N8N_INTEGRACION_POR_FASES.md`](docs/PLAN_N8N_INTEGRACION_POR_FASES.md) — plan por fases, gates y registro de revisión.
+
+Al terminar, actualiza el estado de los flujos y el registro de revisión del plan. Reglas que no
+admiten excepción: no tocar flujos de otros proyectos en la instancia n8n, no guardar secretos ni
+datos personales en el repo, y ningún flujo pasa a producción sin la confirmación explícita del propietario.
+
 ## Archivos clave
 
 | Archivo | Propósito |
 |---------|-----------|
+| `docs/N8N_FLUJOS_REVISION_OBLIGATORIA.md` | **(Lectura obligatoria)** Catálogo de flujos n8n, reglas de oro, decisiones y estado verificado |
+| `docs/PLAN_N8N_INTEGRACION_POR_FASES.md` | **(Lectura obligatoria)** Plan de creación e integración de flujos por fases, con gates |
 | `docs/MASTER_PLAN_UNIFICADO_MULTIAGENTE.md` | **Plan Maestro Unificado de Ejecución Multi-Agente (Fuente de Verdad)** |
 | `docs/PLAN_ARQUITECTURA_SAAS_MULTITENANT_Y_ROLES.md` | Arquitectura técnica SaaS Multi-Tenant y estructura DDL |
 | `docs/PROPUESTA-NEURO-VENTAS.md` | Estrategia de crecimiento, neuro-ventas y onboarding |
