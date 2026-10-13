@@ -57,7 +57,7 @@ export default function PricingSection({ whatsapp }) {
         </h2>
         <p className="mt-2 text-sm sm:text-base text-slate-400 leading-relaxed">
           Todos los planes incluyen las mismas funciones. Lo que cambia es cuántas sedes, usuarios y productos
-          necesitas.
+          necesitas. Precios en pesos colombianos, sin IVA.
         </p>
       </div>
 
@@ -109,7 +109,7 @@ export default function PricingSection({ whatsapp }) {
 
                 <div className="mt-4 font-['JetBrains_Mono',ui-monospace,monospace]">
                   <span className="text-2xl sm:text-3xl font-bold text-emerald-400">{formatCOP(price)}</span>
-                  <span className="text-xs text-slate-500"> / {PER_PERIOD[period]}</span>
+                  <span className="text-xs text-slate-500"> / {PER_PERIOD[period]} + IVA</span>
                 </div>
                 <div className="mt-1 h-5 text-xs text-slate-500">
                   {months > 1 && price > 0 && (
