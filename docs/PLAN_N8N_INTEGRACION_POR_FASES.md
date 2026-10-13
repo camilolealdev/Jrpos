@@ -242,3 +242,4 @@ Agrega una fila por cada revisión, activación o cambio relevante. No borres fi
 | Fecha | Fase / flujo | Evento | Evidencia | Revisó |
 |---|---|---|---|---|
 | 2026-10-13 | Plan y catálogo | Documentos creados. Verificados: rutas y modelos del backend; instancia n8n con flujos de otro proyecto y credenciales existentes | Este commit | — |
+| 2026-10-13 | Fase 0.5 (I01–I05) | Construidos en n8n, inactivos, probados con datos fijos (I02: 6 rutas; I01 extremo a extremo; I03: 3; I04: caída/recuperación/CI; I05: válido/duplicado/inválido). D-02 resuelta, D-06 cambiada (sin HMAC). Checklist de conexión en el catálogo | `n8n/`, catálogo §5 Fase 0.5 | — |

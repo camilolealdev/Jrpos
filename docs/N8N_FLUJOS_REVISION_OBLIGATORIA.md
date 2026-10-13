@@ -46,7 +46,7 @@
 | Convención de organización | ✅ Carpetas, etiquetas y prefijos con emoji (ver regla 8) |
 | Credenciales disponibles (solo tipo) | `openAiApi`, `openRouterApi`, `groqApi`, `googlePalmApi`, `anthropicApi`, `whatsAppApi`, `whatsAppTriggerApi` (×2), `postgres` |
 | Telegram | ❓ El flujo "Alertas de error (Telegram)" del otro proyecto está pendiente de credencial y chat. Una vez creadas, JRPOS puede reutilizar la credencial con un chat propio |
-| Hosting (cloud o self-hosted) | ❓ **No verificado.** Decide D-02 |
+| Hosting | ✅ Self-hosted (`easymarketing.tech`), instancia existente compartida con otro proyecto (D-02) |
 | WhatsApp Cloud API | ✅ El propietario ya opera Cloud API y plantillas con otro número. ❓ Falta decidir si JRPOS usa el mismo WABA con **otro número** o uno propio (D-03) |
 
 Implicación: se reduce el riesgo de la verificación en Meta y de las plantillas, pero **no se
@@ -57,11 +57,11 @@ debe mezclar** el número de una pizzería con la mensajería de un SaaS ni con 
 | ID | Decisión | Estado |
 |---|---|---|
 | D-01 | Canal crítico: **WhatsApp Cloud API oficial** (nodo nativo de n8n). Rechazados Baileys/Evolution/WAHA por riesgo de bloqueo del número | Tomada |
-| D-02 | Dónde corre n8n para JRPOS: instancia actual o una nueva autoalojada en el VPS | ❓ Pendiente |
+| D-02 | n8n autoalojado: **se usa la instancia existente** (`easymarketing.tech`), carpeta `🟠 JRPOS - En construcción`, etiquetas `jrpos` + `pendiente`, zona horaria America/Bogota. No tocar flujos del otro proyecto | Tomada (2026-10-13) |
 | D-03 | Número y WABA de JRPOS: **recomendado número propio y separado** del de la pizzería y del número de cobro (el de `PAYMENT_WHATSAPP`). Nunca el número de cobro con API no oficial | ❓ Pendiente |
 | D-04 | Alcance de mensajes: solo dueños y plataforma. Fiado a deudores se queda en `wa.me` manual | Tomada |
 | D-05 | n8n consume `/api/internal/*` con token de servicio; no toca la BD | Tomada |
-| D-06 | Webhooks backend → n8n firmados con HMAC (`X-JRPOS-Signature`, marca de tiempo, id de evento) | Tomada |
+| D-06 | Webhooks backend → n8n: **Header Auth** (`X-JRPOS-Token`) + `timestamp` dentro de ±300 s + `event_id` único (dedupe). HMAC descartado: el nodo Crypto exige el secreto como parámetro en texto plano y el nodo Code no tiene `crypto`. Revisar si n8n lo permite sin exponer el secreto | Cambiada (2026-10-13) |
 | D-07 | Email por defecto; WhatsApp solo para lo crítico (trial, cobro, alertas) | Tomada |
 | D-08 | Licencia de n8n (Sustainable Use License): leer `LICENSE.md` del repo de n8n. No guardar credenciales de tenants en n8n | ❓ Pendiente |
 | D-09 | DIAN real: proveedor tecnológico vs implementación propia | ❓ Pendiente |
@@ -104,6 +104,30 @@ Estado inicial de todos: 🟠 **PENDIENTE** (no existe ningún flujo de JRPOS en
 | F06 | **Salud del sistema** | Cada 5 min + webhook de GitHub Actions | Ping a `GET /api` ✅, vencimiento del certificado TLS, aviso si falla un workflow en `main` | Telegram | Credencial Telegram ❓ |
 | F05 | **Latido de backup** | `backup-db.sh` llama a un webhook | Si no llega latido en 26 h, alerta. Subida fuera del VPS | Telegram | Una línea 🆕 en el script |
 | F03 | **Soporte** | Ticket creado (webhook 🆕) | Aviso al superadmin, clasificación de urgencia con IA, nota sugerida vía `PUT /api/superadmin/tickets/{id}` ✅. Recordatorio si abierto > 24 h | Telegram / WhatsApp a ti | Webhook 🆕 |
+
+### Fase 0.5 — Infraestructura base (construida, inactiva)
+
+Estado: 🟠 **CONSTRUIDA Y PROBADA CON DATOS FIJOS, INACTIVA** (2026-10-13). Ninguna credencial, canal ni URL conectada. Fuente: `n8n/` (ver `n8n/README.md`).
+
+| ID | Flujo | ID en n8n | Notas |
+|---|---|---|---|
+| I01 | Manejador de errores | `AxXw7DQHR0TVv0dc` | Registra en `jrpos_error_log` y avisa vía I02. **No se puede fijar como errorWorkflow hasta publicarlo** |
+| I02 | Notificador central | `yQY2jFZ7kyTCw3oi` | Silencio 21–7 h (solo `info`), tope 20/día, dedupe por `idempotency_key`. Entrega por canal = marcadores `PENDIENTE DE CONECTAR` |
+| I03 | Latido de backup (F05) | `jvjO3qkLadkOvWXw` | Webhook `jrpos/backup-heartbeat` + revisión horaria (límite `backup_max_hours`, 26) |
+| I04 | Salud del sistema (F06) | `AxadpTIg1fK80wcV` | Ping cada 5 min a `health_url`; alerta tras `health_failures_to_alert` fallos; webhook GitHub con ruta secreta (no se versiona) |
+| I05 | Receptor de eventos | `s3wrzDlNLXaKeyW5` | Webhook `jrpos/events`; valida contrato, dedupe, enruta a destinos F03/F07/F10 (NoOp) |
+
+Data Tables (proyecto JRPOS): `jrpos_notification_log` `umCskhDEBOVpZ2XE`, `jrpos_error_log` `I31DjgeX1Ynyk5pS`, `jrpos_heartbeats` `XatglhoE306q1QjT`, `jrpos_health_state` `Mr1hUtLWw9OwbWev`, `jrpos_events_seen` `VsSYmLLWXt8EtN7H`, `jrpos_config` `zDL8AK31GyRpU4YB` (`health_url` vacío = no hace ping).
+
+**Checklist de conexión (pendiente):**
+1. Credencial Header Auth `JRPOS Webhook Token` (`X-JRPOS-Token`) → asignar a webhooks de I03 e I05.
+2. `scripts/backup-db.sh`: añadir POST al webhook de I03.
+3. Rellenar `health_url` en `jrpos_config`.
+4. GitHub → Settings → Webhooks (evento *Workflow runs*) hacia el webhook de I04 (URL secreta, no publicarla).
+5. Conectar Telegram/WhatsApp/Email en I02 (sustituir marcadores; estado `enviado`).
+6. Publicar I01 y fijarlo como errorWorkflow en I03–I05.
+7. Backend: emisor de eventos, `/api/internal/*`, tablas `notification_prefs`/`notification_log` (sin construir).
+8. Activar cada flujo solo con confirmación explícita del propietario.
 
 ### Fase 1B — Retención e ingresos (canal al dueño)
 
