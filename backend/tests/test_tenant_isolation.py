@@ -14,7 +14,10 @@ import requests
 BASE_URL = os.environ.get('BACKEND_TEST_URL', 'https://localhost').rstrip('/')
 API = f"{BASE_URL}/api"
 
-ADMIN = {"email": os.environ.get("TEST_ADMIN_EMAIL", "admin@jrpos.co"), "password": os.environ.get("TEST_ADMIN_PASSWORD", "testpass123")}
+ADMIN = {
+    "email": os.environ.get("TEST_ADMIN_EMAIL") or os.environ.get("ADMIN_EMAIL", "admin@jrpos.co"),
+    "password": os.environ.get("TEST_ADMIN_PASSWORD") or os.environ.get("ADMIN_PASSWORD", "testpass123"),
+}
 
 
 @pytest.fixture(scope="module")

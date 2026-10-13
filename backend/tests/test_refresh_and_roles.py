@@ -13,7 +13,7 @@ ADMIN = {
     "password": os.environ.get("ADMIN_PASSWORD", "testpass123"),
 }
 OLD_ADMIN = {"email": "camiloleal.opx@gmail.com", "password": "jrpos2026"}
-CAJERO = {"email": "cajero@jrpos.co", "password": "cajero123"}
+CAJERO = {"email": "cajero@jrpos.co", "password": "Tienda#2026ok"}  # la política prohíbe que la contraseña contenga "cajero"
 
 
 # ---------- Admin migration ----------

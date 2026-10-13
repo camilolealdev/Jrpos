@@ -6,8 +6,11 @@ import requests
 
 BASE_URL = os.environ.get('BACKEND_TEST_URL', 'https://localhost').rstrip('/')
 API = f"{BASE_URL}/api"
-ADMIN = {"email": os.environ.get("TEST_ADMIN_EMAIL", "admin@jrpos.co"), "password": os.environ.get("TEST_ADMIN_PASSWORD", "testpass123")}
-CAJERO = {"email": "cajero@jrpos.co", "password": "cajero123"}
+ADMIN = {
+    "email": os.environ.get("TEST_ADMIN_EMAIL") or os.environ.get("ADMIN_EMAIL", "admin@jrpos.co"),
+    "password": os.environ.get("TEST_ADMIN_PASSWORD") or os.environ.get("ADMIN_PASSWORD", "testpass123"),
+}
+CAJERO = {"email": "cajero@jrpos.co", "password": "Tienda#2026ok"}  # la política prohíbe que la contraseña contenga "cajero"
 
 
 @pytest.fixture(scope="module")

@@ -13,7 +13,7 @@ ADMIN = {
     "password": os.environ.get("ADMIN_PASSWORD", "testpass123"),
 }
 OLD_ADMIN_EMAIL = "camiloleal.opx@gmail.com"
-CAJERO = {"email": "cajero@jrpos.co", "password": "cajero123"}
+CAJERO = {"email": "cajero@jrpos.co", "password": "Tienda#2026ok"}  # la política prohíbe que la contraseña contenga "cajero"
 
 
 @pytest.fixture(scope="module")
