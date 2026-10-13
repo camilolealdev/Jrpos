@@ -153,7 +153,7 @@ Filas nuevas en `jrpos_config`: `backend_base_url`, `app_base_url` (vacías), `c
 **Pendiente de conectar (además del checklist de I01–I05):**
 1. Crear la credencial Header Auth `JRPOS Internal Token` y asignarla a todos los nodos HTTP.
 2. Rellenar `backend_base_url` y `app_base_url`.
-3. Construir `/api/internal/*` según `n8n/contracts/` (los nombres y respuestas son propuestos, no existen en el backend).
+3. `/api/internal/*` según `n8n/contracts/`: ✅ **construido (2026-10-13)** para F01 (`tenants/expiring`, `tenants/{id}/mark-expired`) y F02 (`tenants/digest-recipients`, `tenants/{id}/daily-digest`) en `backend/routers/internal.py`, con tabla `notification_prefs` y `GET/PUT /api/settings/notifications` (opt-in del dueño). Definir `INTERNAL_API_TOKEN` en el entorno del backend (sin él el router responde 404) y usar el mismo valor en la credencial `JRPOS Internal Token`. **Pendiente:** endpoints de F03, F07–F15, UI del opt-in, `paywall_url` sin token por tenant (hoy `{FRONTEND_URL}/paywall`), verificación con un rol sin superusuario de BD (en las pruebas el usuario de Postgres omite RLS).
 4. En I05 sustituir los NoOp "Destino F03 / F07 / F10" por Execute Workflow hacia F03 (`UWsVfxqJ90BpS5Yu`), F07 (`BuUrPXUXpPEWs6k3`) y F10 (`eThN34rSwihUO175`).
 5. F02 y F03: el nodo de modelo es un marcador Mistral **sin credencial**; sustituirlo por el proveedor elegido con credencial propia de JRPOS.
 6. Cambios de backend/BD: `notification_prefs` (opt-in, canal, umbral de caja), `products.min_stock`, estado `borrador` en OC, fechas fiscales tipadas, horario esperado por empleado, última venta por producto, correo del contador con consentimiento del dueño, emisor de eventos.

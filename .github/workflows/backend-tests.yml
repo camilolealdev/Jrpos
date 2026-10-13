@@ -50,6 +50,7 @@ jobs:
       ADMIN_PASSWORD: jrpos2026
       SUPERADMIN_EMAIL: super@jrpos.com
       SUPERADMIN_PASSWORD: super123
+      INTERNAL_API_TOKEN: ci-only-internal-token
       BACKEND_TEST_URL: http://127.0.0.1:8000
 
     steps:

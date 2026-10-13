@@ -48,6 +48,7 @@ from routers.payroll import payroll_router
 from routers.electronic import electronic_router
 from routers.radian import radian_router
 from routers.commissions import commissions_router
+from routers.internal import internal_router, notification_prefs_router
 
 
 @asynccontextmanager
@@ -89,6 +90,8 @@ app.include_router(payroll_router)
 app.include_router(electronic_router)
 app.include_router(radian_router)
 app.include_router(commissions_router)
+app.include_router(internal_router)
+app.include_router(notification_prefs_router)
 
 _frontend_origins = [
     origin.strip()

@@ -69,6 +69,7 @@ services:
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-super@jrpos.co}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-PlatformMaster2026_wK9mQ2vL8n}
       FRONTEND_URL: https://${DOMAIN:-localhost}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
       DOMAIN: ${DOMAIN:-localhost}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-3345506845-n7p6p5mue4p43vtt89i7ejo0aq3b2fao.apps.googleusercontent.com}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

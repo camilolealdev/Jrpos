@@ -115,6 +115,23 @@ class SubscriptionPaymentEvent(Base):
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class NotificationPref(Base):
+    """Opt-in del dueno a avisos automaticos (n8n). Una fila por tenant.
+
+    Sin fila o con opt_in=False no se envia nada. No guarda telefono ni correo:
+    el destinatario se resuelve desde el tenant al entregar el aviso.
+    """
+    __tablename__ = "notification_prefs"
+
+    tenant_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    channel: Mapped[str] = mapped_column(String(10), nullable=False, default="whatsapp")  # whatsapp | email
+    trial_alerts: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    daily_digest: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    consented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class Branch(Base):
     __tablename__ = "branches"
 

@@ -209,7 +209,7 @@ async def run_auto_migrations(session: AsyncSession) -> None:
         "timeclock", "cash_sessions", "cash_pickups", "promotions", "documents", "document_items",
         "credit_notes", "warranties", "purchase_orders", "purchase_order_items",
         "support_docs", "support_doc_items", "payroll", "commission_rules", "stock_movements",
-        "price_lists",
+        "price_lists", "notification_prefs",
     ))}
 
     -- 3. Settings columns existentes
