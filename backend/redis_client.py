@@ -84,16 +84,17 @@ async def delete_pattern(pattern: str) -> None:
         pass
 
 
-async def rate_limit(key: str, limit: int, window: int) -> bool:
-    """True = permitido. No-op (True) sin Redis. Never-fail."""
+async def rate_limit(key: str, limit: int, window: int, fail_open: bool = True) -> bool:
+    """True = permitido. Never-fail. Sin Redis o si Redis falla devuelve `fail_open`
+    (True por defecto: login no debe bloquearse por Redis; usar False para topes que protegen costo)."""
     r = _client()
     if r is None:
-        return True
+        return fail_open
     try:
         n = await r.incr(key)
         if n == 1:
             await r.expire(key, window)
         return n <= limit
     except Exception:
-        return True
+        return fail_open
 

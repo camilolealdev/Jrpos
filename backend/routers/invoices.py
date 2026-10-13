@@ -354,9 +354,10 @@ async def ocr_invoice(
         attempted_providers.append(cand_name)
 
         if cand["is_platform"]:
-            allowed = await rate_limit(f"ocr:platform:{tenant_id}", daily_limit, 86400)
+            # fail_open=False: sin Redis el tope no se puede medir y la clave de plataforma cuesta dinero.
+            allowed = await rate_limit(f"ocr:platform:{tenant_id}", daily_limit, 86400, fail_open=False)
             if not allowed:
-                errors.append(f"{cand_name}: Límite diario de plataforma ({daily_limit}/día) alcanzado")
+                errors.append(f"{cand_name}: Límite diario de plataforma ({daily_limit}/día) alcanzado o cuota no disponible; usa tu propia API key en Configuración > IA")
                 continue
 
         try:
