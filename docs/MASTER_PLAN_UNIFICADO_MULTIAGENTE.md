@@ -15,7 +15,7 @@ JRPOS es una plataforma SaaS de punto de venta (POS) y gestión comercial **mobi
 graph TD
     subgraph Growth ["🎯 Ecosistema Growth & Neuro-Ventas"]
         WELCOME["Welcome Hero (Anticipación / 0 Inversión en Equipos)"]
-        TRIAL["Onboarding Self-Service (30 Días Prueba sin Tarjeta)"]
+        TRIAL["Onboarding Self-Service (15 Días Prueba sin Tarjeta)"]
         WHATSAPP["Cobranza & Fidelización WhatsApp Automatizada"]
     end
 
@@ -67,7 +67,7 @@ Para maximizar la velocidad de desarrollo y evitar iteraciones redundantes, el t
 
 ### 🤖 Agente 1: Frontend & Mobile-First Specialist (`frontend-agent`)
 
-* **Misión**: Optimizar la experiencia táctil en celulares y tablets (cero inversión en hardware para el tendero), refinar la interfaz de los 28 módulos y componentes SaaS.
+* **Misión**: Optimizar la experiencia táctil en celulares y tablets (cero inversión en hardware para el tendero), refinar la interfaz de los 34 módulos y componentes SaaS.
 * **Archivos Clave**:
   - `frontend/src/pages/POS.jsx` (Ergonomía táctil, cámara barcode, atajos de teclado F2/F4/F9, audio Web Audio API).
   - `frontend/src/pages/RegisterTenant.jsx` y `frontend/src/pages/SuperAdmin.jsx`.
@@ -162,7 +162,7 @@ Para maximizar la velocidad de desarrollo y evitar iteraciones redundantes, el t
 * **Entregables / Definition of Done (DoD)**:
   - [ ] Onboarding completable en menos de 120 segundos en celular.
   - [ ] Plantillas de recordatorio por WhatsApp con enlaces directos de cobro PSE/Nequi.
-  - [ ] Secuencia automatizada de notificaciones para los días 23, 27, 29 y 30 del trial.
+  - [ ] Secuencia automatizada de notificaciones para los días finales del trial de 15 días (calendario por definir).
 
 ---
 

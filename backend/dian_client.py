@@ -5,8 +5,14 @@ cálculo de CUFE / QR y estructura SOAP para envío de documentos electrónicos.
 """
 
 import hashlib
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
+
+def dian_mode() -> str:
+    """'sandbox' (default: documentos simulados) o 'real' (requiere proveedor tecnológico conectado)."""
+    return os.environ.get("DIAN_MODE", "sandbox").strip().lower()
 
 
 class DianClient:
@@ -89,10 +95,13 @@ class DianClient:
 
     async def send_invoice_sync(self, xml_signed_base64: str) -> Dict[str, Any]:
         """Envía el documento firmado a los Web Services de la DIAN."""
-        # En modo simulación / pruebas retorna acuse de recibo
+        # ponytail: sin proveedor tecnológico conectado nunca se reporta ACCEPTED; el
+        # envío real se implementa detrás de un proveedor habilitado antes de usar DIAN_MODE=real.
+        if dian_mode() == "real":
+            raise NotImplementedError("DIAN_MODE=real requiere un proveedor tecnológico conectado")
         return {
-            "status": "ACCEPTED",
-            "message": "Documento recibido y validado por la DIAN (Simulado / Sandbox)",
+            "status": "SIMULATED",
+            "message": "Documento simulado: NO enviado a la DIAN ni válido fiscalmente",
             "received_at": datetime.now(timezone.utc).isoformat(),
             "environment": self.environment,
             "endpoint": self.endpoint_url,

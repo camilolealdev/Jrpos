@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { whatsappUrl } from "@/lib/format";
+import PricingSection from "@/components/PricingSection";
 import shotPos from "@/assets/screenshots/pos.jpg";
 import shotFacturas from "@/assets/screenshots/facturas.jpg";
 import shotInventario from "@/assets/screenshots/inventario.jpg";
@@ -204,6 +205,13 @@ export default function WelcomeHero({ onProceedToLogin }) {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="flex items-center gap-3"
         >
+          <a
+            href="#precios"
+            data-testid="nav-precios"
+            className="px-2 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+          >
+            Precios
+          </a>
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/10 text-xs text-slate-300 font-['JetBrains_Mono']">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -512,12 +520,14 @@ export default function WelcomeHero({ onProceedToLogin }) {
             </div>
 
             <div className="mt-4 text-xs text-slate-500">
-              <span className="font-semibold text-slate-400">+23 módulos más:</span> Facturación · Caja y Arqueo ·
+              <span className="font-semibold text-slate-400">+29 módulos más:</span> Facturación electrónica (en preparación) · Caja y Arqueo ·
               Comisiones · Promociones · Compras · Roles de usuario · Exportación Contable
             </div>
           </motion.div>
         </div>
       </section>
+
+      <PricingSection whatsapp={DEMO_WHATSAPP} />
 
       {/* Footer */}
       <footer className="relative z-10 w-full max-w-[90rem] mx-auto px-6 lg:px-10 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/[0.06] text-xs text-slate-600">

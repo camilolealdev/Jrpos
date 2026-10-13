@@ -158,6 +158,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/welcome" element={<Login />} />
+            <Route path="/precios" element={<Navigate to="/welcome#precios" replace />} />
             <Route path="/registro" element={<RegisterTenant />} />
             <Route path="/paywall" element={<Paywall />} />
             <Route path="/*" element={<ProtectedApp />} />

@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import Base
+from dian_client import dian_mode
 import models_sql  # noqa: F401  (registers every table on Base.metadata)
 
 logger = logging.getLogger("jrpos.migrations")
@@ -26,6 +27,11 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     await session.commit()
 
     trial_expiry = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    dian_plans_sync = (
+        "UPDATE platform_plans SET dian_enabled = FALSE WHERE dian_enabled = TRUE;"
+        if dian_mode() != "real"
+        else ""
+    )
 
     batch_script = f"""
     -- 1. Tablas SaaS de Plataforma
@@ -242,16 +248,16 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS close_notes TEXT;
 
     -- 4. Siembra de Planes SaaS por Defecto
-    INSERT INTO platform_plans (id, name, description, price_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
-    VALUES ('basico', 'Plan Emprendedor', 'Ideal para tiendas de barrio y pequeños comercios', 49000, 490000, 1, 2, 2000, TRUE, FALSE, TRUE, now())
+    INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
+    VALUES ('basico', 'Plan Emprendedor', 'Ideal para tiendas de barrio y pequeños comercios', 49000, 130000, 490000, 1, 2, 2000, TRUE, FALSE, TRUE, now())
     ON CONFLICT (id) DO NOTHING;
 
-    INSERT INTO platform_plans (id, name, description, price_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
-    VALUES ('pro', 'Plan Negocio Pro', 'Para minimercados, droguerías y comercios en crecimiento', 89000, 890000, 3, 10, 20000, TRUE, TRUE, TRUE, now())
+    INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
+    VALUES ('pro', 'Plan Negocio Pro', 'Para minimercados, droguerías y comercios en crecimiento', 89000, 237000, 890000, 3, 10, 20000, TRUE, FALSE, TRUE, now())
     ON CONFLICT (id) DO NOTHING;
 
-    INSERT INTO platform_plans (id, name, description, price_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
-    VALUES ('franquicia', 'Plan Franquicia Multi-Sede', 'Para cadenas, distribuidoras y múltiples sucursales', 189000, 1890000, 10, 50, 100000, TRUE, TRUE, TRUE, now())
+    INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
+    VALUES ('franquicia', 'Plan Franquicia Multi-Sede', 'Para cadenas, distribuidoras y múltiples sucursales', 189000, 499000, 1890000, 10, 50, 100000, TRUE, FALSE, TRUE, now())
     ON CONFLICT (id) DO NOTHING;
 
     -- Precio trimestral (~11-12% de descuento vs. 3x mensual); UPDATE idempotente
@@ -259,6 +265,9 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     UPDATE platform_plans SET price_quarterly_cop = 130000 WHERE id = 'basico';
     UPDATE platform_plans SET price_quarterly_cop = 237000 WHERE id = 'pro';
     UPDATE platform_plans SET price_quarterly_cop = 499000 WHERE id = 'franquicia';
+
+    -- Ningún plan anuncia DIAN mientras la emisión sea simulada (DIAN_MODE != real).
+    {dian_plans_sync}
 
     -- 5. Siembra del Tenant por Defecto para retrocompatibilidad
     INSERT INTO tenants (id, slug, business_name, nit_rut, phone, email, business_type, status, trial_ends_at)
