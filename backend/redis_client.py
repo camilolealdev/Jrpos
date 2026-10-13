@@ -6,7 +6,6 @@ Seguro en Vercel (sin REDIS_URL = comportamiento actual) y en Docker
 
 import json
 import os
-import time
 
 _r = None
 
@@ -85,35 +84,17 @@ async def delete_pattern(pattern: str) -> None:
         pass
 
 
-# Contadores en memoria del proceso: respaldo opcional de rate_limit cuando no hay
-# Redis (o esta caido). Por proceso (no compartido entre workers): es un tope de
-# costo "mejor que nada", no un limite exacto.
-_local_counters: dict = {}
-
-
-def _local_rate_limit(key: str, limit: int, window: int) -> bool:
-    now = time.monotonic()
-    count, expires = _local_counters.get(key, (0, 0.0))
-    if now >= expires:
-        count, expires = 0, now + window
-    count += 1
-    _local_counters[key] = (count, expires)
-    if len(_local_counters) > 10000:
-        for k in [k for k, (_, exp) in _local_counters.items() if exp <= now]:
-            _local_counters.pop(k, None)
-    return count <= limit
-
-
-async def rate_limit(key: str, limit: int, window: int, local_fallback: bool = False) -> bool:
-    """True = permitido. Sin Redis es no-op (True), salvo local_fallback=True, que
-    usa un contador en memoria del proceso (para topes de costo). Never-fail."""
+async def rate_limit(key: str, limit: int, window: int, fail_open: bool = True) -> bool:
+    """True = permitido. Never-fail. Sin Redis o si Redis falla devuelve `fail_open`
+    (True por defecto: login no debe bloquearse por Redis; usar False para topes que protegen costo)."""
     r = _client()
     if r is None:
-        return _local_rate_limit(key, limit, window) if local_fallback else True
+        return fail_open
     try:
         n = await r.incr(key)
         if n == 1:
             await r.expire(key, window)
         return n <= limit
     except Exception:
-        return _local_rate_limit(key, limit, window) if local_fallback else True
+        return fail_open
+

@@ -1,7 +1,7 @@
 # 📐 Plan Maestro: Arquitectura SaaS Multi-Tenant, Esquema de Base de Datos y Sistema de Roles para JRPOS
 
 > **Estado**: 🟡 *Propuesta Técnica y Estructura de Base de Datos Preparada — Pendiente de Confirmación del Usuario*  
-> **Objetivo**: Transformar JRPOS en una plataforma SaaS lista para producción con aislamiento multi-inquilino (Multi-Tenant), control de acceso granular basado en roles (RBAC), gestión de suscripciones con prueba gratuita de 30 días, panel SuperAdmin de plataforma y esquema de base de datos detallado.  
+> **Objetivo**: Transformar JRPOS en una plataforma SaaS lista para producción con aislamiento multi-inquilino (Multi-Tenant), control de acceso granular basado en roles (RBAC), gestión de suscripciones con prueba gratuita de 15 días, panel SuperAdmin de plataforma y esquema de base de datos detallado.  
 > **Fecha**: Septiembre 2026
 
 ---
@@ -16,9 +16,9 @@ Se implementa el patrón **Shared Database, Shared Schema con Discriminador de I
   2. *Capa de Servicio/Rutas*: Inyección obligatoria de dependencias `CurrentTenant` en FastAPI.
   3. *Capa ORM/Base de Datos*: `BaseTenantModel` con `tenant_id` indexado compuesto en todas las consultas y claves foráneas.
 
-### 1.2. Modelo Comercial y Ciclo de Vida del Inquilino (30 Días de Prueba)
+### 1.2. Modelo Comercial y Ciclo de Vida del Inquilino (15 Días de Prueba)
 - **Registro Self-Service (0 Fricción)**: El tendero se registra con Nombre, Correo, Celular y Nombre de Tienda sin requerir tarjeta de crédito.
-- **Período de Prueba de 30 Días**:
+- **Período de Prueba de 15 Días**:
   - `trial_ends_at = utcnow() + timedelta(days=30)`
   - Acceso completo a todos los módulos operativos (POS, Inventario, Fiados, Escaneo IA, Reportes).
   - Contador visual no intrusivo en la cabecera: *"Te quedan X días de prueba gratuita"*.
@@ -113,7 +113,7 @@ erDiagram
         string email "Correo del propietario"
         string business_type "abarrotes, minimercado, cafeteria, etc."
         string status "trial, active, suspended, expired"
-        datetime trial_ends_at "Fecha fin de prueba de 30 días"
+        datetime trial_ends_at "Fecha fin de prueba de 15 días"
         datetime created_at
         datetime updated_at
     }
@@ -356,7 +356,7 @@ El script de migración en `backend/db_migrations.py` ejecutará de forma atómi
    - `id = 'tenant-default-001'`
    - `slug = 'tienda-principal'`
    - `business_name = 'Tienda Principal'`
-   - `status = 'active'` (o `trial` con 30 días)
+   - `status = 'active'` (o `trial` con 15 días)
 4. **Migración de Datos Existentes**:
    - `UPDATE {table} SET tenant_id = 'tenant-default-001' WHERE tenant_id IS NULL;`
 5. **Creación de Índices Compuestos** para acelerar todas las consultas filtradas por `tenant_id`.
@@ -415,7 +415,7 @@ def require_permission(permission: str):
 ### 5.1. Proveedor de Contexto SaaS (`TenantContext` & `Can` Gate)
 - **`TenantProvider`**: Carga datos de la suscripción, días restantes de prueba y límites del plan.
 - **Componente `<Can permission="inventory:edit_cost_price">`**: Oculta o deshabilita botones según el rol del usuario activo.
-- **Banner de Trial Reactivo**: Barra superior visible durante la prueba gratuita de 30 días:
+- **Banner de Trial Reactivo**: Barra superior visible durante la prueba gratuita de 15 días:
   - *"Prueba Gratuita JRPOS: Te quedan 24 días. [Activar Plan Pro]"*
 
 ### 5.2. Enrutamiento y Módulos Protegidos
@@ -450,14 +450,14 @@ Módulo exclusivo para el dueño de JRPOS:
 2. Actualizar `/api/auth/register-tenant` y `/api/auth/login` para emitir tokens JWT con `tenant_id` y `permissions`.
 3. Validar estado del tenant (activo, trial, expirado) en cada petición.
 
-### 🔹 Fase 3: Lógica de Negocio de 30 Días de Prueba y Pagos
+### 🔹 Fase 3: Lógica de Negocio de 15 Días de Prueba y Pagos
 1. Endpoints de facturación: `/api/billing/status`, `/api/billing/plans`, `/api/billing/checkout`.
 2. Integración de webhook para pasarelas de pago colombianas (Wompi / PSE / Nequi).
 
 ### 🔹 Fase 4: Frontend Multi-Tenant y Componentes de Roles
 1. Implementar `TenantContext` y guards de rutas (`RoleRoute`, `SubscriptionGuard`).
 2. Diseñar la pantalla de Registro de Nueva Tienda (`/registro`).
-3. Barra de cuenta regresiva de prueba gratuita (30 días).
+3. Barra de cuenta regresiva de prueba gratuita (15 días).
 
 ### 🔹 Fase 5: Panel de SuperAdmin Global
 1. Crear router `/api/superadmin/*` protegido exclusivamente para `superadmin_platform`.

@@ -380,12 +380,12 @@ async def ocr_invoice(
 
         if cand["is_platform"]:
             if platform_quota_ok is None:
-                # local_fallback: sin Redis el tope sigue aplicando (por proceso) en vez de ser ilimitado
+                # fail_open=False: sin Redis el tope no se puede medir y la clave de plataforma cuesta dinero.
                 platform_quota_ok = await rate_limit(
-                    f"ocr:platform:{tenant_id}", daily_limit, 86400, local_fallback=True
+                    f"ocr:platform:{tenant_id}", daily_limit, 86400, fail_open=False
                 )
             if not platform_quota_ok:
-                errors.append(f"{cand_name}: Límite diario de plataforma ({daily_limit}/día) alcanzado")
+                errors.append(f"{cand_name}: Límite diario de plataforma ({daily_limit}/día) alcanzado o cuota no disponible; usa tu propia API key en Configuración > IA")
                 continue
 
         if len(attempted_providers) >= max_attempts:

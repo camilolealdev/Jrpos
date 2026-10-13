@@ -18,7 +18,7 @@ Facturación Electrónica, POS Electrónica, Nómina, RADIAN, Certificado Digita
 | 6 | `aiosqlite` faltaba en `requirements.txt` (fallback local crasheaba) | ✅ Añadido |
 | 7 | Sin plantilla de variables de entorno | ✅ Creado `.env.example` |
 
-**Suite de tests: 72 passed / 2 skipped** contra Postgres local (contenedor `jrpos-pg-test` en puerto 5433).
+**Suite de tests**: ver el workflow de CI (`.github/workflows/backend-tests.yml`); el conteo vigente vive allí.
 
 ---
 

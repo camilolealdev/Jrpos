@@ -70,7 +70,7 @@ async def get_subscription_status(user: User = Depends(get_current_user), sessio
         "plan_id": sub.plan_id if sub else "pro",
         "plan_name": plan.name if plan else "Plan Negocio Pro",
         "ai_ocr_enabled": plan.ai_ocr_enabled if plan else True,
-        "dian_enabled": plan.dian_enabled if plan else True,
+        "dian_enabled": plan.dian_enabled if plan else False,
     }
 
 

@@ -188,7 +188,7 @@ Accede a `http://localhost:3000` en tu navegador.
 
 Estado verificado mediante suite de pruebas automatizadas y auditoría fullstack:
 
-- ✅ **Test Suite Backend 100% Verde**: 73 pruebas pasadas, 1 omitida, 0 fallidas (`pytest-xdist`).
+- ✅ **Test Suite Backend**: corre en CI contra Postgres 16 (`.github/workflows/backend-tests.yml`); el conteo vigente vive allí, no en este documento.
 - ✅ **Test de Regresión de Reset de Contraseña**: Endpoint `PUT /api/users/{id}/reset-password` implementado y blindado con tests de integración (`test_reset_password.py`).
 - ✅ **Configuración de Despliegue Unificada**: `backend/Procfile`, `backend/railway.json` y `backend/Dockerfile` ejecutan `app:app` sobre PostgreSQL/Supabase, sincronizado con Vercel.
 - ✅ **Seguridad de API Keys de IA & OCR**: `GET /api/settings/general` filtra `ai_api_key` y `ai_base_url` para usuarios no administradores. En frontend, los inputs utilizan enmascaramiento protegido (`type="password"`) con visor condicional.

@@ -7,7 +7,6 @@ pise precios ni la presentación del producto, y los topes del OCR.
 Los tests HTTP siguen la convención del resto de la suite (servidor vivo en
 BACKEND_TEST_URL + admin sembrado); los unitarios importan los módulos directo.
 """
-import asyncio
 import os
 import sys
 import uuid
@@ -155,19 +154,3 @@ def test_resolve_gemini_model_replaces_retired_models(monkeypatch):
     assert _resolve_gemini_model("gemini-2.5-pro") == "gemini-2.5-pro"
     monkeypatch.setenv("GEMINI_OCR_MODEL", "gemini-flash-latest")
     assert _resolve_gemini_model("gemini-1.5-flash") == "gemini-flash-latest"
-
-
-# ---------- 5. rate_limit con respaldo local (sin Redis) ----------
-def test_rate_limit_local_fallback_caps_without_redis(monkeypatch):
-    import redis_client
-
-    monkeypatch.delenv("REDIS_URL", raising=False)
-    monkeypatch.setattr(redis_client, "_r", None)
-    redis_client._local_counters.clear()
-    key = f"test:{_uid()}"
-
-    async def run(fallback):
-        return [await redis_client.rate_limit(key, 2, 60, local_fallback=fallback) for _ in range(4)]
-
-    assert asyncio.run(run(False)) == [True, True, True, True]  # comportamiento histórico
-    assert asyncio.run(run(True)) == [True, True, False, False]
