@@ -15,7 +15,7 @@ export default function InvoiceScanner() {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [model, setModel] = useState("");
-  const [aiSettings, setAiSettings] = useState({ provider: "gemini", model: "gemini-1.5-flash" });
+  const [aiSettings, setAiSettings] = useState({ provider: "gemini", model: "gemini-2.5-flash" });
   const [loading, setLoading] = useState(false);
   const [ocrStatus, setOcrStatus] = useState(null);
   const [invoice, setInvoice] = useState({ supplier_name: "", supplier_nit: "", invoice_number: "", date: "", items: [] });
@@ -27,9 +27,9 @@ export default function InvoiceScanner() {
         if (r.data) {
           setAiSettings({
             provider: r.data.ai_provider || "gemini",
-            model: r.data.ai_model || "gemini-1.5-flash",
+            model: r.data.ai_model || "gemini-2.5-flash",
           });
-          setModel(r.data.ai_model || "gemini-1.5-flash");
+          setModel(r.data.ai_model || "gemini-2.5-flash");
         }
       })
       .catch(() => {});
@@ -106,7 +106,12 @@ export default function InvoiceScanner() {
     if (invoice.items.length === 0) return toast.error("No hay ítems para importar");
     try {
       const { data } = await api.post("/invoices/import", invoice);
-      toast.success(`✅ ${data.imported} nuevos · ${data.updated} actualizados`);
+      if (data.duplicate) {
+        // el backend es idempotente por proveedor + número de factura: no tocó el inventario
+        toast.info("Esta factura ya había sido importada; no se modificó el inventario.");
+      } else {
+        toast.success(`✅ ${data.imported} nuevos · ${data.updated} actualizados`);
+      }
       setInvoice({ supplier_name: "", supplier_nit: "", invoice_number: "", date: "", items: [] });
       setFile(null); setPreview(null);
     } catch { toast.error("Error importando factura"); }

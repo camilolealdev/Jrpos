@@ -186,7 +186,7 @@ class GeneralSettingsIn(BaseModel):
     # AI & OCR Engine Configuration
     ai_provider: Optional[str] = "gemini"  # gemini | openrouter | nvidia | groq | custom_openai
     ai_api_key: Optional[str] = None
-    ai_model: Optional[str] = "gemini-1.5-flash"
+    ai_model: Optional[str] = "gemini-2.5-flash"
     ai_base_url: Optional[str] = None
 
     # POS Ergonomics
@@ -369,7 +369,9 @@ async def test_ai_connection(
 
     if provider == "gemini":
         from google import genai
-        model_name = payload.model or os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+        # los modelos Gemini 1.5 están retirados: se reemplazan por el vigente (igual que en el OCR)
+        from routers.invoices import _resolve_gemini_model
+        model_name = _resolve_gemini_model(payload.model or os.environ.get("GEMINI_MODEL"))
         try:
             client = genai.Client(api_key=api_key)
             response = await client.aio.models.generate_content(

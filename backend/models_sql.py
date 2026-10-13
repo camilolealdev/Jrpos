@@ -492,7 +492,7 @@ class SettingsGeneral(Base):
     # AI & OCR Engine Configuration
     ai_provider: Mapped[str | None] = mapped_column(String(50), nullable=True, default="gemini")
     ai_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    ai_model: Mapped[str | None] = mapped_column(String(100), nullable=True, default="gemini-1.5-flash")
+    ai_model: Mapped[str | None] = mapped_column(String(100), nullable=True, default="gemini-2.5-flash")
     ai_base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # POS Ergonomics

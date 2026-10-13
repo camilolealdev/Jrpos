@@ -179,11 +179,11 @@ export const AI_PROVIDERS = [
     id: "gemini",
     name: "Google Gemini",
     badge: "Oficial / Recomendado",
-    defaultModel: "gemini-1.5-flash",
+    defaultModel: "gemini-2.5-flash",
     models: [
-      { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash (Rápido y Gratis)" },
-      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash (Nueva Gen)" },
-      { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (Alta Precisión)" },
+      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash (Rápido, con capa gratuita)" },
+      { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite (Más económico)" },
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro (Alta Precisión)" },
     ],
     helpUrl: "https://aistudio.google.com/app/apikey",
     placeholder: "AIzaSy...",
@@ -218,10 +218,9 @@ export const AI_PROVIDERS = [
     id: "groq",
     name: "Groq Cloud",
     badge: "Inferencia Ultra Rápida",
-    defaultModel: "llama-3.2-11b-vision-preview",
+    defaultModel: "meta-llama/llama-4-scout-17b-16e-instruct",
     models: [
-      { id: "llama-3.2-11b-vision-preview", name: "Llama 3.2 11B Vision (Groq LPU)" },
-      { id: "llama-3.2-90b-vision-preview", name: "Llama 3.2 90B Vision (Groq LPU)" },
+      { id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout 17B (Visión, Groq LPU)" },
     ],
     helpUrl: "https://console.groq.com/keys",
     placeholder: "gsk_...",
@@ -278,7 +277,7 @@ export default function Settings() {
     
     ai_provider: "gemini",
     ai_api_key: "",
-    ai_model: "gemini-1.5-flash",
+    ai_model: "gemini-2.5-flash",
     ai_base_url: "",
     
     pos_audio_beep: true,

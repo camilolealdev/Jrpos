@@ -267,7 +267,7 @@ async def ocr_invoice(
                 "nvidia": "https://integrate.api.nvidia.com/v1",
                 "groq": "https://api.groq.com/openai/v1",
             }.get(pref_provider, "https://api.openai.com/v1"),
-            "model": pref_model or ("gemini-1.5-flash" if pref_provider == "gemini" else "gpt-4o-mini"),
+            "model": pref_model or ("gemini-2.5-flash" if pref_provider == "gemini" else "gpt-4o-mini"),
             "extra_headers": {"HTTP-Referer": "https://jrpos.com", "X-Title": "JRPOS Scanner"} if pref_provider == "openrouter" else None,
             "is_platform": False,
         })
@@ -280,7 +280,7 @@ async def ocr_invoice(
             "type": "gemini",
             "api_key": os.environ.get("GEMINI_API_KEY", "").strip(),
             "base_url": None,
-            "model": os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
+            "model": os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
             "extra_headers": None,
             "is_platform": True,
         },
