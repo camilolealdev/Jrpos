@@ -243,3 +243,5 @@ Agrega una fila por cada revisión, activación o cambio relevante. No borres fi
 |---|---|---|---|---|
 | 2026-10-13 | Plan y catálogo | Documentos creados. Verificados: rutas y modelos del backend; instancia n8n con flujos de otro proyecto y credenciales existentes | Este commit | — |
 | 2026-10-13 | Fase 0.5 (I01–I05) | Construidos en n8n, inactivos, probados con datos fijos (I02: 6 rutas; I01 extremo a extremo; I03: 3; I04: caída/recuperación/CI; I05: válido/duplicado/inválido). D-02 resuelta, D-06 cambiada (sin HMAC). Checklist de conexión en el catálogo | `n8n/`, catálogo §5 Fase 0.5 | — |
+| 2026-10-13 | F01–F03, F07–F15 | 12 flujos construidos en n8n, inactivos, probados con datos fijos por dos agentes. Revisado por la sesión principal: todos `active:false`, `jrpos_notification_log` y `jrpos_onboarding` vacías, F02 sin credenciales enlazadas. No probado: ramas de error HTTP, dedupe real de I02. Backend `/api/internal/*` sin construir | `n8n/workflows/`, `n8n/contracts/`, catálogo §5 | — |
+

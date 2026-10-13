@@ -129,6 +129,43 @@ Data Tables (proyecto JRPOS): `jrpos_notification_log` `umCskhDEBOVpZ2XE`, `jrpo
 7. Backend: emisor de eventos, `/api/internal/*`, tablas `notification_prefs`/`notification_log` (sin construir).
 8. Activar cada flujo solo con confirmación explícita del propietario.
 
+### Flujos de negocio F01–F03 y F07–F15 (construidos, inactivos)
+
+Estado: 🟠 **CONSTRUIDOS Y PROBADOS CON DATOS FIJOS, INACTIVOS** (2026-10-13). Fuente: `n8n/workflows/`; contratos de los endpoints que faltan en el backend: `n8n/contracts/`. Todos notifican por I02, un solo resumen por tenant, solo a dueños con `opt_in` (lo decide el backend; no viajan teléfonos ni correos). Datos vía `GET {backend_base_url}/api/internal/...` con credencial `JRPOS Internal Token` (sin crear). Sin `backend_base_url` en `jrpos_config`, cada flujo termina sin hacer nada.
+
+| ID | Flujo | ID en n8n | Disparo |
+|---|---|---|---|
+| F01 | Ciclo de trial | `LUWm0nYxw2ozLDJV` | Diario 9:07 (días exactos 5/2/0/-1) |
+| F02 | Reporte diario del dueño | `TipgBLFStSx9c5l2` | Diario 20:03; IA con plantilla de respaldo |
+| F03 | Soporte | `UWsVfxqJ90BpS5Yu` | Subflujo desde I05 + cron horario 8–20 h |
+| F07 | Onboarding | `BuUrPXUXpPEWs6k3` | Subflujo desde I05 + sondeo cada 2 h; tabla `jrpos_onboarding` `NUVjamW3lHJ8yUtM` |
+| F08 | Renovación y reactivación | `ti75RBmWMpzzIs8o` | Diario 10:23 |
+| F09 | Stock bajo y reposición | `gCwkcyte068R2coA` | Diario 7:00 |
+| F10 | Descuadre de caja | `eThN34rSwihUO175` | Subflujo desde I05 (`cash.closed`) |
+| F11 | Alertas fiscales | `EmWvCvSS3Y8Srwo4` | Diario 7:30 |
+| F12 | Cartera semanal | `MWMcbqPZ5QyMyj4x` | Lunes 8:00 |
+| F13 | Rotación y merma | `JUqKbxxIdlP6s1NU` | Lunes 9:00 |
+| F14 | Cierre contable mensual | `vKH6kUKzwUPrqVNC` | Día 1, 6:00 |
+| F15 | Asistencia | `GGstHvAskFiL0ExQ` | Diario 10:30 |
+
+Filas nuevas en `jrpos_config`: `backend_base_url`, `app_base_url` (vacías), `cash_diff_threshold_default`, `fiscal_alert_days`, `cartera_top_n`, `cartera_include_wa_links`, `attendance_grace_minutes`, `rotation_no_sales_days`, `merma_anomaly_ratio`.
+
+**Pendiente de conectar (además del checklist de I01–I05):**
+1. Crear la credencial Header Auth `JRPOS Internal Token` y asignarla a todos los nodos HTTP.
+2. Rellenar `backend_base_url` y `app_base_url`.
+3. Construir `/api/internal/*` según `n8n/contracts/` (los nombres y respuestas son propuestos, no existen en el backend).
+4. En I05 sustituir los NoOp "Destino F03 / F07 / F10" por Execute Workflow hacia F03 (`UWsVfxqJ90BpS5Yu`), F07 (`BuUrPXUXpPEWs6k3`) y F10 (`eThN34rSwihUO175`).
+5. F02 y F03: el nodo de modelo es un marcador Mistral **sin credencial**; sustituirlo por el proveedor elegido con credencial propia de JRPOS.
+6. Cambios de backend/BD: `notification_prefs` (opt-in, canal, umbral de caja), `products.min_stock`, estado `borrador` en OC, fechas fiscales tipadas, horario esperado por empleado, última venta por producto, correo del contador con consentimiento del dueño, emisor de eventos.
+7. F14: el envío al contador es un marcador; el contador es un tercero y exige consentimiento del dueño.
+
+**Advertencias:**
+- n8n enlaza automáticamente a nodos con credencial una credencial *existente del mismo tipo*, aunque sea de otro proyecto (ocurrió con OpenAI). Al añadir nodos con credencial, revisar que no se haya enlazado una ajena.
+- F01 usa días exactos: un día con n8n o backend caído pierde ese aviso. F08 usa ventana de 3–5 días.
+- Los horarios están dentro de 8–20 h porque I02 registra como omitidos los avisos `info` entre 21 y 7 h.
+- Sin probar: ramas de error de los HTTP y el dedupe real de I02 con datos existentes (solo cableado y claves estables).
+- Criterio de "stock bajo" de F02 sigue sin definir.
+
 ### Fase 1B — Retención e ingresos (canal al dueño)
 
 | ID | Flujo | Disparador | Datos / acción | Canal | Requiere |
