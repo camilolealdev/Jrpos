@@ -9,6 +9,11 @@ Estado, decisiones y checklist de conexión: `docs/N8N_FLUJOS_REVISION_OBLIGATOR
 | I03 Latido de backup | `jvjO3qkLadkOvWXw` | Solo en la instancia (ver abajo) |
 | I04 Salud del sistema | `AxadpTIg1fK80wcV` | Solo en la instancia |
 | I05 Receptor de eventos | `s3wrzDlNLXaKeyW5` | Solo en la instancia |
+| F01 Ciclo de vida del trial | `LUWm0nYxw2ozLDJV` | `workflows/F01-ciclo-trial.sdk.ts` (contrato: `contracts/F01.md`) |
+| F02 Reporte diario del dueno | `TipgBLFStSx9c5l2` | `workflows/F02-reporte-diario-dueno.sdk.ts` (`contracts/F02.md`) |
+| F03 Soporte | `UWsVfxqJ90BpS5Yu` | `workflows/F03-soporte.sdk.ts` (`contracts/F03.md`) |
+| F07 Onboarding de tenant nuevo | `BuUrPXUXpPEWs6k3` | `workflows/F07-onboarding-tenant.sdk.ts` (`contracts/F07.md`) |
+| F08 Renovacion y reactivacion | `ti75RBmWMpzzIs8o` | `workflows/F08-renovacion-reactivacion.sdk.ts` (`contracts/F08.md`) |
 
 - I01 e I02 tienen su fuente en SDK (`create_workflow_from_code`). I03–I05 no se exportaron al repo:
   la fuente de verdad es la instancia (historial de versiones y `get_workflow_details`). Exportarlos
