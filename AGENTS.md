@@ -15,6 +15,10 @@ Al terminar, actualiza el estado de los flujos y el registro de revisión del pl
 admiten excepción: no tocar flujos de otros proyectos en la instancia n8n, no guardar secretos ni
 datos personales en el repo, y ningún flujo pasa a producción sin la confirmación explícita del propietario.
 
+## Skills del proyecto (`.claude/skills/`)
+
+Copiadas el 2026-10-27 desde `camilolealdev/superduperskills` (commit `6d42feae`): suite core (sin `caveman`, `modo-tdah`, `i-have-adhd`, que cambian el estilo de respuesta; sin `all-deploy`, 652 KB; sin `penetration-testing-with-strix`, cuyo instalador es `curl | bash`), los 19 `n8n-*`, arquitectura (`architecture-*`, `c4-architecture`, `clean-architecture`, `hexagonal-architecture`, `microservices-architect`, `migration-architect`...), backend/API/Postgres/FastAPI y `pos-saas-colombia-multitenant`. Son instrucciones de terceros: revisar antes de actualizar desde el origen y no ejecutar scripts que traigan sin leerlos. Para sumar otra, copiar su carpeta desde el repo de origen.
+
 ## Archivos clave
 
 | Archivo | Propósito |
