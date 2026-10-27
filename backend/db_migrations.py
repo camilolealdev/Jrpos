@@ -141,6 +141,13 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     -- llevando la nota libre. stock_movements ya existe en producción, así que
     -- create_all() (arriba) no la toca -- necesita su propio ALTER.
     ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS motivo VARCHAR(30);
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock FLOAT;
+    ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(100);
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_purchase_orders_tenant_idem ON purchase_orders (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+    ALTER TABLE notification_prefs ADD COLUMN IF NOT EXISTS cash_diff_threshold FLOAT;
+    ALTER TABLE notification_prefs ADD COLUMN IF NOT EXISTS accountant_email VARCHAR(255);
+    ALTER TABLE notification_prefs ADD COLUMN IF NOT EXISTS accountant_opt_in BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE notification_prefs ADD COLUMN IF NOT EXISTS accountant_consented_at TIMESTAMP WITH TIME ZONE;
     ALTER TABLE category_meta ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE sales ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);

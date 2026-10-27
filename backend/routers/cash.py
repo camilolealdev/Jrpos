@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from db import get_session
+from n8n_events import emit_event
 from models_sql import CashPickup, CashSession, Sale, User, utcnow
 
 cash_router = APIRouter(prefix="/api/cash", tags=["cash"])
@@ -182,6 +183,7 @@ async def cash_pickup(
 @cash_router.post("/close")
 async def close_cash(
     payload: CloseRequest,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
@@ -267,6 +269,7 @@ async def close_cash(
     cs.z_report_snapshot = json.dumps(snapshot)
 
     await session.commit()
+    emit_event(background_tasks, "cash.closed", tenant_id, {"session_id": cs.id})
     return _session_dict(cs, pickups)
 
 

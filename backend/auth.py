@@ -22,6 +22,7 @@ from business_types import (
     STAFF_ROLE_LABELS_BY_BUSINESS_TYPE,
 )
 from db import get_session
+from n8n_events import emit_event
 from mailer import send_welcome_email
 from models_sql import (
     Branch,
@@ -441,6 +442,7 @@ async def register_tenant(payload: TenantRegisterRequest, response: Response, ba
     )
     set_auth_cookies(response, user)
     background_tasks.add_task(send_welcome_email, email, payload.name or payload.business_name, payload.business_name)
+    emit_event(background_tasks, "tenant.registered", tenant.id)
 
     return {
         "ok": True,
@@ -548,6 +550,7 @@ async def google_auth(payload: GoogleAuthRequest, response: Response, background
     )
     set_auth_cookies(response, new_user)
     background_tasks.add_task(send_welcome_email, email, new_user.name or payload.business_name, payload.business_name)
+    emit_event(background_tasks, "tenant.registered", tenant.id)
 
     return {
         "ok": True,

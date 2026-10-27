@@ -394,17 +394,25 @@ class NotificationPrefsIn(BaseModel):
     channel: str = Field(default="whatsapp", pattern="^(whatsapp|email)$")
     trial_alerts: bool = True
     daily_digest: bool = True
+    cash_diff_threshold: Optional[float] = Field(default=None, ge=0)
+    accountant_email: Optional[str] = Field(default=None, max_length=255, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    accountant_opt_in: bool = False
 
 
 def _prefs_out(p: Optional[NotificationPref]) -> dict:
     if not p:
-        return {"opt_in": False, "channel": "whatsapp", "trial_alerts": True, "daily_digest": True, "consented_at": None}
+        return {"opt_in": False, "channel": "whatsapp", "trial_alerts": True, "daily_digest": True, "consented_at": None,
+                "cash_diff_threshold": None, "accountant_email": None, "accountant_opt_in": False, "accountant_consented_at": None}
     return {
         "opt_in": p.opt_in,
         "channel": p.channel,
         "trial_alerts": p.trial_alerts,
         "daily_digest": p.daily_digest,
         "consented_at": p.consented_at.isoformat() if p.consented_at else None,
+        "cash_diff_threshold": p.cash_diff_threshold,
+        "accountant_email": p.accountant_email,
+        "accountant_opt_in": p.accountant_opt_in,
+        "accountant_consented_at": p.accountant_consented_at.isoformat() if p.accountant_consented_at else None,
     }
 
 
@@ -430,5 +438,17 @@ async def put_notification_prefs(
     pref.channel = payload.channel
     pref.trial_alerts = payload.trial_alerts
     pref.daily_digest = payload.daily_digest
+    pref.cash_diff_threshold = payload.cash_diff_threshold
+    # el consentimiento para el contador es explicito y ligado a ese correo: sin correo no hay consentimiento,
+    # y cambiar el correo exige volver a consentir (se registra la fecha de nuevo)
+    new_email = (payload.accountant_email or "").strip().lower() or None
+    if payload.accountant_opt_in and not new_email:
+        raise HTTPException(status_code=422, detail="Indica el correo del contador para autorizar el envio")
+    if payload.accountant_opt_in and (not pref.accountant_opt_in or new_email != pref.accountant_email):
+        pref.accountant_consented_at = utcnow()
+    if not payload.accountant_opt_in:
+        pref.accountant_consented_at = None
+    pref.accountant_email = new_email
+    pref.accountant_opt_in = bool(payload.accountant_opt_in and new_email)
     await session.commit()
     return _prefs_out(pref)

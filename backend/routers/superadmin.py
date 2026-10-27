@@ -1,13 +1,14 @@
 import json as _json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import _cookie_flags, create_access_token, get_current_user, require_superadmin
 from db import get_session
+from n8n_events import emit_event, scrub_text
 from models_sql import (
     PlatformPlan,
     Sale,
@@ -364,6 +365,7 @@ async def impersonate_tenant(
 @support_router.post("/tickets")
 async def create_tenant_support_ticket(
     payload: CreateTicketRequest,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
@@ -382,6 +384,13 @@ async def create_tenant_support_ticket(
     )
     session.add(ticket)
     await session.commit()
+    emit_event(background_tasks, "ticket.created", tenant_id, {
+        "ticket_id": ticket.id,
+        "subject": scrub_text(ticket.subject, 150),
+        "message": scrub_text(ticket.message, 600),
+        "priority": ticket.priority,
+        "created_at": utcnow().isoformat(),
+    })
     return {"ok": True, "ticket_id": ticket.id, "status": ticket.status}
 
 

@@ -49,6 +49,7 @@ from routers.electronic import electronic_router
 from routers.radian import radian_router
 from routers.commissions import commissions_router
 from routers.internal import internal_router, notification_prefs_router
+from routers.internal_ops import ops_router
 
 
 @asynccontextmanager
@@ -92,6 +93,7 @@ app.include_router(radian_router)
 app.include_router(commissions_router)
 app.include_router(internal_router)
 app.include_router(notification_prefs_router)
+app.include_router(ops_router)
 
 _frontend_origins = [
     origin.strip()

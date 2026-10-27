@@ -32,6 +32,7 @@ class ProductOut(BaseModel):
     price: float = 0.0
     cost: float = 0.0
     stock: float = 0.0
+    min_stock: Optional[float] = None
     unit: str = "und"
     tax_rate: float = 19.0
     supplier_id: Optional[str] = None
@@ -52,6 +53,7 @@ class ProductCreate(BaseModel):
     price: float = 0.0
     cost: float = 0.0
     stock: float = 0.0
+    min_stock: Optional[float] = Field(default=None, ge=0)
     unit: str = "und"
     tax_rate: float = 19.0
     supplier_id: Optional[str] = None
@@ -75,6 +77,7 @@ class ProductUpdate(BaseModel):
     price: Optional[float] = None
     cost: Optional[float] = None
     stock: Optional[float] = None
+    min_stock: Optional[float] = Field(default=None, ge=0)
     unit: Optional[str] = None
     tax_rate: Optional[float] = None
     supplier_id: Optional[str] = None
@@ -334,6 +337,7 @@ async def create_product(
         price=unit_price,
         cost=unit_cost,
         stock=float(payload.stock or 0.0),
+        min_stock=payload.min_stock,
         unit=payload.unit or "und",
         tax_rate=float(payload.tax_rate if payload.tax_rate is not None else 19.0),
         supplier_id=payload.supplier_id,

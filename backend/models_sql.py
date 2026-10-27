@@ -128,6 +128,12 @@ class NotificationPref(Base):
     channel: Mapped[str] = mapped_column(String(10), nullable=False, default="whatsapp")  # whatsapp | email
     trial_alerts: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     daily_digest: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Umbral propio de descuadre de caja (valor absoluto, COP); None = usa el de n8n.
+    cash_diff_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # El contador es un tercero: solo se le envia el export con consentimiento expreso del dueno.
+    accountant_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    accountant_opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    accountant_consented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     consented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -227,6 +233,8 @@ class Product(Base):
     price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     stock: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # Stock minimo para el aviso de reposicion (F09); None = sin alerta.
+    min_stock: Mapped[float | None] = mapped_column(Float, nullable=True)
     unit: Mapped[str] = mapped_column(String(20), nullable=False, default="und")
     tax_rate: Mapped[float] = mapped_column(Float, nullable=False, default=19.0)
     supplier_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
@@ -744,7 +752,9 @@ class PurchaseOrder(Base):
     supplier_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     supplier_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     total: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="enviada")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="enviada")  # borrador | enviada | recibida
+    # Borradores creados por n8n: una clave por (tenant, proveedor, corrida) evita duplicados al reintentar.
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

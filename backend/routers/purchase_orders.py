@@ -109,6 +109,24 @@ async def list_purchase_orders(
     return [await _po_out(session, po) for po in pos]
 
 
+@purchase_orders_router.post("/purchase-orders/{oid}/approve", response_model=PurchaseOrderOut)
+async def approve_purchase_order(
+    oid: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("inventory:purchase")),
+):
+    """Aprueba un borrador (creado por la reposicion automatica): borrador -> enviada."""
+    tenant_id = user.tenant_id or "tenant-default-001"
+    po = await session.get(PurchaseOrder, oid)
+    if not po or po.tenant_id != tenant_id:
+        raise HTTPException(status_code=404, detail="No encontrada")
+    if po.status != "borrador":
+        raise HTTPException(status_code=400, detail="Solo se aprueban órdenes en borrador")
+    po.status = "enviada"
+    await session.commit()
+    return await _po_out(session, po)
+
+
 @purchase_orders_router.post("/purchase-orders/{oid}/receive")
 async def receive_purchase_order(
     oid: str,
@@ -121,6 +139,8 @@ async def receive_purchase_order(
         raise HTTPException(status_code=404, detail="No encontrada")
     if po.status == "recibida":
         raise HTTPException(status_code=400, detail="Ya fue recibida")
+    if po.status == "borrador":
+        raise HTTPException(status_code=400, detail="La orden es un borrador: apruébala antes de recibirla")
 
     items = (
         await session.execute(
