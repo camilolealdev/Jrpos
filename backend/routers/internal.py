@@ -260,6 +260,128 @@ async def daily_digest(
     }
 
 
+# ---------------- F07 / F08: onboarding, renovacion, reactivacion ----------------
+# opt_in es el unico interruptor de estos mensajes de ciclo de vida
+# (onboarding, renovacion, inactividad); trial_alerts y daily_digest solo
+# gobiernan F01 y F02.
+def _live(t: Tenant, now: datetime) -> bool:
+    return t.status == "active" or (t.status == "trial" and _aware(t.trial_ends_at) > now)
+
+
+def _pref_fields(pref: Optional[NotificationPref]) -> dict:
+    return {"opt_in": bool(pref and pref.opt_in), "channel": pref.channel if pref else "whatsapp"}
+
+
+@internal_router.get("/tenants/renewals")
+async def tenants_renewals(days_ahead: int = Query(5, ge=0, le=30), session: AsyncSession = Depends(get_session)):
+    await _superadmin(session)
+    now = utcnow()
+    today = bogota_today(now)
+    subs = (await session.execute(select(TenantSubscription).where(TenantSubscription.status == "active"))).scalars().all()
+    latest: dict[str, TenantSubscription] = {}
+    for sub in subs:  # una sola suscripcion por tenant: la de vencimiento mas lejano
+        cur = latest.get(sub.tenant_id)
+        if cur is None or _aware(sub.current_period_end) > _aware(cur.current_period_end):
+            latest[sub.tenant_id] = sub
+    if not latest:
+        return {"tenants": []}
+    tenants = {t.id: t for t in (await session.execute(select(Tenant).where(Tenant.id.in_(list(latest))))).scalars().all()}
+    prefs = await _prefs_by_tenant(session)
+    out = []
+    for tid, sub in latest.items():
+        tenant = tenants.get(tid)
+        if not tenant or tenant.status != "active":
+            continue
+        end_day = _aware(sub.current_period_end).astimezone(BOGOTA).date()
+        left = (end_day - today).days
+        if left < 0 or left > days_ahead:
+            continue
+        out.append({
+            "tenant_id": tid,
+            "status": tenant.status,
+            "plan": sub.plan_id,
+            "current_period_end": end_day.isoformat(),
+            "days_left": left,
+            **_pref_fields(prefs.get(tid)),
+            "payment_url": _paywall_url(),
+        })
+    return {"tenants": out}
+
+
+@internal_router.get("/tenants/inactive")
+async def tenants_inactive(days: int = Query(7, ge=0, le=365), session: AsyncSession = Depends(get_session)):
+    await _superadmin(session)
+    now = utcnow()
+    today = bogota_today(now)
+    tenants = (await session.execute(select(Tenant).where(Tenant.status.in_(("active", "trial"))))).scalars().all()
+    last_sale = {
+        tid: ts
+        for tid, ts in (
+            await session.execute(select(Sale.tenant_id, func.max(Sale.created_at)).group_by(Sale.tenant_id))
+        ).all()
+    }
+    prefs = await _prefs_by_tenant(session)
+    out = []
+    for t in tenants:
+        if not _live(t, now):
+            continue
+        ref = last_sale.get(t.id) or t.created_at
+        idle = (today - _aware(ref).astimezone(BOGOTA).date()).days
+        if idle < days:
+            continue
+        out.append({"tenant_id": t.id, "status": t.status, "days_without_sales": idle, **_pref_fields(prefs.get(t.id))})
+    return {"tenants": out}
+
+
+@internal_router.get("/tenants/onboarding")
+async def tenants_onboarding(days: int = Query(8, ge=1, le=60), session: AsyncSession = Depends(get_session)):
+    """Reconciliacion de F07: tenants registrados en los ultimos `days` dias (por si se perdio el evento)."""
+    await _superadmin(session)
+    now = utcnow()
+    tenants = (
+        await session.execute(select(Tenant).where(Tenant.created_at >= now - timedelta(days=days + 1)))
+    ).scalars().all()
+    prefs = await _prefs_by_tenant(session)
+    cutoff = bogota_today(now) - timedelta(days=days)
+    out = []
+    for t in tenants:
+        registered = _aware(t.created_at).astimezone(BOGOTA).date()
+        if registered < cutoff or not _live(t, now):
+            continue
+        out.append({"tenant_id": t.id, "status": t.status, "registered_at": registered.isoformat(), **_pref_fields(prefs.get(t.id))})
+    return {"tenants": out}
+
+
+@internal_router.get("/tenants/{tenant_id}/activity")
+async def tenant_activity(tenant_id: str, session: AsyncSession = Depends(get_session)):
+    await _superadmin(session)
+    tenant = (await session.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Not Found")
+    pref = (await session.execute(select(NotificationPref).where(NotificationPref.tenant_id == tenant_id))).scalar_one_or_none()
+    status = tenant.status
+    # a partir de aqui solo se leen datos de este tenant
+    await _set_tenant_context(session, tenant_id=tenant_id, is_superadmin=False)
+    products_count = (
+        await session.execute(
+            select(func.count()).select_from(Product).where(Product.tenant_id == tenant_id, Product.is_service == False)  # noqa: E712
+        )
+    ).scalar_one()
+    sales_count, last_sale_at = (
+        await session.execute(
+            select(func.count(), func.max(Sale.created_at)).where(Sale.tenant_id == tenant_id, Sale.created_at >= tenant.created_at)
+        )
+    ).one()
+    return {
+        "tenant_id": tenant_id,
+        "status": status,
+        "products_count": int(products_count),
+        "sales_count": int(sales_count),
+        "last_sale_at": _aware(last_sale_at).isoformat() if last_sale_at else None,
+        **_pref_fields(pref),
+    }
+
+
 # ---------------- Preferencias de aviso del dueno (opt-in) ----------------
 from auth import require_admin  # noqa: E402
 from models_sql import User  # noqa: E402

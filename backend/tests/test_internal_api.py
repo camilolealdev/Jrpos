@@ -144,3 +144,90 @@ def test_daily_digest_is_scoped_to_one_tenant(tenant):
     assert set(d) >= {"date", "currency", "margin_pct", "credits_pending_total"}
     r = requests.get(f"{API}/internal/tenants/{tid}/daily-digest", params={"date": "no-es-fecha"}, headers=_h(), timeout=15)
     assert r.status_code == 422
+
+
+# ---------- F07 / F08 ----------
+@needs_token
+def test_activity_counts_only_this_tenant(tenant):
+    tid = tenant["id"]
+    r = requests.get(f"{API}/internal/tenants/{tid}/activity", headers=_h(), timeout=15)
+    assert r.status_code == 200, r.text
+    a = r.json()
+    assert a["tenant_id"] == tid and a["status"] == "trial"
+    assert set(a) == {"tenant_id", "status", "products_count", "sales_count", "last_sale_at", "opt_in", "channel"}
+    before_products, before_sales = a["products_count"], a["sales_count"]
+
+    s = tenant["session"]
+    p = s.post(f"{API}/products", json={"name": f"ACT_{uuid.uuid4().hex[:6]}", "price": 1000, "cost": 600, "stock": 9, "tax_rate": 0, "unit": "und"}, timeout=15).json()
+    sale = s.post(f"{API}/sales", json={
+        "items": [{"product_id": p["id"], "name": p["name"], "qty": 1, "price": 1000, "tax_rate": 0}],
+        "payment_method": "efectivo",
+    }, timeout=15)
+    assert sale.status_code == 200, sale.text
+    a = requests.get(f"{API}/internal/tenants/{tid}/activity", headers=_h(), timeout=15).json()
+    assert a["products_count"] == before_products + 1
+    assert a["sales_count"] == before_sales + 1
+    assert a["last_sale_at"]
+
+
+@needs_token
+def test_activity_unknown_tenant_is_404():
+    r = requests.get(f"{API}/internal/tenants/{uuid.uuid4()}/activity", headers=_h(), timeout=15)
+    assert r.status_code == 404
+
+
+@needs_token
+def test_inactive_and_onboarding_lists(tenant):
+    tid = tenant["id"]
+    r = requests.get(f"{API}/internal/tenants/inactive", params={"days": 0}, headers=_h(), timeout=15)
+    assert r.status_code == 200
+    assert tid in [t["tenant_id"] for t in r.json()["tenants"]]
+    r = requests.get(f"{API}/internal/tenants/inactive", params={"days": 7}, headers=_h(), timeout=15)
+    assert tid not in [t["tenant_id"] for t in r.json()["tenants"]]  # registrado hoy
+    r = requests.get(f"{API}/internal/tenants/onboarding", params={"days": 8}, headers=_h(), timeout=15)
+    row = next((t for t in r.json()["tenants"] if t["tenant_id"] == tid), None)
+    assert row is not None and row["status"] == "trial" and "email" not in row and "phone" not in row
+
+
+@needs_token
+def test_renewals_ignores_trial_tenants(tenant):
+    r = requests.get(f"{API}/internal/tenants/renewals", params={"days_ahead": 30}, headers=_h(), timeout=15)
+    assert r.status_code == 200
+    assert tenant["id"] not in [t["tenant_id"] for t in r.json()["tenants"]]
+
+
+@needs_token
+def test_lifecycle_endpoints_require_token():
+    for path in ("tenants/renewals", "tenants/inactive", "tenants/onboarding", f"tenants/{uuid.uuid4()}/activity"):
+        assert requests.get(f"{API}/internal/{path}", timeout=15).status_code == 401
+
+
+@needs_token
+def test_renewals_lists_active_subscription_within_window():
+    suffix = uuid.uuid4().hex[:8]
+    owner = requests.Session()
+    r = owner.post(f"{API}/auth/register-tenant", json={
+        "business_name": f"REN-Test-{suffix}", "email": f"ren_admin_{suffix}@jrpos.co",
+        "password": "renl1234", "name": "REN Admin",
+    }, timeout=20)
+    assert r.status_code == 200, r.text
+    me = owner.get(f"{API}/auth/me", timeout=15).json()
+    tid = me.get("tenant_id") or me.get("tenant", {}).get("id")
+
+    sa = requests.Session()
+    r = sa.post(f"{API}/auth/login", json={
+        "email": os.environ.get("SUPERADMIN_EMAIL", "superadmin@jrpos.co"),
+        "password": os.environ.get("SUPERADMIN_PASSWORD", "testpass123"),
+    }, timeout=15)
+    assert r.status_code == 200, r.text
+    plans = sa.get(f"{API}/billing/plans", timeout=15).json()
+    plan_id = (plans["plans"] if isinstance(plans, dict) else plans)[0]["id"]
+    r = sa.post(f"{API}/billing/superadmin/tenants/{tid}/activate", json={"plan_id": plan_id, "months": 1}, timeout=15)
+    assert r.status_code == 200, r.text
+
+    r = requests.get(f"{API}/internal/tenants/renewals", params={"days_ahead": 30}, headers=_h(), timeout=15)
+    row = next((t for t in r.json()["tenants"] if t["tenant_id"] == tid), None)
+    assert row is not None and row["status"] == "active" and row["plan"] == plan_id
+    assert 28 <= row["days_left"] <= 30 and row["opt_in"] is False
+    r = requests.get(f"{API}/internal/tenants/renewals", params={"days_ahead": 5}, headers=_h(), timeout=15)
+    assert tid not in [t["tenant_id"] for t in r.json()["tenants"]]
