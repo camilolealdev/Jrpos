@@ -20,10 +20,11 @@ import {
   Settings2, Save, Palette, Bot, Store, Printer, Sliders, Eye, EyeOff,
   Sparkles, CheckCircle2, AlertCircle, RefreshCw, HelpCircle, ShieldCheck,
   Database, Trash2, AlertTriangle, ShieldAlert, ShoppingBag, Users, FileText, CheckCircle,
-  Upload, Image as ImageIcon, Check, Plus, ArrowUp, ArrowDown, RotateCcw, CreditCard,
+  Upload, Image as ImageIcon, Check, Plus, ArrowUp, ArrowDown, RotateCcw, CreditCard, Bell,
 } from "lucide-react";
 import logoWhite from "@/assets/logo2.webp";
 import logoDark from "@/assets/logo.webp";
+import NotificationPrefsCard from "@/components/NotificationPrefsCard";
 import { BUSINESS_TYPES, HIDEABLE_MODULES } from "@/lib/businessTypes";
 import { DEFAULT_PAYMENT_METHODS, slugifyPaymentId } from "@/lib/paymentMethods";
 
@@ -558,7 +559,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="store" className="space-y-4">
-        <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-slate-100 rounded-lg">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 h-auto p-1 bg-slate-100 rounded-lg">
           <TabsTrigger value="store" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
             <Store className="w-4 h-4" /> Datos Tienda
           </TabsTrigger>
@@ -573,6 +574,9 @@ export default function Settings() {
           </TabsTrigger>
           <TabsTrigger value="pos" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
             <Sliders className="w-4 h-4" /> Caja POS
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs" data-testid="tab-notifications">
+            <Bell className="w-4 h-4" /> Avisos
           </TabsTrigger>
           <TabsTrigger value="data" className="py-2.5 text-xs sm:text-sm font-semibold flex items-center gap-1.5 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs" data-testid="tab-data-mgmt">
             <Database className="w-4 h-4" /> Datos & Prod
@@ -1209,6 +1213,10 @@ export default function Settings() {
               })}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-4">
+          <NotificationPrefsCard />
         </TabsContent>
 
         {/* TAB 6: Gestión de Datos & Producción */}
