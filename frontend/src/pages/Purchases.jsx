@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, PackageCheck, Truck, Trash2, FileText } from "lucide-react";
+import { Plus, PackageCheck, Truck, Trash2, FileText, Check } from "lucide-react";
 
 export default function Purchases({ defaultTab = "oc" }) {
   const [tab, setTab] = useState(defaultTab);
@@ -65,6 +65,11 @@ export default function Purchases({ defaultTab = "oc" }) {
     } catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
   };
 
+  const approve = async (o) => {
+    try { await api.post(`/purchase-orders/${o.id}/approve`); toast.success(`OC ${o.number} aprobada`); load(); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
+  };
+
   const receive = async (o) => {
     try { await api.post(`/purchase-orders/${o.id}/receive`); toast.success(`OC ${o.number} recibida — stock actualizado`); load(); }
     catch (e) { toast.error(e?.response?.data?.detail || "Error"); }
@@ -103,6 +108,11 @@ export default function Purchases({ defaultTab = "oc" }) {
                         <td className="p-3 text-right font-mono">{formatCOP(d.total)}</td>
                         <td className="p-3"><Badge variant="outline" className="capitalize">{d.status}</Badge></td>
                         <td className="p-3 text-right">
+                          {tab === "oc" && d.status === "borrador" && (
+                            <Button size="sm" className="bg-amber-600 hover:bg-amber-700" onClick={() => approve(d)} data-testid={`approve-${d.id}`}>
+                              <Check className="w-3 h-3 mr-1" /> Aprobar
+                            </Button>
+                          )}
                           {tab === "oc" && d.status === "enviada" && (
                             <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800" onClick={() => receive(d)} data-testid={`receive-${d.id}`}>
                               <PackageCheck className="w-3 h-3 mr-1" /> Recibir

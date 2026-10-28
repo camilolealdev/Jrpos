@@ -15,7 +15,7 @@ import KardexModal from "@/components/KardexModal";
 import MermaModal from "@/components/MermaModal";
 
 const empty = {
-  name: "", barcode: "", category: "General", price: 0, cost: 0, stock: 0, unit: "und", tax_rate: 19,
+  name: "", barcode: "", category: "General", price: 0, cost: 0, stock: 0, min_stock: "", unit: "und", tax_rate: 19,
   package_cost: "", units_per_package: 1, margin_percent: "", stock_packages: "", pack_only: false,
 };
 
@@ -98,6 +98,8 @@ export default function Inventory() {
       payload.barcode = payload.barcode.trim() || null;
     }
     delete payload.stock_packages;
+    // vacío = sin alerta de reposición; null también limpia el valor al editar
+    payload.min_stock = form.min_stock === "" || form.min_stock == null ? null : Number(form.min_stock);
     // Unidades por paquete y "solo por paquete" son atributos del producto en sí
     // (los usa el POS para vender por unidad/paquete) y se guardan siempre, sin
     // importar si la calculadora de precio por % de utilidad está activada o no.
@@ -160,6 +162,7 @@ export default function Inventory() {
     setForm({
       ...empty, ...p,
       package_cost: "", units_per_package: p.units_per_package || 1, margin_percent: p.margin_percent ?? "",
+      min_stock: p.min_stock ?? "",
     });
     setUseMargin(false);
     setEditingId(p.id);
@@ -642,6 +645,10 @@ export default function Inventory() {
             <div>
               <label className="text-xs font-semibold">Stock {useMargin ? "(unidades, calculado)" : "(unidades)"}</label>
               <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value), stock_packages: "" })} data-testid="f-stock" />
+            </div>
+            <div>
+              <label htmlFor="f-min-stock" className="text-xs font-semibold">Stock mínimo (aviso de reposición)</label>
+              <Input id="f-min-stock" type="number" min="0" placeholder="Vacío = sin aviso" value={form.min_stock} onChange={(e) => setForm({ ...form, min_stock: e.target.value })} data-testid="f-min-stock" />
             </div>
             <div>
               <label className="text-xs font-semibold">Unidad</label>
