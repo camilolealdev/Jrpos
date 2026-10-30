@@ -1,4 +1,4 @@
-import { Store, Pill, Martini, Hammer, Coffee, Shirt, MoreHorizontal } from "lucide-react";
+import { Store, Pill, Martini, Beer, UtensilsCrossed, Hammer, Coffee, Shirt, MoreHorizontal } from "lucide-react";
 
 // Tipos de negocio soportados por el onboarding (registro por email y por
 // Google usan este mismo catálogo). Único origen de verdad en el frontend --
@@ -6,9 +6,11 @@ import { Store, Pill, Martini, Hammer, Coffee, Shirt, MoreHorizontal } from "luc
 export const BUSINESS_TYPES = [
   { id: "abarrotes", label: "Tienda de Abarrotes / Minimercado", icon: Store },
   { id: "drogueria", label: "Droguería / Farmacia", icon: Pill },
-  { id: "licorera", label: "Licorera / Bar / Estanco", icon: Martini },
+  { id: "licorera", label: "Licorera / Estanco", icon: Martini },
+  { id: "bar", label: "Bar / Discoteca", icon: Beer },
+  { id: "restaurante", label: "Restaurante", icon: UtensilsCrossed },
   { id: "ferreteria", label: "Ferretería / Materiales", icon: Hammer },
-  { id: "cafeteria", label: "Cafetería / Panadería / Restaurante", icon: Coffee },
+  { id: "cafeteria", label: "Cafetería / Panadería", icon: Coffee },
   { id: "ropa", label: "Boutique / Ropa y Calzado", icon: Shirt },
   { id: "otro", label: "Otro Comercio Minorista", icon: MoreHorizontal },
 ];

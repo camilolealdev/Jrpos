@@ -7,13 +7,40 @@ el dueño lo edita libremente desde Configuración y deja de depender de este
 mapa (es un preset inicial, no una regla permanente).
 """
 
-BUSINESS_TYPES = ["abarrotes", "drogueria", "licorera", "ferreteria", "cafeteria", "ropa", "otro"]
+BUSINESS_TYPES = [
+    "abarrotes", "drogueria", "licorera", "bar", "restaurante", "ferreteria", "cafeteria", "ropa", "otro",
+]
 
-# tids de nav (frontend/src/components/Layout.jsx) ocultos por defecto al
-# crear un tenant de este tipo. Todos vacíos hoy -- editar aquí para
-# pre-activar/desactivar módulos por vertical sin tocar el resto de la
-# tubería (registro -> SettingsGeneral -> sidebar -> Configuración).
-HIDDEN_MODULES_BY_BUSINESS_TYPE = {t: [] for t in BUSINESS_TYPES}
+# Módulos de la sidebar que se pueden ocultar (mismo catálogo que HIDEABLE_MODULES en
+# frontend/src/lib/businessTypes.js; un test verifica que no se desincronicen). El núcleo
+# (POS, Inventario, Panel, Caja, Usuarios, Configuración, Soporte) y la suite DIAN no se ocultan.
+HIDEABLE_MODULE_TIDS = (
+    "nav-creditos",        # Fiados
+    "nav-comisiones",
+    "nav-servicios",       # Recargas / corresponsal
+    "nav-garantias",
+    "nav-ordenes-compra",
+    "nav-ordenes-venta",   # Cotizaciones
+    "nav-promociones",
+)
+
+# tids de nav (frontend/src/components/Layout.jsx) ocultos por defecto al crear un tenant
+# de este tipo. Solo se pueden ocultar los de HIDEABLE_MODULE_TIDS; el dueño lo cambia luego
+# desde Configuración. Fiados queda visible en licorera, bar y restaurante.
+_NO_FIADOS = [t for t in HIDEABLE_MODULE_TIDS if t != "nav-creditos"]
+
+HIDDEN_MODULES_BY_BUSINESS_TYPE = {
+    "abarrotes": ["nav-comisiones", "nav-ordenes-venta"],
+    "drogueria": ["nav-comisiones", "nav-servicios", "nav-ordenes-venta"],
+    "licorera": ["nav-comisiones", "nav-servicios", "nav-garantias", "nav-ordenes-venta"],
+    # Bar y restaurante: POS con cuentas, Panel, Inventario, DIAN, Caja por turnos y Fiados.
+    "bar": list(_NO_FIADOS),
+    "restaurante": list(_NO_FIADOS),
+    "ferreteria": ["nav-comisiones", "nav-servicios"],
+    "cafeteria": ["nav-creditos", "nav-comisiones", "nav-servicios", "nav-garantias", "nav-ordenes-venta"],
+    "ropa": ["nav-creditos", "nav-servicios"],
+    "otro": [],
+}
 
 # Rol(es) operativo(s) de staff (no-admin) que se ofrecen al crear un usuario,
 # según el rubro del tenant. Solo "mesero" tiene permisos distintos de verdad
@@ -24,6 +51,8 @@ STAFF_ROLES_BY_BUSINESS_TYPE = {
     "abarrotes": ["cajero"],
     "drogueria": ["cajero"],
     "licorera": ["cajero"],
+    "bar": ["cajero"],
+    "restaurante": ["cajero"],
     "ferreteria": ["cajero"],
     "cafeteria": ["mesero"],
     "ropa": ["cajero"],
