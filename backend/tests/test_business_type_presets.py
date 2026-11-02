@@ -91,3 +91,25 @@ def test_provisioning_applies_the_preset_of_the_chosen_type():
         assert "nav-creditos" not in sg.hidden_module_tids
 
     anyio.run(_test)
+
+
+NEW_HIDEABLE = {"nav-proveedores", "nav-gastos", "nav-facturas", "nav-marcacion"}
+
+
+def test_bar_and_restaurante_also_hide_suppliers_expenses_invoice_scan_and_timeclock():
+    for t in ("bar", "restaurante"):
+        assert NEW_HIDEABLE <= set(bt.HIDDEN_MODULES_BY_BUSINESS_TYPE[t]), t
+
+
+def test_other_types_keep_the_new_modules_visible():
+    for t in bt.BUSINESS_TYPES:
+        if t in ("bar", "restaurante"):
+            continue
+        assert not (NEW_HIDEABLE & set(bt.HIDDEN_MODULES_BY_BUSINESS_TYPE[t])), t
+
+
+def test_customers_and_reports_can_never_be_hidden():
+    # Clientes: único lugar para crear a quién se le fía (el POS solo elige clientes existentes).
+    # Reportes: aloja la exportación contable y el reporte de merma.
+    assert "nav-clientes" not in bt.HIDEABLE_MODULE_TIDS
+    assert "nav-reportes" not in bt.HIDEABLE_MODULE_TIDS

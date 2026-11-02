@@ -22,7 +22,13 @@ HIDEABLE_MODULE_TIDS = (
     "nav-ordenes-compra",
     "nav-ordenes-venta",   # Cotizaciones
     "nav-promociones",
+    "nav-proveedores",
+    "nav-gastos",
+    "nav-facturas",        # Escanear factura (IA)
+    "nav-marcacion",       # Asistencia de empleados
 )
+# Nunca ocultables: Clientes (único lugar para crear a quién se le fía) y Reportes
+# (exportación contable y reporte de merma).
 
 # tids de nav (frontend/src/components/Layout.jsx) ocultos por defecto al crear un tenant
 # de este tipo. Solo se pueden ocultar los de HIDEABLE_MODULE_TIDS; el dueño lo cambia luego
@@ -33,7 +39,8 @@ HIDDEN_MODULES_BY_BUSINESS_TYPE = {
     "abarrotes": ["nav-comisiones", "nav-ordenes-venta"],
     "drogueria": ["nav-comisiones", "nav-servicios", "nav-ordenes-venta"],
     "licorera": ["nav-comisiones", "nav-servicios", "nav-garantias", "nav-ordenes-venta"],
-    # Bar y restaurante: POS con cuentas, Panel, Inventario, DIAN, Caja por turnos y Fiados.
+    # Bar y restaurante: POS con cuentas, Panel, Inventario, DIAN, Caja por turnos, Fiados,
+    # y además Clientes y Reportes (no ocultables).
     "bar": list(_NO_FIADOS),
     "restaurante": list(_NO_FIADOS),
     "ferreteria": ["nav-comisiones", "nav-servicios"],

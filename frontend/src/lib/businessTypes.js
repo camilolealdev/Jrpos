@@ -18,7 +18,8 @@ export const BUSINESS_TYPES = [
 // Módulos de la sidebar (por data-testid) que tiene sentido ocultar según la
 // cultura del negocio -- catálogo usado por la sección "Módulos visibles" de
 // Configuración. No incluye el core (POS, Inventario, Dashboard, Usuarios,
-// Configuración, Soporte) ni la suite DIAN/Facturación Electrónica.
+// Configuración, Soporte) ni la suite DIAN/Facturación Electrónica. Tampoco Clientes
+// (único lugar para crear a quién se le fía) ni Reportes (exportación contable).
 export const HIDEABLE_MODULES = [
   { tid: "nav-creditos", label: "Créditos (Fiado)" },
   { tid: "nav-comisiones", label: "Comisiones por vendedor" },
@@ -27,4 +28,8 @@ export const HIDEABLE_MODULES = [
   { tid: "nav-ordenes-compra", label: "Órdenes de Compra" },
   { tid: "nav-ordenes-venta", label: "Órdenes de Venta / Cotizaciones" },
   { tid: "nav-promociones", label: "Promociones y Ofertas" },
+  { tid: "nav-proveedores", label: "Proveedores" },
+  { tid: "nav-gastos", label: "Gastos / Pagos" },
+  { tid: "nav-facturas", label: "Escanear Factura (IA)" },
+  { tid: "nav-marcacion", label: "Marcación (asistencia)" },
 ];
