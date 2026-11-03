@@ -18,13 +18,14 @@ completa los valores si siguen en `0`, así que lo editado por el SuperAdmin no 
 
 ## Valores iniciales (referencia: MATIAS API)
 
-Incremento = precio anual del paquete de MATIAS API por NIT dividido en 12, redondeado hacia arriba a $1.000.
+Emprendedor y Pro: incremento = precio anual del paquete de MATIAS API por NIT dividido en 12, redondeado hacia arriba a $1.000
+(**sin margen en el modelo M2**, ver abajo). Franquicia: incremento calculado con un margen bruto objetivo del 35% sobre el peor costo.
 
 | Plan | Paquete de referencia | Anual | / 12 | Incremento | Docs / año | Total / mes (sin IVA) |
 |---|---|---|---|---|---|---|
 | Emprendedor ($49.000) | PYME "Básico", 1.200 docs | $265.000 | $22.083 | **$23.000** | 1.200 | $72.000 |
 | Negocio Pro ($89.000) | PYME "Emprendedor", 3.000 docs | $365.000 | $30.417 | **$31.000** | 3.000 | $120.000 |
-| Franquicia ($189.000) | "Paquetes por NIT", 15.000 docs | $750.000 | $62.500 | **$63.000** | 15.000 | $252.000 |
+| Franquicia ($189.000) | "Paquetes por NIT", 15.000 docs | $750.000 | $62.500 | **$110.000** (ver margen) | 15.000 | $299.000 |
 
 ## Estado de la referencia (leer antes de publicar)
 
@@ -36,8 +37,21 @@ Incremento = precio anual del paquete de MATIAS API por NIT dividido en 12, redo
   "Paquetes por NIT"; no está confirmado cuál ni si el paquete se comparte entre NIT.
 - **Costo que no está en el incremento:** en el modelo de casa de software el certificado digital se cobra
   aparte (referencia: $104.000 al año por NIT, unos $8.700 al mes).
-- **Margen estimado** (si las cifras de arriba son ciertas): Emprendedor y Pro tienen margen sobre el costo
-  mayorista; **Franquicia queda casi sin margen** (el incremento equivale al paquete por NIT de 15.000 docs).
-  Revisar antes de ofrecerlo.
+- **Margen (cifras de MATIAS sin verificar).** Dos modelos de costo posibles para JRPOS:
+  - **M1, pool de casa de software:** unos $40–44 por documento + certificado de $104.000 al año por NIT.
+  - **M2, paquete por NIT al precio público:** el paquete anual / 12 (en el plan PYME el certificado va incluido; en
+    "Paquetes por NIT" no se sabe, por eso el peor caso suma el certificado).
+
+  | Plan | Costo M1 / mes | Costo M2 / mes | M2 + certificado | Incremento | Margen M1 | Margen M2 |
+  |---|---|---|---|---|---|---|
+  | Emprendedor | $13.067 | $22.083 | $30.750 | $23.000 | 43% | 4% |
+  | Pro | $19.667 | $30.417 | $39.083 | $31.000 | 37% | 2% |
+  | Franquicia (antes) | $58.667 | $62.500 | $71.167 | $63.000 | 7% | 1% |
+  | **Franquicia (ahora)** | $58.667 | $62.500 | $71.167 | **$110.000** | **47%** | **43%** |
+
+  Franquicia pasó de $63.000 a **$110.000** para tener **35% de margen incluso en el peor costo** ($71.167).
+  **Emprendedor y Pro dependen de qué modelo aplique:** con M1 dejan 43% y 37%; con M2 quedan en ~0 y, si el
+  certificado se cobra aparte, en pérdida. Con la misma regla del 35% sobre el peor costo serían $48.000 y $61.000
+  de incremento (totales $97.000 y $150.000). No se aplicó: hay que confirmar primero el modelo real con MATIAS.
 - **Volumen:** una tienda con 40 ventas diarias emite ~14.600 documentos al año; los paquetes de Emprendedor y
   Pro se agotarían. Falta definir qué pasa al exceder el cupo (cobro por documento adicional o bloqueo).
