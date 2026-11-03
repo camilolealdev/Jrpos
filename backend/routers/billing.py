@@ -34,6 +34,8 @@ class PlatformPlanCreate(BaseModel):
     max_products: int = 5000
     ai_ocr_enabled: bool = True
     dian_enabled: bool = False
+    fe_addon_cop: float = 0.0
+    fe_docs_year: int = 0
     is_active: bool = True
 
 
@@ -90,6 +92,8 @@ async def get_platform_plans(session: AsyncSession = Depends(get_session)):
             "max_products": p.max_products,
             "ai_ocr_enabled": p.ai_ocr_enabled,
             "dian_enabled": p.dian_enabled,
+            "fe_addon_cop": p.fe_addon_cop,
+            "fe_docs_year": p.fe_docs_year,
         }
         for p in plans
     ]

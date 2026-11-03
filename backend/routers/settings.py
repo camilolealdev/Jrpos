@@ -8,6 +8,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user, require_admin
+from business_types import BUSINESS_TYPES
 from db import get_session
 from permissions import require_permission
 from models_sql import (
@@ -39,6 +40,7 @@ from models_sql import (
     SupportDoc,
     SupportDocItem,
     Timeclock,
+    Tenant,
     User,
     Warranty,
 )
@@ -327,6 +329,15 @@ async def save_general_settings(
             for key, value in data.items():
                 setattr(row, key, value)
         await session.commit()
+
+    # El rol de personal y el listado de la plataforma leen tenants.business_type: mantenerlo
+    # alineado. Un valor fuera del catálogo (tenants antiguos) se guarda en settings pero no
+    # toca el tenant, para no bloquear el guardado.
+    if payload.business_type in BUSINESS_TYPES:
+        tenant = await session.get(Tenant, tenant_id)
+        if tenant and tenant.business_type != payload.business_type:
+            tenant.business_type = payload.business_type
+            await session.commit()
 
     # Invalidar cache inmediatamente
     await delete_key(f"cache:settings_general:{tenant_id}")
