@@ -258,11 +258,11 @@ async def run_auto_migrations(session: AsyncSession) -> None:
 
     -- 4. Siembra de Planes SaaS por Defecto
     INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at, fe_addon_cop, fe_docs_year)
-    VALUES ('basico', 'Plan Emprendedor', 'Ideal para tiendas de barrio y pequeños comercios', 49000, 130000, 490000, 1, 2, 2000, TRUE, FALSE, TRUE, now(), 23000, 1200)
+    VALUES ('basico', 'Plan Emprendedor', 'Ideal para tiendas de barrio y pequeños comercios', 49000, 130000, 490000, 1, 2, 2000, TRUE, FALSE, TRUE, now(), 48000, 1200)
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at, fe_addon_cop, fe_docs_year)
-    VALUES ('pro', 'Plan Negocio Pro', 'Para minimercados, droguerías y comercios en crecimiento', 89000, 237000, 890000, 3, 10, 20000, TRUE, FALSE, TRUE, now(), 31000, 3000)
+    VALUES ('pro', 'Plan Negocio Pro', 'Para minimercados, droguerías y comercios en crecimiento', 89000, 237000, 890000, 3, 10, 20000, TRUE, FALSE, TRUE, now(), 61000, 3000)
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at, fe_addon_cop, fe_docs_year)
@@ -275,11 +275,11 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     UPDATE platform_plans SET price_quarterly_cop = 237000 WHERE id = 'pro';
     UPDATE platform_plans SET price_quarterly_cop = 499000 WHERE id = 'franquicia';
 
-    -- Incremento por factura electrónica (referencia: planes anuales de MATIAS API por NIT / 12,
-    -- redondeado hacia arriba; ver docs/PRECIOS_FACTURA_ELECTRONICA.md). Solo completa lo que siga
+    -- Incremento por factura electrónica: margen bruto del 35% sobre el peor costo, con la referencia de
+    -- MATIAS API (ver docs/PRECIOS_FACTURA_ELECTRONICA.md). Solo completa lo que siga
     -- en 0 para no pisar valores editados por el SuperAdmin.
-    UPDATE platform_plans SET fe_addon_cop = 23000, fe_docs_year = 1200 WHERE id = 'basico' AND fe_addon_cop = 0;
-    UPDATE platform_plans SET fe_addon_cop = 31000, fe_docs_year = 3000 WHERE id = 'pro' AND fe_addon_cop = 0;
+    UPDATE platform_plans SET fe_addon_cop = 48000, fe_docs_year = 1200 WHERE id = 'basico' AND fe_addon_cop = 0;
+    UPDATE platform_plans SET fe_addon_cop = 61000, fe_docs_year = 3000 WHERE id = 'pro' AND fe_addon_cop = 0;
     UPDATE platform_plans SET fe_addon_cop = 110000, fe_docs_year = 15000 WHERE id = 'franquicia' AND fe_addon_cop = 0;
 
     -- Ningún plan anuncia DIAN mientras la emisión sea simulada (DIAN_MODE != real).
