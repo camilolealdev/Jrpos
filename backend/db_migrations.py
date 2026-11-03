@@ -122,6 +122,8 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE tenants ADD COLUMN IF NOT EXISTS modules_config JSON;
     ALTER TABLE settings_general ADD COLUMN IF NOT EXISTS hidden_module_tids JSON;
     ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS price_quarterly_cop FLOAT NOT NULL DEFAULT 0.0;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS fe_addon_cop FLOAT NOT NULL DEFAULT 0.0;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS fe_docs_year INT NOT NULL DEFAULT 0;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions_override JSON;
@@ -255,16 +257,16 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS close_notes TEXT;
 
     -- 4. Siembra de Planes SaaS por Defecto
-    INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
-    VALUES ('basico', 'Plan Emprendedor', 'Ideal para tiendas de barrio y pequeños comercios', 49000, 130000, 490000, 1, 2, 2000, TRUE, FALSE, TRUE, now())
+    INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at, fe_addon_cop, fe_docs_year)
+    VALUES ('basico', 'Plan Emprendedor', 'Ideal para tiendas de barrio y pequeños comercios', 49000, 130000, 490000, 1, 2, 2000, TRUE, FALSE, TRUE, now(), 23000, 1200)
     ON CONFLICT (id) DO NOTHING;
 
-    INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
-    VALUES ('pro', 'Plan Negocio Pro', 'Para minimercados, droguerías y comercios en crecimiento', 89000, 237000, 890000, 3, 10, 20000, TRUE, FALSE, TRUE, now())
+    INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at, fe_addon_cop, fe_docs_year)
+    VALUES ('pro', 'Plan Negocio Pro', 'Para minimercados, droguerías y comercios en crecimiento', 89000, 237000, 890000, 3, 10, 20000, TRUE, FALSE, TRUE, now(), 31000, 3000)
     ON CONFLICT (id) DO NOTHING;
 
-    INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at)
-    VALUES ('franquicia', 'Plan Franquicia Multi-Sede', 'Para cadenas, distribuidoras y múltiples sucursales', 189000, 499000, 1890000, 10, 50, 100000, TRUE, FALSE, TRUE, now())
+    INSERT INTO platform_plans (id, name, description, price_cop, price_quarterly_cop, price_annual_cop, max_branches, max_users, max_products, ai_ocr_enabled, dian_enabled, is_active, created_at, fe_addon_cop, fe_docs_year)
+    VALUES ('franquicia', 'Plan Franquicia Multi-Sede', 'Para cadenas, distribuidoras y múltiples sucursales', 189000, 499000, 1890000, 10, 50, 100000, TRUE, FALSE, TRUE, now(), 63000, 15000)
     ON CONFLICT (id) DO NOTHING;
 
     -- Precio trimestral (~11-12% de descuento vs. 3x mensual); UPDATE idempotente
@@ -272,6 +274,13 @@ async def run_auto_migrations(session: AsyncSession) -> None:
     UPDATE platform_plans SET price_quarterly_cop = 130000 WHERE id = 'basico';
     UPDATE platform_plans SET price_quarterly_cop = 237000 WHERE id = 'pro';
     UPDATE platform_plans SET price_quarterly_cop = 499000 WHERE id = 'franquicia';
+
+    -- Incremento por factura electrónica (referencia: planes anuales de MATIAS API por NIT / 12,
+    -- redondeado hacia arriba; ver docs/PRECIOS_FACTURA_ELECTRONICA.md). Solo completa lo que siga
+    -- en 0 para no pisar valores editados por el SuperAdmin.
+    UPDATE platform_plans SET fe_addon_cop = 23000, fe_docs_year = 1200 WHERE id = 'basico' AND fe_addon_cop = 0;
+    UPDATE platform_plans SET fe_addon_cop = 31000, fe_docs_year = 3000 WHERE id = 'pro' AND fe_addon_cop = 0;
+    UPDATE platform_plans SET fe_addon_cop = 63000, fe_docs_year = 15000 WHERE id = 'franquicia' AND fe_addon_cop = 0;
 
     -- Ningún plan anuncia DIAN mientras la emisión sea simulada (DIAN_MODE != real).
     {dian_plans_sync}

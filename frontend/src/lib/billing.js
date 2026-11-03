@@ -25,6 +25,17 @@ export function periodSavingsPct(plan, period) {
   return Math.max(0, Math.round((1 - total / fullPrice) * 100));
 }
 
+// Incremento por factura electrónica para un periodo: el plan trae un valor mensual (fe_addon_cop)
+// y se le aplica el mismo descuento por periodo que al precio base. Redondeado a $100.
+export function fePeriodPrice(plan, period) {
+  const info = BILLING_PERIODS.find((p) => p.id === period);
+  const monthly = plan?.fe_addon_cop || 0;
+  if (!info || monthly <= 0) return 0;
+  const base = periodPrice(plan, period);
+  const ratio = plan.price_cop > 0 && base > 0 ? base / (plan.price_cop * info.months) : 1;
+  return Math.round((monthly * info.months * ratio) / 100) * 100;
+}
+
 export const copyToClipboard = async (text, label, toast) => {
   if (!text) return;
   try {

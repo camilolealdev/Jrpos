@@ -74,6 +74,10 @@ class PlatformPlan(Base):
     max_products: Mapped[int] = mapped_column(Integer, nullable=False, default=5000)
     ai_ocr_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     dian_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Precio con factura electrónica: incremento mensual (COP) sobre el plan base y documentos
+    # DIAN incluidos al año. 0 = el plan no ofrece la opción. No activa la emisión (ver dian_enabled).
+    fe_addon_cop: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    fe_docs_year: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Límite de requests por minuto para endpoints autenticados (Capa 1).
     # None o 0 = sin límite aplicado.
     rate_limit_rpm: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
